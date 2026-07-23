@@ -1,6 +1,6 @@
 ---
 name: Build Task
-about: A concrete deliverable for the 9Sonic Best Pinnacle Care build
+about: Planned deliverable with acceptance criteria (same shape as backlog stories)
 title: "[scope] <One-line summary>"
 labels: ["sprint:build", "type:feature", "client:best-pinnacle-care"]
 assignees: ""
@@ -32,7 +32,7 @@ Example: "Managers need to see a late-visit alert on the live board within 2 min
 ## Affected monorepo paths
 - [ ] `/pwa/...`
 - [ ] `/admin-web/...`
-- [ ] `/backend/...`
+- [ ] `/backend/...` (Rails)
 - [ ] `/contracts/...`
 - [ ] `/docs/...`
 

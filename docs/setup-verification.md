@@ -1,74 +1,83 @@
-# Setup verification — 9Sonic Best Pinnacle Care
+# Setup verification — process-ready project
 
 **Repo:** https://github.com/Mr-Macharia/9sonic-bestpinnaclecare  
 **Board:** https://github.com/users/Mr-Macharia/projects/3  
-**Configured:** 2026-07-23  
+**Last updated:** 2026-07-23  
+
+This repo is prepared for **project management and contribution process**. Application code (including Rails) is **not** scaffolded; freelancers add it via PRs.
 
 | Item | Status | Notes |
 |------|--------|--------|
-| Private monorepo `Mr-Macharia/9sonic-bestpinnaclecare` | **Done** | Created fresh; unrelated `9sonic/*` repos ignored |
-| Folders `/pwa` `/admin-web` `/backend` `/contracts` `/docs` | **Done** | On `main` |
-| Merged issue template | **Done** | `.github/ISSUE_TEMPLATE/build-task.md` |
-| Merged PR template | **Done** | `.github/pull_request_template.md` |
-| Definition of Done + CI docs + backlog copy | **Done** | Under `/docs` |
-| Labels (setup + MoSCoW/size/owner) | **Done** | 27 custom labels |
-| Milestones | **Done** | Foundation / Should / Could / Sprint 2 Test |
-| Project board columns | **Done** | Backlog · Ready · In Progress · In Review · Done |
-| Repo linked to project #3 | **Done** | |
-| Issues M1–M11 on **Ready** | **Done** | Issues #1–#11 |
-| Issues S12–S16 + C17–C20 on **Backlog** | **Done** | Issues #12–#20 |
-| Won’t issues | **Skipped** | By design |
-| Assignees | **None** | By design |
-| CI workflow | **Done** | Green on foundation push |
-| Secret scan (Gitleaks) | **Done** | Green on foundation push |
-| PR hygiene bot (Copilot + template reminders) | **Done** | Soft automation for free private plan |
-| Branch protection on `main` | **Blocked (plan)** | Requires GitHub Pro on private repos |
-| Ruleset auto-request Copilot | **Blocked (plan)** | Requires GitHub Pro on private repos |
-| Project built-in workflows toggles | **Manual residual** | API cannot enable; UI steps below |
+| Private monorepo folders | **Done** | Empty of app code by design |
+| CONTRIBUTING.md | **Done** | Issues, features, bugs, board, PR gate |
+| PM guide | **Done** | `docs/project-management.md` |
+| Tech expectations | **Done** | Rails backend stated in `docs/tech-stack.md` |
+| Issue templates | **Done** | Feature, Bug, Build Task + chooser |
+| PR template + DoD | **Done** | |
+| Labels + milestones | **Done** | |
+| 20 backlog issues | **Done** | M Ready; S/C Backlog |
+| Board columns | **Done** | Backlog → Ready → In Progress → In Review → Done |
+| Work type field | **Done** | Feature / Bug / Chore on project |
+| Roadmap view | **Manual** | Create once in UI (API cannot create views) — steps below |
+| Board rename views | **Manual** | Rename “View 1” → Table, board view → Board if desired |
+| Project workflows | **Manual** | ⋯ → Workflows |
+| CI + secret scan + PR hygiene | **Done** | |
+| Branch protection / Copilot ruleset | **Blocked without Pro** | Free private limit |
+| Collaborators | **Not added** | By design (invite later) |
+| Auto-delete branches | **Off** | No-delete policy |
+| Application / Rails code | **Not written** | By design |
 
 ---
 
-## Residual steps for you (short)
+## Manual: add Roadmap view (2 minutes)
 
-### A. Unlock full protection + Copilot auto-assign (recommended)
+GitHub’s API cannot create project views. Do this once:
 
-1. Upgrade the account that owns the private repo to **GitHub Pro** (or move the repo to a Team/Enterprise org).
-2. Then either re-run setup or apply manually:
-   - **Settings → Branches → Add branch protection rule** for `main`:
-     - Require PR before merging  
-     - Require 1 approval  
-     - Dismiss stale approvals  
-     - Require conversation resolution  
-     - Include administrators  
-     - Require status check **`CI summary`**  
-     - No force pushes / no deletions  
-   - **Settings → Rules → Rulesets → New branch ruleset** named `Auto-request Copilot review`:
-     - Target default branch  
-     - Pull requests → **Request pull request review from Copilot**
+1. Open https://github.com/users/Mr-Macharia/projects/3  
+2. Next to existing views, click **+ New view** (or the view tab menu).  
+3. Choose **Roadmap** (timeline).  
+4. Name it **Roadmap**.  
+5. Group or filter by **Milestone** (Foundation / Should / Could / Test).  
+6. Optional: rename other views to **Board** and **Table**.
 
-Until then: freelancers assign **Copilot** under Reviewers on every PR. The PR hygiene bot will remind them.
-
-### B. Project board workflows (2 minutes)
-
-Open https://github.com/users/Mr-Macharia/projects/3 → **⋯** → **Workflows** → enable:
-
-| Workflow | Suggested setting |
-|----------|-------------------|
-| **Auto-add to project** | Issues + PRs from `9sonic-bestpinnaclecare` → new issues **Backlog**, new PRs **In Review** |
-| **Item closed** | → **Done** |
-| **Pull request merged** | Linked issues → **Done** |
-
-(Items already on the board were placed correctly: Must = Ready, Should/Could = Backlog.)
-
-### C. Invite freelancers
-
-**Settings → Collaborators** → add GitHub usernames with **Write** access.
+You now have Board (status) + Roadmap (plan) on the **same** project.
 
 ---
 
-## Day-one PM checklist
+## Manual: enable project workflows
 
-1. Open the [board](https://github.com/users/Mr-Macharia/projects/3) — Must items are in **Ready**.  
-2. Share the repo URL with freelancers; tell them to pick from Ready, branch from `main`, open PR with template.  
-3. On every PR: confirm Copilot reviewed, CI green, screenshot if UI, contracts not drifting alone.  
-4. When you get Pro: flip residual A above so the process enforces itself.
+**Board → ⋯ → Workflows** → enable:
+
+| Workflow | Setting |
+|----------|---------|
+| Auto-add to project | Issues + PRs from `9sonic-bestpinnaclecare` |
+| Item closed | → **Done** |
+| Pull request merged | Linked issues → **Done** |
+
+---
+
+## Manual: GitHub Pro (optional but recommended)
+
+Enables branch protection on `main` and ruleset **Auto-request Copilot review**.  
+Until then: freelancers assign Copilot manually; PR hygiene bot reminds them.
+
+---
+
+## When you invite freelancers later
+
+1. Settings → Collaborators → Write access.  
+2. Send them: repo URL + CONTRIBUTING + board link.  
+3. They pick from **Ready** only.
+
+---
+
+## Process-ready definition (met)
+
+A freelancer can answer without WhatsApp:
+
+1. Where is my work? → Board **Ready**  
+2. Feature vs bug? → Issue templates  
+3. How does status move? → CONTRIBUTING lifecycle  
+4. How do I ship? → Branch → PR → Copilot → CI → PM  
+5. Backend? → **Rails in `/backend`**  
+6. 15-day plan? → Roadmap + milestones (after Roadmap view created)
