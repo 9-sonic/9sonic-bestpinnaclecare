@@ -1,16 +1,16 @@
 # 9Sonic — Best Pinnacle Care
 
-Private monorepo prepared for **delivery management** of the 15-day Clock In / Clock Out build.
+Private monorepo for the **15-day Clock In / Clock Out build** for Best Pinnacle Care.
 
-**Product code is not pre-written here.** Freelancers add it under the folders below via pull requests.  
-**Backend expectation:** **Ruby on Rails** in `/backend` (see [docs/tech-stack.md](./docs/tech-stack.md)).
+GitHub is the single source of truth. Product code lands here through pull requests — nothing is invented in side repos. **Backend is Ruby on Rails** under `/backend`.
 
 | Resource | Link |
 |----------|------|
-| **Project board + roadmap** | [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3) |
-| **How we work** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
-| **PM check-in guide** | [docs/project-management.md](./docs/project-management.md) |
+| **Project (board + roadmap)** | [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3) |
+| **How the team works** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
+| **How delivery is run** | [docs/project-management.md](./docs/project-management.md) |
 | **Definition of Done** | [docs/definition_of_done.md](./docs/definition_of_done.md) |
+| **Stack expectations** | [docs/tech-stack.md](./docs/tech-stack.md) |
 | **Product backlog (source)** | [docs/backlog.md](./docs/backlog.md) |
 
 ---
@@ -23,69 +23,75 @@ Private monorepo prepared for **delivery management** of the 15-day Clock In / C
 | [`/admin-web`](./admin-web) | Manager website — live board, alerts, timesheets, export |
 | [`/backend`](./backend) | **Rails** API and automation |
 | [`/contracts`](./contracts) | Shared API shapes between PWA, admin-web, and Rails |
-| [`/docs`](./docs) | Process, backlog, PM notes |
+| [`/docs`](./docs) | Process, backlog, delivery notes |
 
-### Contracts red flag (PM)
+### Contracts rule
 
-PRs that touch `/contracts` without a matching consumer change may break the handshake between carer and manager apps. Ask which PR consumes the change.
+A PR that changes `/contracts` without a matching consumer change in `/pwa`, `/admin-web`, or `/backend` is incomplete. The carer app, manager app, and Rails API must stay aligned.
 
 ---
 
-## How work is managed
+## How work moves
 
 ```text
 Backlog → Ready → In Progress → In Review → Done
 ```
 
-- **Board view** — daily status  
-- **Roadmap view** — plan vs milestones (15-day build + test)  
-- **Issues** — Must items start in **Ready**; Should/Could in **Backlog**  
-- **New work** — use issue templates: **Feature**, **Bug**, or **Build Task**  
-- **Shipping** — short-lived branch → PR (template) → Copilot review → CI green → PM gate → merge  
+- **Board** — what is ready, in flight, in review, or done  
+- **Roadmap** — plan against milestones (15-day build + test window)  
+- **Must** work (`[M1]`–`[M11]`) sits in **Ready**  
+- **Should / Could** sit in **Backlog** until promoted  
+- New work uses **Feature**, **Bug**, or **Build Task** issue templates  
+- Shipping path: branch → PR (template filled) → **Copilot** review → CI green → PM review → merge to `main`
 
 Full rules: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
-### Suggested Must order
+### Must build order
 
-Auth + Rails foundation → shifts → carer dashboard → clock in/out → offline → live board → alerts → timesheets → export.  
-Details in CONTRIBUTING.
+Auth + Rails foundation → shifts → carer dashboard → clock in/out → offline → live board → alerts → timesheets → export.
 
 ---
 
-## For freelancers (quick start)
+## Starting work (developers)
 
 1. Read [CONTRIBUTING.md](./CONTRIBUTING.md).  
-2. Open the board → pick from **Ready**.  
-3. Comment `Taking this`, set **In Progress**, branch from `main`.  
-4. Open a PR with `Closes #…`, assign **Copilot**, keep CI green.  
-5. Rails work goes in `/backend`; do not invent another repo.
+2. Open the [board](https://github.com/users/Mr-Macharia/projects/3) → take from **Ready**.  
+3. Comment `Taking this`, set status **In Progress**, branch from `main`.  
+4. Open a PR with `Closes #…`, assign **Copilot**, keep **CI** and **Secret scan** green.  
+5. Rails changes go in `/backend` only.
 
 ---
 
-## For the PM (quick start)
+## Delivery rhythm (PM)
 
-1. Use [docs/project-management.md](./docs/project-management.md) for 3–4 day check-ins.  
-2. Watch **In Review** and `priority:critical` bugs.  
-3. Enable board **Workflows** (⋯ → Workflows) so cards move on close/merge.  
-4. When on GitHub Pro: branch protection + Copilot auto-request (see [docs/setup-verification.md](./docs/setup-verification.md)).  
-5. Invite freelancers when you are ready (not required for this process setup).
+Check-ins every **3–4 days** (WhatsApp). Between calls, the board is the status report:
+
+- **Done** / merged PRs — what shipped  
+- **In Review** — waiting on Copilot or PM  
+- **In Progress** — active work and blockers  
+- **Ready** — enough clear work for the next evenings  
+- **`priority:critical`** — bugs that cut the line  
+
+Operating detail: [docs/project-management.md](./docs/project-management.md).
 
 ---
 
-## Automation already on
+## Automation
 
 | Automation | Role |
 |------------|------|
-| **CI** | Path-aware checks when packages exist; always runs layout hygiene |
-| **Secret scan** | Fails if secrets look committed |
-| **PR hygiene** | Reminds about linked issues and Copilot on private free plans |
+| **CI** | Layout hygiene; package checks when code appears |
+| **Secret scan** | Blocks obvious committed secrets |
+| **PR hygiene** | Requires linked issues, scope, and Copilot assignment |
 
-**Project workflows** (auto-move board cards) are configured by you on the project UI — not the same as Actions.
+Board **Workflows** auto-move cards when enabled on the project (⋯ → Workflows): closed → Done, PR merged → linked issue Done, auto-add new issues/PRs. Until those toggles are on, the team updates **Status** on the board by hand.
 
 ---
 
-## Policy notes
+## House rules
 
-- **No delete culture:** do not delete issues, milestones, or project history to tidy up; do not rely on auto-delete of branches.  
-- **No second board:** one project — Best Pinnacle — with Board + Roadmap views.  
-- Application scaffolds (Rails app, frontend apps) arrive via freelancers’ PRs linked to issues.
+- One project only: **Best Pinnacle** (Board + Roadmap + Table).  
+- Do not delete issues, milestones, or project history to “clean up.”  
+- Branches are not auto-deleted.  
+- No secrets in git.  
+- App code (Rails, PWA, admin) arrives only via issue-linked PRs.

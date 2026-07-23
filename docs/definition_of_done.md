@@ -1,11 +1,11 @@
 # Definition of Done — Best Pinnacle Care (15-day build)
 
-A task is **done** only when all of the following are true:
+Work is **done** only when all of the following are true.
 
 ## Product
 
-- [ ] Every acceptance criterion on the issue is checked off or explicitly deferred with PM agreement
-- [ ] Happy path works for the carer or manager persona
+- [ ] Every acceptance criterion on the issue is checked off or explicitly deferred with agreement on the issue
+- [ ] Happy path works for the carer or manager
 - [ ] Error and empty states are handled (no blank screen / silent failure)
 - [ ] Offline / no-signal behaviour is handled when the work touches clocking, maps, or sync
 - [ ] Client-visible behaviour matches the operational description on the issue/PR
@@ -21,12 +21,12 @@ A task is **done** only when all of the following are true:
 
 - [ ] PR template completed (scope, outcome, how to test, checklist)
 - [ ] Issue linked (`Closes #` / `Fixes #`)
-- [ ] **Copilot** has reviewed the PR; critical findings are resolved or explicitly accepted by PM
+- [ ] **Copilot** has reviewed the PR; critical findings are resolved or explicitly accepted
 - [ ] Human / PM gate applied (especially for `scope:contracts`, `scope:backend`, auth, alerts, timesheets)
-- [ ] UI PRs include a screenshot compared against expected carer/manager behaviour
-- [ ] **CI is green** (`ci-summary` and secret scan)
+- [ ] UI PRs include a screenshot of the carer/manager screen
+- [ ] **CI is green** (`CI summary` and secret scan)
 
 ## Board
 
 - [ ] PR merged to `main`
-- [ ] Linked issue moved to **Done** (automation should do this; PM verifies on the board)
+- [ ] Linked issue is **Done** on the Best Pinnacle board

@@ -1,6 +1,6 @@
 # Contributing — Best Pinnacle Care (9Sonic)
 
-This repository is **process-ready** for a 15-day build. Product code is added by freelancers through pull requests. The **project manager does not write application code**; freelancers do. GitHub is the single source of truth. WhatsApp is only for cadence and urgent blockers.
+This monorepo is the only place product work for the 15-day Best Pinnacle Care build is tracked and merged. GitHub is the source of truth. WhatsApp is for check-ins every 3–4 days and real blockers — not for status that belongs on the board.
 
 **Board:** [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3)  
 **Repo:** https://github.com/Mr-Macharia/9sonic-bestpinnaclecare  
@@ -11,9 +11,11 @@ This repository is **process-ready** for a 15-day build. Product code is added b
 
 | Role | Responsibility |
 |------|----------------|
-| **PM** | Prioritise Ready work, answer operational questions, run the quality gate on PRs, manage the board |
-| **Freelancers** | Implement features/bugs in the monorepo, open PRs, respond to Copilot and PM |
-| **Copilot** | First automated code review on every PR (assign manually if not auto-requested) |
+| **PM** | Priority, Ready queue, operational answers, final PR gate, board health |
+| **Developers** | Implement features and bugs, open PRs, respond to Copilot and review comments |
+| **Copilot** | First review on every PR (assign under Reviewers → `copilot` if not already requested) |
+
+The PM does not implement application code. Developers own `/pwa`, `/admin-web`, and `/backend` (Rails).
 
 ---
 
@@ -21,48 +23,42 @@ This repository is **process-ready** for a 15-day build. Product code is added b
 
 | Path | Purpose |
 |------|---------|
-| `/pwa` | Carer mobile PWA (frontend) |
-| `/admin-web` | Manager website (frontend) |
-| `/backend` | **Ruby on Rails** API and automation |
-| `/contracts` | Shared API shapes / schemas between apps |
-| `/docs` | Process, backlog, tech expectations, PM notes |
+| `/pwa` | Carer mobile PWA |
+| `/admin-web` | Manager website |
+| `/backend` | **Ruby on Rails** API and jobs |
+| `/contracts` | Shared API shapes between apps |
+| `/docs` | Process, backlog, delivery notes |
 
-See [docs/tech-stack.md](./docs/tech-stack.md). **Do not invent a second repository.**
+See [docs/tech-stack.md](./docs/tech-stack.md). **Do not open a second repository for this build.**
 
-### Contracts red flag (PM)
+### Contracts rule
 
-If a PR changes `/contracts` without updating `/pwa`, `/admin-web`, or `/backend`, the carer and manager apps may disagree with Rails. Ask: *Which PR consumes this change?*
+If a PR changes `/contracts` without updating the consumers (`/pwa`, `/admin-web`, and/or `/backend`), it is incomplete. State which PR completes the handshake.
 
 ---
 
 ## Types of work
 
-Use the right **issue template** when creating new work:
+| Type | When | Template |
+|------|------|----------|
+| **Build Task** | Planned deliverable with acceptance criteria | Build Task |
+| **Feature** | New capability not already filed as `[M#]` / `[S#]` / `[C#]` | Feature |
+| **Bug** | Incorrect or broken behaviour | Bug |
 
-| Type | When to use | Template |
-|------|-------------|----------|
-| **Build Task** | Planned deliverable with acceptance criteria (same shape as backlog stories) | Build Task |
-| **Feature** | New capability not already captured as an `[M#]` / `[S#]` / `[C#]` issue | Feature |
-| **Bug** | Something broken or incorrect behaviour | Bug |
+Backlog stories `[M1]`–`[M11]`, `[S12]`–`[S16]`, `[C17]`–`[C20]` already exist. Prefer them over duplicates.
 
-**Existing backlog** issues (`[M1]`…`[M11]`, `[S12]`…, `[C17]`…) are already filed. Prefer those over creating duplicates.
+### Labels (minimum on every issue)
 
-### Labels (minimum)
-
-Every issue should have:
-
-- One **`scope:*`** (`scope:pwa`, `scope:admin-web`, `scope:backend`, `scope:contracts`, `scope:docs`)
-- One **`type:*`** (`type:feature`, `type:bug`, `type:debt`)
-- One **`priority:*`** when known (`priority:critical`, `priority:high`, `priority:low`)
-- **`sprint:build`** during the 15-day build (or `sprint:test` in the test window)
-- **`client:best-pinnacle-care`** for client-visible work
-- MoSCoW helpers when relevant: `moscow:must` / `should` / `could`
+- One **`scope:*`**: `scope:pwa` · `scope:admin-web` · `scope:backend` · `scope:contracts` · `scope:docs`  
+- One **`type:*`**: `type:feature` · `type:bug` · `type:debt`  
+- One **`priority:*`** when known: `priority:critical` · `priority:high` · `priority:low`  
+- **`sprint:build`** (or `sprint:test` in the test window)  
+- **`client:best-pinnacle-care`** for client-visible work  
+- MoSCoW when relevant: `moscow:must` · `moscow:should` · `moscow:could`  
 
 ---
 
-## Board lifecycle (Status)
-
-All work uses the **same Status values** on the Best Pinnacle board:
+## Board lifecycle
 
 ```text
 Backlog → Ready → In Progress → In Review → Done
@@ -70,41 +66,41 @@ Backlog → Ready → In Progress → In Review → Done
 
 | Status | Meaning |
 |--------|---------|
-| **Backlog** | Defined, but not cleared for pickup (open questions, or Should/Could waiting) |
-| **Ready** | Clear enough to start in an evening session without asking the PM first |
-| **In Progress** | Someone is actively working; a branch usually exists |
-| **In Review** | Pull request is open |
+| **Backlog** | Defined but not released for pickup |
+| **Ready** | Clear enough to start without unanswered product questions |
+| **In Progress** | Actively being built; branch usually exists |
+| **In Review** | PR open |
 | **Done** | Merged to `main` and accepted (or closed as not doing) |
 
-### Alignment rules
+### Default alignment
 
-| Work | Default Status | Default Milestone |
-|------|----------------|-------------------|
-| Must (`[M#]`) | Ready | Sprint 1 — Foundation |
-| Should (`[S#]`) | Backlog | Sprint 1 — Should |
-| Could (`[C#]`) | Backlog | Sprint 1 — Could |
-| New Feature | Backlog (PM moves to Ready) | Sprint 1 — Foundation unless PM says otherwise |
-| Bug critical/high | Ready | Current sprint milestone |
+| Work | Status | Milestone |
+|------|--------|-----------|
+| Must `[M#]` | Ready | Sprint 1 — Foundation |
+| Should `[S#]` | Backlog | Sprint 1 — Should |
+| Could `[C#]` | Backlog | Sprint 1 — Could |
+| New Feature | Backlog until PM marks Ready | Sprint 1 — Foundation (unless stated otherwise) |
+| Bug critical / high | Ready | Current sprint milestone |
 | Bug low | Backlog | Current sprint milestone |
 | Open PR | In Review | — |
 
-**Roadmap view** on the same project shows work against milestones/time. Use it for the 15-day plan; use the **Board** for daily status.
+Use the **Board** for status and the **Roadmap** for plan vs milestones. Same cards, different views. **Work type** on the project: Feature · Bug · Chore.
 
 ---
 
-## How to claim and finish work
+## Claim → ship
 
-### 1. Pick work
+### 1. Pick
 
-1. Open the [board](https://github.com/users/Mr-Macharia/projects/3) → **Board** view.  
-2. Take items from **Ready** (Must first).  
-3. Do not start Should/Could unless Must pace allows or the PM promotes them to Ready.
+1. Open [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3) → **Board**.  
+2. Take from **Ready** (Must first).  
+3. Do not start Should/Could unless Must is on track or the PM has promoted the card to Ready.
 
 ### 2. Claim
 
 1. Comment on the issue: `Taking this`.  
 2. Set Status to **In Progress**.  
-3. Create a branch from latest `main`:
+3. Branch from latest `main`:
 
 ```text
 feat/<short-name>
@@ -112,40 +108,36 @@ fix/<short-name>
 docs/<short-name>
 ```
 
-Examples: `feat/carer-pwa-login`, `fix/late-alert-grace`.
-
 ### 3. Implement
 
-- Keep changes in the correct package path.  
-- Rails backend work belongs under `/backend`.  
-- Follow [Definition of Done](./docs/definition_of_done.md).  
-- Prefer small PRs over large multi-day branches.
+- Stay in the correct package path.  
+- Rails work only under `/backend`.  
+- Meet [Definition of Done](./docs/definition_of_done.md).  
+- Prefer small PRs.
 
-### 4. Open a pull request
+### 4. Pull request
 
-1. Fill the **PR template** completely.  
-2. Link the issue: `Closes #123` (or `Fixes #123`).  
-3. Tick monorepo **Scope** checkboxes.  
-4. Describe the **Best Pinnacle Care outcome** in operational language.  
-5. Attach **screenshots** for any UI change (`/pwa` or `/admin-web`).  
-6. Assign **Copilot** as a reviewer (Reviewers → search `copilot`).  
-7. Ensure **CI** and **Secret scan** are green.  
-8. Move the board card to **In Review** (or rely on project workflow if enabled).
+1. Complete the PR template.  
+2. Link the issue: `Closes #123` or `Fixes #123`.  
+3. Tick monorepo **Scope**.  
+4. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
+5. Screenshots required for UI (`/pwa` or `/admin-web`).  
+6. Assign **Copilot** as reviewer.  
+7. Keep **CI summary** and **Secret scan** green.  
+8. Set board Status to **In Review**.
 
-### 5. Review gate
-
-Before merge:
+### 5. Review gate (before merge)
 
 1. Copilot has reviewed; critical findings resolved.  
-2. Human/PM approval when required.  
+2. PM / human approval when required.  
 3. No secrets committed.  
-4. Contracts and consumers stay in sync.
+4. Contracts and consumers aligned.
 
 ### 6. After merge
 
-- Linked issue should move to **Done** (automatic when project workflows are on).  
-- **Do not delete issues, milestones, or project history.**  
-- **Do not assume branches are auto-deleted** — leave branches unless the PM asks otherwise.
+- Linked issue moves to **Done** (by workflow when enabled, otherwise update the board).  
+- Do not delete issues, milestones, or project history.  
+- Branches are not auto-deleted.
 
 ---
 
@@ -153,74 +145,59 @@ Before merge:
 
 ### Features / build tasks
 
-- Start from acceptance criteria.  
-- Update AC checkboxes on the issue as you complete them.  
-- If scope grows, comment and ask the PM before expanding.
+- Work from acceptance criteria; tick them off on the issue.  
+- Scope growth needs a comment and PM agreement before expanding.
 
 ### Bugs
 
 1. Use the **Bug** template.  
-2. Set **priority** (critical = auth, missed-visit, payroll/export, data loss).  
-3. Note environment: PWA / admin-web / Rails, browser/device if known.  
-4. Link the original feature issue if this is a regression.  
-5. Critical/high bugs may cut in front of features — PM confirms on Ready.
+2. Set priority (`priority:critical` for auth, missed-visit/alerts, payroll/export, data loss/security).  
+3. Note surface: PWA / admin-web / Rails, and device/browser if known.  
+4. Link the related feature issue if this is a regression.  
+5. Critical/high bugs may jump the queue — they go to **Ready**.
 
 ### Blocked
 
-- Apply label `status:blocked`.  
-- Comment: what you need, from whom, by when.  
-- Leave Status as In Progress or move to Backlog only if work fully stops.
+- Label `status:blocked`.  
+- Comment: what is needed, from whom.  
+- Keep Status accurate (In Progress if partially active; otherwise leave context on the issue).
 
 ---
 
-## Suggested build order (Must)
+## Must build order
 
-Work roughly in this order to avoid blocked freelancers:
+1. **M3** Rails foundation with **M1** / **M2** auth  
+2. **M4** shifts → **M5** carer dashboard  
+3. **M6** clock in/out → **M7** offline sync  
+4. **M8** live board → **M9** late/missed alerts  
+5. **M10** timesheets → **M11** export  
 
-1. **M3** Backend foundation (Rails) alongside **M1** / **M2** auth  
-2. **M4** Shift assignment → **M5** Carer dashboard  
-3. **M6** Clock in/out → **M7** Offline sync  
-4. **M8** Live board → **M9** Late/missed alerts  
-5. **M10** Timesheets → **M11** Export  
-
-Should/Could only after Must is on track.
+Should/Could only when Must pace allows.
 
 ---
 
 ## Secrets and care data
 
-- Never commit `.env`, API keys, JWT secrets, or database passwords.  
-- Use `.env.example` with empty placeholders only.  
-- Location and shift data are sensitive — treat production-like data carefully.
+- Never commit `.env`, keys, tokens, or database passwords.  
+- `.env.example` may hold empty placeholders only.  
+- Location and shift data are sensitive.
 
 ---
 
-## What not to do
+## Do not
 
-- Do not push straight to `main` if branch protection is enabled; use a PR.  
-- Do not create a second GitHub Project board.  
-- Do not delete issues or rewrite history to “clean up.”  
-- Do not skip the PR template or Copilot review.  
-- Do not change `/contracts` without a consumer plan.
-
----
-
-## Project workflows (PM)
-
-**Workflows** on the board auto-move cards (separate from GitHub Actions CI).
-
-PM should enable under board → **⋯** → **Workflows**:
-
-- Auto-add issues and PRs from this repo  
-- Item closed → Done  
-- Pull request merged → linked issues → Done  
-
-Until enabled, freelancers and PM update Status manually.
+- Push straight to `main` when protection requires a PR — always open a PR.  
+- Create a second GitHub Project for this build.  
+- Delete issues or rewrite history to tidy the board.  
+- Skip the PR template or Copilot review.  
+- Change `/contracts` without a consumer plan.
 
 ---
 
 ## Questions
 
-- **Product / priority / Ready:** PM (issue comment preferred).  
-- **Implementation detail:** freelancers on the PR or issue.  
-- **WhatsApp:** check-ins every 3–4 days and true blockers only.
+| Topic | Where |
+|-------|--------|
+| Priority, Ready, product intent | PM — prefer an issue comment |
+| Implementation | Developers on the issue/PR |
+| Urgent blockers / demos | WhatsApp (3–4 day rhythm) |

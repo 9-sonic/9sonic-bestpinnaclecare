@@ -39,11 +39,10 @@ jobs:
             }
             if (needCopilot) {
               lines.push('### Copilot review (required)');
-              lines.push('This private repo cannot auto-assign Copilot without **GitHub Pro** branch rulesets.');
-              lines.push('**Assign Copilot manually:** Reviewers → search `copilot` → select **Copilot**.');
+              lines.push('**Assign Copilot:** Reviewers → search `copilot` → select **Copilot**.');
               lines.push('Do not merge until Copilot has commented and critical findings are resolved.');
               lines.push('');
-              lines.push('Also wait for **CI summary** and **Secret scan** to pass.');
+              lines.push('**CI summary** and **Secret scan** must be green.');
             }
             if (!lines.length) return;
 

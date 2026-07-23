@@ -1,83 +1,76 @@
-# Setup verification — process-ready project
+# Setup status — Best Pinnacle Care delivery
 
 **Repo:** https://github.com/Mr-Macharia/9sonic-bestpinnaclecare  
-**Board:** https://github.com/users/Mr-Macharia/projects/3  
-**Last updated:** 2026-07-23  
+**Project:** https://github.com/users/Mr-Macharia/projects/3  
+**As of:** 2026-07-23  
 
-This repo is prepared for **project management and contribution process**. Application code (including Rails) is **not** scaffolded; freelancers add it via PRs.
+Process and tracking are in place. Application code (including Rails) is added only through PRs.
 
 | Item | Status | Notes |
 |------|--------|--------|
-| Private monorepo folders | **Done** | Empty of app code by design |
-| CONTRIBUTING.md | **Done** | Issues, features, bugs, board, PR gate |
-| PM guide | **Done** | `docs/project-management.md` |
-| Tech expectations | **Done** | Rails backend stated in `docs/tech-stack.md` |
-| Issue templates | **Done** | Feature, Bug, Build Task + chooser |
-| PR template + DoD | **Done** | |
-| Labels + milestones | **Done** | |
-| 20 backlog issues | **Done** | M Ready; S/C Backlog |
-| Board columns | **Done** | Backlog → Ready → In Progress → In Review → Done |
-| Work type field | **Done** | Feature / Bug / Chore on project |
-| Roadmap view | **Manual** | Create once in UI (API cannot create views) — steps below |
-| Board rename views | **Manual** | Rename “View 1” → Table, board view → Board if desired |
-| Project workflows | **Manual** | ⋯ → Workflows |
-| CI + secret scan + PR hygiene | **Done** | |
-| Branch protection / Copilot ruleset | **Blocked without Pro** | Free private limit |
-| Collaborators | **Not added** | By design (invite later) |
-| Auto-delete branches | **Off** | No-delete policy |
-| Application / Rails code | **Not written** | By design |
+| Private monorepo layout | Active | `/pwa` `/admin-web` `/backend` `/contracts` `/docs` |
+| CONTRIBUTING | Active | Features, bugs, board, PR gate |
+| Delivery guide | Active | `docs/project-management.md` |
+| Stack expectations | Active | Rails in `/backend` — `docs/tech-stack.md` |
+| Issue templates | Active | Feature, Bug, Build Task |
+| PR template + DoD | Active | |
+| Labels + milestones | Active | |
+| Backlog issues | Active | #1–#11 Ready; #12–#20 Backlog |
+| Board Status columns | Active | Backlog → Ready → In Progress → In Review → Done |
+| Work type field | Active | Feature / Bug / Chore |
+| Roadmap view | Configure on project | **+ New view → Roadmap** if not visible; group by Milestone |
+| Project workflows | Configure on project | ⋯ → Workflows: auto-add, closed → Done, PR merged → Done |
+| CI + secret scan + PR hygiene | Active | |
+| Branch protection / Copilot ruleset | Account limit | Private free tier; enable under Pro if/when the account has it |
+| Auto-delete branches | Off | Intentional |
+| Application code | Via PRs only | No pre-scaffolded Rails/app code |
 
 ---
 
-## Manual: add Roadmap view (2 minutes)
+## Project UI configuration (if not already applied)
 
-GitHub’s API cannot create project views. Do this once:
+### Roadmap view
 
-1. Open https://github.com/users/Mr-Macharia/projects/3  
-2. Next to existing views, click **+ New view** (or the view tab menu).  
-3. Choose **Roadmap** (timeline).  
-4. Name it **Roadmap**.  
-5. Group or filter by **Milestone** (Foundation / Should / Could / Test).  
-6. Optional: rename other views to **Board** and **Table**.
+1. Open [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3).  
+2. **+ New view** → **Roadmap**.  
+3. Name: **Roadmap**.  
+4. Group / filter by **Milestone**.  
+5. Rename other views to **Board** and **Table** if names are still generic.
 
-You now have Board (status) + Roadmap (plan) on the **same** project.
+### Workflows
 
----
+**⋯ → Workflows** — enable:
 
-## Manual: enable project workflows
+| Workflow | Behaviour |
+|----------|-----------|
+| Auto-add to project | Issues and PRs from this repo |
+| Item closed | → Done |
+| Pull request merged | Linked issues → Done |
 
-**Board → ⋯ → Workflows** → enable:
+### Branch protection and Copilot auto-request
 
-| Workflow | Setting |
-|----------|---------|
-| Auto-add to project | Issues + PRs from `9sonic-bestpinnaclecare` |
-| Item closed | → **Done** |
-| Pull request merged | Linked issues → **Done** |
+Requires GitHub Pro (or equivalent) on a private repo. When available:
 
----
+- Protect `main`: PR required, 1 approval, dismiss stale, conversation resolution, include admins, require **CI summary**  
+- Ruleset: auto-request **Copilot** review on PRs to `main`  
 
-## Manual: GitHub Pro (optional but recommended)
-
-Enables branch protection on `main` and ruleset **Auto-request Copilot review**.  
-Until then: freelancers assign Copilot manually; PR hygiene bot reminds them.
+Until then the process still holds: every PR assigns Copilot by hand; PR hygiene and CI enforce the rest.
 
 ---
 
-## When you invite freelancers later
+## Team access
 
-1. Settings → Collaborators → Write access.  
-2. Send them: repo URL + CONTRIBUTING + board link.  
-3. They pick from **Ready** only.
+Collaborators with **Write** on the repo work from **Ready**, follow CONTRIBUTING, and open PRs. Access is granted when people join the build — not as a separate “setup phase.”
 
 ---
 
-## Process-ready definition (met)
+## Ready means
 
-A freelancer can answer without WhatsApp:
+Anyone with access can answer from GitHub alone:
 
-1. Where is my work? → Board **Ready**  
-2. Feature vs bug? → Issue templates  
-3. How does status move? → CONTRIBUTING lifecycle  
-4. How do I ship? → Branch → PR → Copilot → CI → PM  
-5. Backend? → **Rails in `/backend`**  
-6. 15-day plan? → Roadmap + milestones (after Roadmap view created)
+1. What to pick up → Board **Ready**  
+2. Feature vs bug → issue templates  
+3. How status moves → CONTRIBUTING  
+4. How to ship → branch → PR → Copilot → CI → PM  
+5. Backend → **Rails in `/backend`**  
+6. Plan over 15 days → Roadmap + milestones  
