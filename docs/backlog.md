@@ -1,7 +1,6 @@
 # 9Sonic Clock In/Out — Product Backlog for Best Pinnacle Care (15-Day Build)
 
-## MoSCoW Reasoning for This Build
-You are working with two part-time freelancers who have already started the backend informally, and you have 15 calendar days of development before a 7-day testing phase. That means the Must column below is deliberately ruthless: it contains only the smallest set of user stories that still lets Best Pinnacle Care demo the core product promise—carers clock in and out (even offline), managers see a live board with late and missed alerts, and timesheets flow straight to payroll export. Everything else is ranked by risk and day-job availability. Should items add operational polish (exceptions queue, PIN tablet, grace settings) that make the demo credible to a CQC-minded audience. Could items are pure nice-to-haves that earn time only if a freelancer finishes a Medium story faster than expected. Won’t items are explicitly deferred to Stage 2 so the team does not bleed scope into the full care-management platform. If you paste these into GitHub Issues, create the Must items first, lock them to Milestone `Sprint 1 — Foundation`, and tag owners immediately so the freelancers know what is non-negotiable.
+ `Sprint 1 — Foundation`, and tag owners immediately so the freelancers know what is non-negotiable.
 
 ---
 
