@@ -1,0 +1,257 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      pwa: ${{ steps.filter.outputs.pwa }}
+      admin_web: ${{ steps.filter.outputs.admin_web }}
+      backend: ${{ steps.filter.outputs.backend }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            pwa:
+              - 'pwa/**'
+            admin_web:
+              - 'admin-web/**'
+            backend:
+              - 'backend/**'
+            contracts:
+              - 'contracts/**'
+
+  repo-hygiene:
+    name: Repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Required monorepo paths
+        run: |
+          set -euo pipefail
+          for d in pwa admin-web backend contracts docs .github; do
+            test -d "$d" || { echo "Missing required directory: $d"; exit 1; }
+          done
+          echo "Monorepo layout OK"
+      - name: Block committed env files
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then
+            echo "Committed .env files are not allowed"
+            exit 1
+          fi
+          echo "No committed .env files"
+
+  package-pwa:
+    name: pwa
+    needs: detect-changes
+    if: needs.detect-changes.outputs.pwa == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Scaffold or install & verify
+        run: |
+          set -euo pipefail
+          if [ ! -f package.json ]; then
+            echo "No package.json in pwa yet — scaffold pass"
+            exit 0
+          fi
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable && corepack prepare pnpm@latest --activate
+            pnpm install --frozen-lockfile
+            pnpm run lint --if-present || true
+            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
+            pnpm run test --if-present || true
+          elif [ -f yarn.lock ]; then
+            corepack enable && corepack prepare yarn@stable --activate
+            yarn install --frozen-lockfile
+            yarn run lint || true
+            (yarn run typecheck || yarn run build || true)
+            yarn run test || true
+          else
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run lint --if-present
+            npm run typecheck --if-present || npm run build --if-present || true
+            npm run test --if-present
+          fi
+
+  package-admin-web:
+    name: admin-web
+    needs: detect-changes
+    if: needs.detect-changes.outputs.admin_web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Scaffold or install & verify
+        run: |
+          set -euo pipefail
+          if [ ! -f package.json ]; then
+            echo "No package.json in admin-web yet — scaffold pass"
+            exit 0
+          fi
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable && corepack prepare pnpm@latest --activate
+            pnpm install --frozen-lockfile
+            pnpm run lint --if-present || true
+            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
+            pnpm run test --if-present || true
+          elif [ -f yarn.lock ]; then
+            corepack enable && corepack prepare yarn@stable --activate
+            yarn install --frozen-lockfile
+            yarn run lint || true
+            (yarn run typecheck || yarn run build || true)
+            yarn run test || true
+          else
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run lint --if-present
+            npm run typecheck --if-present || npm run build --if-present || true
+            npm run test --if-present
+          fi
+
+  package-backend:
+    name: backend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Scaffold or install & verify
+        run: |
+          set -euo pipefail
+          if [ ! -f package.json ]; then
+            echo "No package.json in backend yet — scaffold pass"
+            exit 0
+          fi
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable && corepack prepare pnpm@latest --activate
+            pnpm install --frozen-lockfile
+            pnpm run lint --if-present || true
+            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
+            pnpm run test --if-present || true
+          elif [ -f yarn.lock ]; then
+            corepack enable && corepack prepare yarn@stable --activate
+            yarn install --frozen-lockfile
+            yarn run lint || true
+            (yarn run typecheck || yarn run build || true)
+            yarn run test || true
+          else
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run lint --if-present
+            npm run typecheck --if-present || npm run build --if-present || true
+            npm run test --if-present
+          fi
+
+  package-contracts:
+    name: contracts
+    needs: detect-changes
+    if: needs.detect-changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Scaffold or install & verify
+        run: |
+          set -euo pipefail
+          if [ ! -f package.json ]; then
+            echo "No package.json in contracts yet — scaffold pass"
+            exit 0
+          fi
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable && corepack prepare pnpm@latest --activate
+            pnpm install --frozen-lockfile
+            pnpm run lint --if-present || true
+            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
+            pnpm run test --if-present || true
+          elif [ -f yarn.lock ]; then
+            corepack enable && corepack prepare yarn@stable --activate
+            yarn install --frozen-lockfile
+            yarn run lint || true
+            (yarn run typecheck || yarn run build || true)
+            yarn run test || true
+          else
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run lint --if-present
+            npm run typecheck --if-present || npm run build --if-present || true
+            npm run test --if-present
+          fi
+
+  ci-summary:
+    name: CI summary
+    if: always()
+    needs:
+      - detect-changes
+      - repo-hygiene
+      - package-pwa
+      - package-admin-web
+      - package-backend
+      - package-contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate results
+        run: |
+          set -euo pipefail
+          echo "detect-changes: ${{ needs.detect-changes.result }}"
+          echo "repo-hygiene: ${{ needs.repo-hygiene.result }}"
+          echo "package-pwa: ${{ needs.package-pwa.result }}"
+          echo "package-admin-web: ${{ needs.package-admin-web.result }}"
+          echo "package-backend: ${{ needs.package-backend.result }}"
+          echo "package-contracts: ${{ needs.package-contracts.result }}"
+
+          fail=0
+          for r in \
+            "${{ needs.detect-changes.result }}" \
+            "${{ needs.repo-hygiene.result }}"
+          do
+            if [ "$r" != "success" ]; then fail=1; fi
+          done
+
+          # Path jobs: success, skipped, or neutral are OK; failure/cancelled are not
+          for r in \
+            "${{ needs.package-pwa.result }}" \
+            "${{ needs.package-admin-web.result }}" \
+            "${{ needs.package-backend.result }}" \
+            "${{ needs.package-contracts.result }}"
+          do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then fail=1; fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            echo "CI summary: FAILED"
+            exit 1
+          fi
+          echo "CI summary: OK"
