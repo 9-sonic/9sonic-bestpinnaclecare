@@ -34,7 +34,7 @@ Example: "Carer can now clock in while offline; the record syncs automatically w
 - [ ] No secrets / keys committed
 - [ ] Screenshot attached for any UI change (required for `/pwa` or `/admin-web`)
 
-## PM review notes
+## Review notes
 - Copilot flagged anything critical? (paste link to comment)
 - Any breaking changes to timesheet or alert logic?
-- If `scope:contracts`: which front-end/back-end PR consumes this change?
+- If `scope:contracts`: which consumer PR completes the handshake?
