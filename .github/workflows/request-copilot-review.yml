@@ -1,0 +1,117 @@
+name: Request Copilot review
+
+# Copilot code review runs on pull requests (not bare pushes to a branch).
+# This workflow requests Copilot on every PR open and on every new push to that PR
+# (synchronize), so new commits get a fresh review request without needing a
+# GitHub Pro ruleset on a free private/org plan.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  request-copilot:
+    name: Request Copilot
+    runs-on: ubuntu-latest
+    # Skip draft PRs until marked ready
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Request Copilot as reviewer
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // Official bot login for Copilot code review
+            const copilotLogins = [
+              'copilot-pull-request-reviewer',
+              'copilot-pull-request-reviewer[bot]',
+            ];
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            const existing = new Set([
+              ...(pr.data.requested_reviewers || []).map((u) => u.login.toLowerCase()),
+              ...(pr.data.requested_teams || []).map((t) => t.slug.toLowerCase()),
+            ]);
+
+            // On synchronize (new push), re-request so review is not "stale" only
+            const isSync = context.payload.action === 'synchronize';
+
+            let requested = false;
+            let lastError = null;
+
+            for (const login of copilotLogins) {
+              const already = [...existing].some(
+                (e) => e === login.toLowerCase() || e.includes('copilot')
+              );
+              if (already && !isSync) {
+                core.info(`Copilot already requested (${login} / existing copilot reviewer).`);
+                requested = true;
+                break;
+              }
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner,
+                  repo,
+                  pull_number,
+                  reviewers: [login.replace('[bot]', '')],
+                });
+                core.info(`Requested review from: ${login.replace('[bot]', '')}`);
+                requested = true;
+                break;
+              } catch (err) {
+                lastError = err;
+                core.warning(`Could not request ${login}: ${err.message}`);
+              }
+            }
+
+            if (!requested) {
+              // Post a sticky reminder so the author assigns manually
+              const marker = '<!-- copilot-review-request-bot -->';
+              const body = [
+                marker,
+                '### Copilot review required',
+                '',
+                'Automatic assignment did not succeed (org plan, permissions, or bot name).',
+                '**Assign manually:** Reviewers → search `copilot` → select **Copilot**.',
+                '',
+                'Do not merge until Copilot has reviewed and critical findings are resolved.',
+                lastError ? '',
+                lastError ? `_Last API error: ${lastError.message}_` : '',
+              ].filter(Boolean).join('\n');
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: pull_number,
+              });
+              const existingComment = comments.find(
+                (c) => c.user?.type === 'Bot' && (c.body || '').includes(marker)
+              );
+              if (existingComment) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existingComment.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body,
+                });
+              }
+              // Do not fail the check: free/org plans sometimes block bot requests.
+              // Manual assign remains valid; PR hygiene also reminds authors.
+              core.warning(
+                'Could not auto-request Copilot. Manual assign required (see PR comment).'
+              );
+            }

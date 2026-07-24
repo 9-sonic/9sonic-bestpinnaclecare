@@ -23,7 +23,8 @@ Process and tracking are in place under the **9-sonic** org. Application code (i
 | Named views (Board / Table / Roadmap) | Configure once | Default tabs may still show “View 1” / “View 4” — rename + add Roadmap below |
 | Project workflows | Configure on project | ⋯ → Workflows: auto-add, closed → Done, PR merged → Done |
 | CI + secret scan + PR hygiene | Active | |
-| Branch protection / Copilot ruleset | When GitHub Pro is on | Until then: assign Copilot on every PR by hand |
+| Request Copilot review workflow | Active | On PR open / reopen / ready / every push to PR (`synchronize`) |
+| Branch protection / Copilot ruleset | When GitHub Pro is on | Free org plan blocks rulesets; workflow is the free-plan path |
 | Auto-delete branches | Off | Intentional |
 | Application code | Via PRs only | No pre-scaffolded Rails/app code |
 
