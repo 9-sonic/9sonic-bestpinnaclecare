@@ -1,0 +1,26 @@
+# Path → label mapping for actions/labeler
+# Labels must already exist on the repository.
+
+scope:pwa:
+  - changed-files:
+      - any-glob-to-any-file: "pwa/**"
+
+scope:admin-web:
+  - changed-files:
+      - any-glob-to-any-file: "admin-web/**"
+
+scope:backend:
+  - changed-files:
+      - any-glob-to-any-file: "backend/**"
+
+scope:contracts:
+  - changed-files:
+      - any-glob-to-any-file: "contracts/**"
+
+scope:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - ".github/**"
+          - "README.md"
+          - "CONTRIBUTING.md"

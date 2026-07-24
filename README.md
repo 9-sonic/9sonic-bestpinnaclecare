@@ -42,7 +42,8 @@ Backlog → Ready → In Progress → In Review → Done
 - **Must** work (`[M1]`–`[M11]`) sits in **Ready**  
 - **Should / Could** sit in **Backlog** until promoted  
 - New work uses **Feature**, **Bug**, or **Build Task** issue templates  
-- Shipping path: branch → PR (template filled) → **Copilot** review → CI green → PM review → merge to `main`
+- Shipping path: **branch → open PR into `main`** (required) → Copilot / Fireworks → CI green → PM → merge  
+- **Never push straight to `main`** — reviews only show on a PR  
 
 Full rules: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
@@ -56,9 +57,9 @@ Auth + Rails foundation → shifts → carer dashboard → clock in/out → offl
 
 1. Read [CONTRIBUTING.md](./CONTRIBUTING.md).  
 2. Open the [board](https://github.com/orgs/9-sonic/projects/1) → take from **Ready**.  
-3. Comment `Taking this`, set status **In Progress**, branch from `main`.  
-4. Open a PR with `Closes #…`, assign **Copilot**, keep **CI** and **Secret scan** green.  
-5. Rails changes go in `/backend` only.
+3. Comment `Taking this`, set status **In Progress**, branch from `main` (do not commit on `main`).  
+4. **Open a PR into `main`** with `Closes #…` — a branch alone is not delivery.  
+5. Keep checks green; Rails changes go in `/backend` only.
 
 ---
 
@@ -83,10 +84,13 @@ Operating detail: [docs/project-management.md](./docs/project-management.md).
 | **CI** | Layout hygiene; package checks when code appears |
 | **Secret scan** | Blocks obvious committed secrets |
 | **Request Copilot review** | Requests Copilot on every PR open and every new push to that PR |
-| **PR hygiene** | Template / process reminders on PRs |
+| **Template gate** (PR hygiene) | **Fails** if issue link, scope, or UI screenshot is missing |
+| **Path labels** | Adds `scope:*` from changed folders |
+| **Board sync** | Linked issues → In Review on PR; Done on merge (Best Pinnacle project) |
 | **Fireworks AI review** | Sticky AI review on PRs (`FIREWORKS_API_KEY`; default Kimi K2.7 Code) |
+| **Main push guard** | Warns in Actions if `main` is updated without a clear PR merge |
 
-Details: [docs/ci.md](./docs/ci.md). Board UI workflows (⋯ → Workflows) remain useful for auto-add / Done.
+Details: [docs/ci.md](./docs/ci.md). Project UI workflows (⋯ → Workflows) remain useful as a backup for auto-add.
 
 ---
 
