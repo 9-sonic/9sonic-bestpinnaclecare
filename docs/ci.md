@@ -1,33 +1,56 @@
-# CI / CD notes
+# CI and PR automation
 
-## What runs today
+## Checks on every pull request
 
-| Workflow | When | Purpose |
-|----------|------|---------|
-| **CI** (`.github/workflows/ci.yml`) | Every PR and every push to `main` | Path-aware package checks + always-on summary |
-| **Secret scan** (`.github/workflows/secret-scan.yml`) | Every PR and push to `main` | Fail if secrets/keys look committed |
+| Check | Blocks? | Purpose |
+|-------|---------|---------|
+| **CI summary** | Treat as required | Layout hygiene + package checks when code exists |
+| **Secret scan** (Gitleaks CLI) | Treat as required | Fail if secrets look committed |
+| **Request Copilot review** | Process yes | Requests Copilot on open / every push to the PR |
+| **PR hygiene** | Comment / gate depending on branch | Template reminders (and fail gate if that PR is merged) |
+| **Fireworks AI review** | No | Sticky AI review comment via Fireworks API |
 
-### Package jobs (pwa / admin-web / backend / contracts)
+Draft PRs skip review workflows until marked ready.
 
-- If the package has **no** `package.json` yet → job **passes** with a scaffold message (repo is ready for freelancers to add code).
-- When a `package.json` appears, the job will:
-  - Detect npm / pnpm / yarn from lockfiles
-  - Install dependencies
-  - Run `lint`, `typecheck` or `build`, and `test` **if those scripts exist**
+## Fireworks AI code review
 
-### Required check
+Workflow: `.github/workflows/fireworks-pr-review.yml`
 
-Branch protection should require **`CI summary`** (job id `ci-summary`).  
-Do not require path-filtered jobs alone — skipped required checks can block merges.
+Uses Fireworks’ OpenAI-compatible API:
+
+- **Base URL:** `https://api.fireworks.ai/inference/v1`  
+- **Default model:** `accounts/fireworks/models/kimi-k2p7-code`  
+- **Secret:** `FIREWORKS_API_KEY` (Settings → Secrets and variables → Actions)  
+- **Optional variable:** `FIREWORKS_MODEL` to override the model id  
+
+On each non-draft PR open/push:
+
+1. Collect the PR diff  
+2. Call Fireworks `chat/completions`  
+3. Create or update a sticky PR comment with the review  
+
+If the secret is missing, the job comments that it was skipped and does **not** fail the PR.  
+Complements Copilot; does not replace the PM merge gate.
+
+### Popular model ids (set via `FIREWORKS_MODEL` if desired)
+
+- `accounts/fireworks/models/kimi-k2p7-code` (default)  
+- `accounts/fireworks/models/llama-v3p3-70b-instruct`  
+- `accounts/fireworks/models/qwen2p5-coder-32b-instruct`  
+- `accounts/fireworks/models/deepseek-v3`  
+
+## Package jobs (pwa / admin-web / backend / contracts)
+
+- No `package.json` yet → pass with scaffold message.  
+- When a package exists → install + run `lint` / `typecheck` or `build` / `test` if those scripts exist.
 
 ## CD (deploy)
 
-Live deploy pipelines are **not** enabled yet. Backend UK hosting is product issue **M3**.
+Not enabled yet. UK hosting is issue **M3**. Use `workflow_dispatch` and repository secrets when deploy is ready — never commit secrets.
 
-When ready, add a `workflow_dispatch` deploy workflow and inject secrets via GitHub Actions secrets (never commit them).
+## For developers
 
-## Local tips for freelancers
-
-1. Keep scripts named `lint`, `typecheck`/`build`, and `test` so CI picks them up automatically.
-2. Prefer lockfiles (`package-lock.json`, `pnpm-lock.yaml`, or `yarn.lock`).
-3. Never commit `.env` — use `.env.example` without secrets.
+1. Fill the PR template.  
+2. Keep CI and secret scan green.  
+3. Read Copilot + Fireworks comments; fix real issues.  
+4. Never commit `.env` — use `.env.example` without secrets.

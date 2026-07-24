@@ -83,9 +83,10 @@ Operating detail: [docs/project-management.md](./docs/project-management.md).
 | **CI** | Layout hygiene; package checks when code appears |
 | **Secret scan** | Blocks obvious committed secrets |
 | **Request Copilot review** | Requests Copilot on every PR open and every new push to that PR |
-| **PR hygiene** | Reminds about linked issues, scope, and Copilot if still missing |
+| **PR hygiene** | Template / process reminders on PRs |
+| **Fireworks AI review** | Sticky AI review on PRs (`FIREWORKS_API_KEY`; default Kimi K2.7 Code) |
 
-Board **Workflows** auto-move cards when enabled on the project (⋯ → Workflows): closed → Done, PR merged → linked issue Done, auto-add new issues/PRs. Until those toggles are on, the team updates **Status** on the board by hand.
+Details: [docs/ci.md](./docs/ci.md). Board UI workflows (⋯ → Workflows) remain useful for auto-add / Done.
 
 ---
 

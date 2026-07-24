@@ -24,6 +24,7 @@ Process and tracking are in place under the **9-sonic** org. Application code (i
 | Project workflows | Configure on project | ⋯ → Workflows: auto-add, closed → Done, PR merged → Done |
 | CI + secret scan + PR hygiene | Active | |
 | Request Copilot review workflow | Active | On PR open / reopen / ready / every push to PR (`synchronize`) |
+| Fireworks AI PR review | Active (needs secret) | Secret `FIREWORKS_API_KEY`; model `accounts/fireworks/models/kimi-k2p7-code` |
 | Branch protection / Copilot ruleset | When GitHub Pro is on | Free org plan blocks rulesets; workflow is the free-plan path |
 | Auto-delete branches | Off | Intentional |
 | Application code | Via PRs only | No pre-scaffolded Rails/app code |
