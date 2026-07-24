@@ -42,7 +42,8 @@ Backlog → Ready → In Progress → In Review → Done
 - **Must** work (`[M1]`–`[M11]`) sits in **Ready**  
 - **Should / Could** sit in **Backlog** until promoted  
 - New work uses **Feature**, **Bug**, or **Build Task** issue templates  
-- Shipping path: branch → PR (template filled) → **Copilot** review → CI green → PM review → merge to `main`
+- Shipping path: **branch → open PR into `main`** (required) → **Copilot** / Fireworks review → CI green → PM review → merge  
+- A branch without a PR is not shipped work
 
 Full rules: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
@@ -57,7 +58,7 @@ Auth + Rails foundation → shifts → carer dashboard → clock in/out → offl
 1. Read [CONTRIBUTING.md](./CONTRIBUTING.md).  
 2. Open the [board](https://github.com/orgs/9-sonic/projects/1) → take from **Ready**.  
 3. Comment `Taking this`, set status **In Progress**, branch from `main`.  
-4. Open a PR with `Closes #…`, assign **Copilot**, keep **CI** and **Secret scan** green.  
+4. **Open a pull request into `main`** (a branch alone is not delivery). Use `Closes #…`, fill the template, keep checks green.  
 5. Rails changes go in `/backend` only.
 
 ---

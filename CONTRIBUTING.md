@@ -90,6 +90,12 @@ Use the **Board** for status and the **Roadmap** for plan vs milestones. Same ca
 
 ## Claim → ship
 
+**Creating a branch is not delivery.** A branch is only where you build. Work is not done until you **open a pull request into `main`**, get reviews (Copilot / Fireworks), pass checks, and **merge**. Pushing a branch alone does not land code, close the issue, or run the review gates.
+
+```text
+Issue (Ready) → claim → branch from main → implement → open PR → reviews + green checks → merge → Done
+```
+
 ### 1. Pick
 
 1. Open [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board**.  
@@ -113,31 +119,46 @@ docs/<short-name>
 - Stay in the correct package path.  
 - Rails work only under `/backend`.  
 - Meet [Definition of Done](./docs/definition_of_done.md).  
-- Prefer small PRs.
+- Prefer small PRs (open the PR within 24–48 hours of starting; do not sit on a long-lived branch with no PR).
 
-### 4. Pull request
+### 4. Pull request (required)
 
-1. Complete the PR template.  
-2. Link the issue: `Closes #123` or `Fixes #123`.  
-3. Tick monorepo **Scope**.  
-4. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
-5. Screenshots required for UI (`/pwa` or `/admin-web`).  
-6. Confirm **Copilot** is a reviewer (workflow should request it on open and on each push to the PR; assign manually if missing).  
-7. Keep **CI summary** and **Secret scan** green.  
-8. Set board Status to **In Review**.
+1. Open a PR from your branch **into `main`** — this is mandatory for any change that should ship.  
+2. Complete the PR template.  
+3. Link the issue: `Closes #123` or `Fixes #123`.  
+4. Tick monorepo **Scope**.  
+5. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
+6. Screenshots required for UI (`/pwa` or `/admin-web`).  
+7. Confirm **Copilot** is a reviewer (workflow should request it on open and on each push to the PR; assign manually if missing).  
+8. Read **Fireworks AI** review comment when that workflow is enabled (secret `FIREWORKS_API_KEY`).  
+9. Keep **CI summary** and **Secret scan** green (and **Template gate** when that check is on `main`).  
+10. Set board Status to **In Review**.
+
+Draft PRs are fine while you polish; mark **Ready for review** when you want full automation and review.
 
 ### 5. Review gate (before merge)
 
 1. Copilot has reviewed; critical findings resolved.  
-2. PM / human approval when required.  
-3. No secrets committed.  
-4. Contracts and consumers aligned.
+2. Fireworks (if configured) findings addressed or explained.  
+3. PM / human approval when required.  
+4. No secrets committed.  
+5. Contracts and consumers aligned.
 
 ### 6. After merge
 
-- Linked issue moves to **Done** (by workflow when enabled, otherwise update the board).  
+- Linked issue moves to **Done** (by automation when enabled, otherwise update the board).  
 - Do not delete issues, milestones, or project history.  
 - Branches are not auto-deleted.
+
+### FAQ
+
+| Question | Answer |
+|----------|--------|
+| I created a branch — is that enough? | **No.** Open a PR into `main`. |
+| Can I push straight to `main`? | **No.** Always use a PR (process rule; later enforced with GitHub Pro). |
+| When do I open the PR? | As soon as there is something reviewable — ideally within **24–48 hours**, not only at the end of a large branch. |
+| What closes the issue? | Merge a PR that says `Closes #N` (or Fixes/Resolves). |
+| Who reviews first? | **Copilot** (and **Fireworks** when the API key is set); then PM/human for the gate. |
 
 ---
 

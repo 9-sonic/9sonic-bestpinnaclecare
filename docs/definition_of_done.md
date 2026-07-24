@@ -28,5 +28,6 @@ Work is **done** only when all of the following are true.
 
 ## Board
 
+- [ ] Work was delivered via a **pull request** into `main` (not a branch-only push)
 - [ ] PR merged to `main`
 - [ ] Linked issue is **Done** on the Best Pinnacle board
