@@ -1,0 +1,95 @@
+name: Request Copilot review
+
+# Copilot code review runs on pull requests (not bare branch pushes).
+# On free org plans, classic rulesets are unavailable. This Action requests
+# Copilot when a PR opens and again on every push to that PR (synchronize).
+# If the API cannot add the bot as a collaborator-style reviewer, a PR comment
+# explains the manual step — and org Copilot may still review via its own path.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  request-copilot:
+    name: Request Copilot
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Request Copilot as reviewer
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const isSync = context.payload.action === 'synchronize';
+
+            // Known login used by Copilot pull request review
+            const reviewer = 'copilot-pull-request-reviewer';
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            const existing = (pr.data.requested_reviewers || []).map((u) =>
+              u.login.toLowerCase()
+            );
+            const alreadyHasCopilot = existing.some((login) =>
+              login.includes('copilot')
+            );
+
+            if (alreadyHasCopilot && !isSync) {
+              core.info('Copilot is already a requested reviewer.');
+              return;
+            }
+
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner,
+                repo,
+                pull_number,
+                reviewers: [reviewer],
+              });
+              core.info('Requested review from copilot-pull-request-reviewer');
+              return;
+            } catch (err) {
+              core.warning('API request for Copilot reviewer failed: ' + err.message);
+            }
+
+            const marker = '<!-- copilot-review-request-bot -->';
+            const body = [
+              marker,
+              '### Copilot review required',
+              '',
+              'Automatic reviewer assignment via API did not succeed on this plan.',
+              '**Assign manually:** Reviewers → search `copilot` → select **Copilot**.',
+              '',
+              'Do not merge until Copilot has reviewed and critical findings are resolved.',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: pull_number,
+            });
+            const existingComment = comments.find(
+              (c) => c.user && c.user.type === 'Bot' && (c.body || '').includes(marker)
+            );
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body,
+              });
+            }
+            core.info('Left manual Copilot assign instructions on the PR.');

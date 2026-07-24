@@ -13,7 +13,7 @@ This monorepo is the only place product work for the 15-day Best Pinnacle Care b
 |------|----------------|
 | **PM** | Priority, Ready queue, operational answers, final PR gate, board health |
 | **Developers** | Implement features and bugs, open PRs, respond to Copilot and review comments |
-| **Copilot** | First review on every PR (assign under Reviewers → `copilot` if not already requested) |
+| **Copilot** | First review on every PR. Auto-requested by the **Request Copilot review** Action on open/push; if missing, assign under Reviewers → `copilot` |
 
 The PM does not implement application code. Developers own `/pwa`, `/admin-web`, and `/backend` (Rails).
 
@@ -122,7 +122,7 @@ docs/<short-name>
 3. Tick monorepo **Scope**.  
 4. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
 5. Screenshots required for UI (`/pwa` or `/admin-web`).  
-6. Assign **Copilot** as reviewer.  
+6. Confirm **Copilot** is a reviewer (workflow should request it on open and on each push to the PR; assign manually if missing).  
 7. Keep **CI summary** and **Secret scan** green.  
 8. Set board Status to **In Review**.
 
