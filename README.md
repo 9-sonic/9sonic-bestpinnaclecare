@@ -42,7 +42,8 @@ Backlog → Ready → In Progress → In Review → Done
 - **Must** work (`[M1]`–`[M11]`) sits in **Ready**  
 - **Should / Could** sit in **Backlog** until promoted  
 - New work uses **Feature**, **Bug**, or **Build Task** issue templates  
-- Shipping path: branch → PR (template filled) → **Copilot** review → CI green → PM review → merge to `main`
+- Shipping path: **branch → open PR into `main`** (required) → Copilot / Fireworks → CI green → PM → merge  
+- **Never push straight to `main`** — reviews only show on a PR, not on a bare branch/push  
 
 Full rules: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
