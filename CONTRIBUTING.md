@@ -186,11 +186,16 @@ Should/Could only when Must pace allows.
 
 ## Do not
 
-- Push straight to `main` when protection requires a PR — always open a PR.  
+- **Push commits straight to `main`.** Always open a **pull request**. A branch or a direct push is not a review; Copilot, Fireworks, and the template gate only run on PRs.  
+- **Close issues by hand** when the work was code. Close them by **merging a PR** that says `Closes #N` (or Fixes/Resolves). Manual close looks “done” without reviews.  
 - Create a second GitHub Project for this build.  
 - Delete issues or rewrite history to tidy the board.  
 - Skip the PR template or Copilot review.  
 - Change `/contracts` without a consumer plan.
+
+### Why issue #26-style tests fail process
+
+If someone pushes to `main` or closes an issue without a PR, nothing appears under **PR review requests** — because there was no PR. A successful process test is: **branch → PR with `Closes #N` → reviews visible on the PR → merge → issue closes from the PR.**
 
 ---
 
