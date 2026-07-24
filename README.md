@@ -6,7 +6,7 @@ GitHub is the single source of truth. Product code lands here through pull reque
 
 | Resource | Link |
 |----------|------|
-| **Project (board + roadmap)** | [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3) |
+| **Project (board + roadmap)** | [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) |
 | **How the team works** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | **How delivery is run** | [docs/project-management.md](./docs/project-management.md) |
 | **Definition of Done** | [docs/definition_of_done.md](./docs/definition_of_done.md) |
@@ -55,7 +55,7 @@ Auth + Rails foundation → shifts → carer dashboard → clock in/out → offl
 ## Starting work (developers)
 
 1. Read [CONTRIBUTING.md](./CONTRIBUTING.md).  
-2. Open the [board](https://github.com/users/Mr-Macharia/projects/3) → take from **Ready**.  
+2. Open the [board](https://github.com/orgs/9-sonic/projects/1) → take from **Ready**.  
 3. Comment `Taking this`, set status **In Progress**, branch from `main`.  
 4. Open a PR with `Closes #…`, assign **Copilot**, keep **CI** and **Secret scan** green.  
 5. Rails changes go in `/backend` only.

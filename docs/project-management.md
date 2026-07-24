@@ -2,8 +2,8 @@
 
 How this build is run. One project, clear statuses, no second board.
 
-**Project:** [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3)  
-**Repo:** [9sonic-bestpinnaclecare](https://github.com/Mr-Macharia/9sonic-bestpinnaclecare)
+**Project:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
+**Repo:** [9sonic-bestpinnaclecare](https://github.com/9-sonic/9sonic-bestpinnaclecare)
 
 ---
 
@@ -88,7 +88,7 @@ Board automations (not GitHub Actions): **⋯ → Workflows**
 
 Keep enabled:
 
-1. **Auto-add to project** — issues and PRs from `9sonic-bestpinnaclecare`  
+1. **Auto-add to project** — issues and PRs from `9-sonic/9sonic-bestpinnaclecare`  
 2. **Item closed** → Done  
 3. **Pull request merged** → linked issues → Done  
 

@@ -1,13 +1,14 @@
 # Setup status — Best Pinnacle Care delivery
 
-**Repo:** https://github.com/Mr-Macharia/9sonic-bestpinnaclecare  
-**Project:** https://github.com/users/Mr-Macharia/projects/3  
-**As of:** 2026-07-23  
+**Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
+**Project:** https://github.com/orgs/9-sonic/projects/1  
+**As of:** 2026-07-24  
 
-Process and tracking are in place. Application code (including Rails) is added only through PRs.
+Process and tracking are in place under the **9-sonic** org. Application code (including Rails) is added only through PRs.
 
 | Item | Status | Notes |
 |------|--------|--------|
+| Org ownership | Active | Transferred to `9-sonic` |
 | Private monorepo layout | Active | `/pwa` `/admin-web` `/backend` `/contracts` `/docs` |
 | CONTRIBUTING | Active | Features, bugs, board, PR gate |
 | Delivery guide | Active | `docs/project-management.md` |
@@ -15,27 +16,36 @@ Process and tracking are in place. Application code (including Rails) is added o
 | Issue templates | Active | Feature, Bug, Build Task |
 | PR template + DoD | Active | |
 | Labels + milestones | Active | |
-| Backlog issues | Active | #1–#11 Ready; #12–#20 Backlog |
+| Project linked to repo | Active | `9-sonic/9sonic-bestpinnaclecare` |
+| Board items | Active | 21 issues restored after transfer (Must → Ready; Should/Could → Backlog) |
 | Board Status columns | Active | Backlog → Ready → In Progress → In Review → Done |
 | Work type field | Active | Feature / Bug / Chore |
-| Roadmap view | Configure on project | **+ New view → Roadmap** if not visible; group by Milestone |
+| Named views (Board / Table / Roadmap) | Configure once | Default tabs may still show “View 1” / “View 4” — rename + add Roadmap below |
 | Project workflows | Configure on project | ⋯ → Workflows: auto-add, closed → Done, PR merged → Done |
 | CI + secret scan + PR hygiene | Active | |
-| Branch protection / Copilot ruleset | Account limit | Private free tier; enable under Pro if/when the account has it |
+| Branch protection / Copilot ruleset | When GitHub Pro is on | Until then: assign Copilot on every PR by hand |
 | Auto-delete branches | Off | Intentional |
 | Application code | Via PRs only | No pre-scaffolded Rails/app code |
 
 ---
 
-## Project UI configuration (if not already applied)
+## After org transfer (what broke and what was fixed)
 
-### Roadmap view
+Transferring the repo to **9-sonic** moved the project to the org (`projects/1`). **Status columns and custom fields kept**; **board items did not**. Views also reset to generic names (“View 1”, “View 4”).
 
-1. Open [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3).  
-2. **+ New view** → **Roadmap**.  
-3. Name: **Roadmap**.  
-4. Group / filter by **Milestone**.  
-5. Rename other views to **Board** and **Table** if names are still generic.
+**Restored:**
+
+- Repo re-linked to the org project  
+- All open issues re-added with correct **Status** and **Work type**  
+
+**Still configure in the project UI (API cannot rename/create views):**
+
+### Views
+
+1. Open https://github.com/orgs/9-sonic/projects/1  
+2. On the **board** tab (layout with columns): open the view menu → **Rename** → **Board**  
+3. On the **table** tab: rename → **Table**  
+4. **+ New view** → **Roadmap** → name **Roadmap** → group by **Milestone**  
 
 ### Workflows
 
@@ -43,24 +53,24 @@ Process and tracking are in place. Application code (including Rails) is added o
 
 | Workflow | Behaviour |
 |----------|-----------|
-| Auto-add to project | Issues and PRs from this repo |
+| Auto-add to project | Issues and PRs from `9-sonic/9sonic-bestpinnaclecare` |
 | Item closed | → Done |
 | Pull request merged | Linked issues → Done |
 
 ### Branch protection and Copilot auto-request
 
-Requires GitHub Pro (or equivalent) on a private repo. When available:
+When **GitHub Pro** (or org plan that allows it) is available:
 
 - Protect `main`: PR required, 1 approval, dismiss stale, conversation resolution, include admins, require **CI summary**  
 - Ruleset: auto-request **Copilot** review on PRs to `main`  
 
-Until then the process still holds: every PR assigns Copilot by hand; PR hygiene and CI enforce the rest.
+Until then: every PR assigns Copilot by hand; CI and secret scan stay green.
 
 ---
 
 ## Team access
 
-Collaborators with **Write** on the repo work from **Ready**, follow CONTRIBUTING, and open PRs. Access is granted when people join the build — not as a separate “setup phase.”
+Collaborators / org members with **Write** work from **Ready**, follow CONTRIBUTING, and open PRs.
 
 ---
 

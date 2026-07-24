@@ -2,8 +2,8 @@
 
 This monorepo is the only place product work for the 15-day Best Pinnacle Care build is tracked and merged. GitHub is the source of truth. WhatsApp is for check-ins every 3–4 days and real blockers — not for status that belongs on the board.
 
-**Board:** [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3)  
-**Repo:** https://github.com/Mr-Macharia/9sonic-bestpinnaclecare  
+**Board:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
+**Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
 
 ---
 
@@ -92,7 +92,7 @@ Use the **Board** for status and the **Roadmap** for plan vs milestones. Same ca
 
 ### 1. Pick
 
-1. Open [Best Pinnacle](https://github.com/users/Mr-Macharia/projects/3) → **Board**.  
+1. Open [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board**.  
 2. Take from **Ready** (Must first).  
 3. Do not start Should/Could unless Must is on track or the PM has promoted the card to Ready.
 
