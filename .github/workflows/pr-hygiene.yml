@@ -2,7 +2,7 @@ name: PR hygiene
 
 on:
   pull_request:
-    types: [opened, edited, reopened, ready_for_review]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
@@ -10,63 +10,139 @@ permissions:
   issues: write
 
 jobs:
-  remind:
-    name: Template & Copilot reminders
+  gate:
+    name: Template gate
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - name: Comment if linked issue or Copilot notes missing
+      - name: Enforce PR template rules
         uses: actions/github-script@v7
         with:
           script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const action = context.payload.action;
             const body = context.payload.pull_request.body || '';
+            const processOnly = /Process-only:\s*true/i.test(body);
+
+            // List files in the PR
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+            const paths = files.map((f) => f.filename);
+
+            const touchesUi = paths.some(
+              (p) => p.startsWith('pwa/') || p.startsWith('admin-web/')
+            );
+            const onlyProcessPaths = paths.every(
+              (p) =>
+                p.startsWith('docs/') ||
+                p.startsWith('.github/') ||
+                p === 'README.md' ||
+                p === 'CONTRIBUTING.md' ||
+                p === '.gitignore'
+            );
+
+            const hasIssueLink = /(Closes|Fixes|Resolves)\s+#\d+/i.test(body);
+            const hasScope =
+              /\/pwa|\/admin-web|\/backend|\/contracts|\/docs/i.test(body);
+            const hasScreenshot =
+              /!\[[^\]]*\]\([^)]+\)/i.test(body) ||
+              /<img[\s>]/i.test(body) ||
+              /user-attachments\/assets\//i.test(body) ||
+              /github\.com\/.*\/assets\//i.test(body);
+
             const missing = [];
-            if (!/(Closes|Fixes|Resolves)\s+#\d+/i.test(body)) {
-              missing.push('Link an issue with `Closes #N` (or Fixes/Resolves).');
+            if (!hasIssueLink && !processOnly) {
+              missing.push(
+                'Link an issue with `Closes #N` (or Fixes/Resolves), or set `Process-only: true` for pure infra/docs PRs.'
+              );
             }
-            if (!/\/pwa|\/admin-web|\/backend|\/contracts|\/docs/i.test(body)) {
-              missing.push('Tick the monorepo **Scope** checkboxes in the PR template.');
+            if (!hasScope) {
+              missing.push(
+                'Tick monorepo **Scope** in the PR template (`/pwa`, `/admin-web`, `/backend`, `/contracts`, and/or `/docs`).'
+              );
+            }
+            if (touchesUi && !hasScreenshot) {
+              missing.push(
+                'UI paths (`pwa/` or `admin-web/`) changed — attach a screenshot (markdown image or GitHub attachment).'
+              );
             }
 
-            // Always remind about Copilot on open/reopen (private free plans cannot auto-request via ruleset)
-            const needCopilot = ['opened', 'reopened', 'ready_for_review'].includes(context.payload.action);
-            const lines = [];
+            // Sticky comment
+            const marker = '<!-- pr-hygiene-bot -->';
+            const lines = [marker];
             if (missing.length) {
-              lines.push('### PR template check');
-              lines.push('Please update the description:');
+              lines.push('### PR template gate — action required');
+              lines.push('');
+              lines.push('This check **fails** until the description is fixed:');
               for (const m of missing) lines.push(`- ${m}`);
               lines.push('');
-            }
-            if (needCopilot) {
-              lines.push('### Copilot review (required)');
-              lines.push('**Assign Copilot:** Reviewers → search `copilot` → select **Copilot**.');
-              lines.push('Do not merge until Copilot has commented and critical findings are resolved.');
+            } else {
+              lines.push('### PR template gate');
               lines.push('');
-              lines.push('**CI summary** and **Secret scan** must be green.');
+              lines.push('Template checks passed.');
+              if (processOnly) {
+                lines.push('_Process-only PR — issue link not required._');
+              }
+              if (onlyProcessPaths) {
+                lines.push('_No product package paths in this diff._');
+              }
+              lines.push('');
             }
-            if (!lines.length) return;
 
-            const marker = '<!-- pr-hygiene-bot -->';
-            const text = marker + '\n' + lines.join('\n');
+            const needCopilotNote = ['opened', 'reopened', 'ready_for_review'].includes(
+              action
+            );
+            if (needCopilotNote) {
+              lines.push('### Copilot review');
+              lines.push(
+                'Confirm **Copilot** is reviewing (workflow requests it; assign manually under Reviewers → `copilot` if missing).'
+              );
+              lines.push(
+                'Do not merge until Copilot has commented and critical findings are resolved.'
+              );
+              lines.push('');
+            }
 
+            lines.push(
+              '**Green checks:** Template gate · CI summary · Secret scan · Request Copilot review'
+            );
+
+            const text = lines.join('\n');
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner,
+              repo,
+              issue_number: pull_number,
             });
-            const existing = comments.find(c => c.user?.type === 'Bot' && (c.body || '').includes(marker));
+            const existing = comments.find(
+              (c) =>
+                c.user &&
+                c.user.type === 'Bot' &&
+                (c.body || '').includes(marker)
+            );
             if (existing) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 comment_id: existing.id,
                 body: text,
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
+                owner,
+                repo,
+                issue_number: pull_number,
                 body: text,
               });
+            }
+
+            if (missing.length) {
+              core.setFailed('PR template incomplete:\n' + missing.join('\n'));
+            } else {
+              core.info('PR template gate passed.');
             }
