@@ -1,0 +1,32 @@
+# Best Pinnacle Care — Rails API (Puma) systemd unit.
+#
+# Installed by .github/workflows/deploy.yml on each backend deploy:
+#   sudo install -m 0644 deploy/systemd/bestpinnacle-api.service /etc/systemd/system/
+#
+# User/paths are the Virtualmin virtual-server Unix user (qqwqvwsb). If your
+# SERVER_USER secret changes, update BOTH this file and the API_DIR env in the
+# deploy workflow so they stay in sync.
+[Unit]
+Description=Best Pinnacle Care Rails API (Puma)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=qqwqvwsb
+WorkingDirectory=/home/qqwqvwsb/api
+
+# rbenv on PATH so `bundle`/`puma` resolve to the pinned Ruby.
+Environment=PATH=/home/qqwqvwsb/.rbenv/shims:/home/qqwqvwsb/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=RAILS_ENV=production
+# Run the Solid Queue supervisor inside Puma (single-server deploy — no separate job process).
+Environment=SOLID_QUEUE_IN_PUMA=1
+# App secrets (DATABASE_URL, RAILS_MASTER_KEY, PORT, etc.) live here, out of git.
+EnvironmentFile=/home/qqwqvwsb/api/.env
+
+ExecStart=/home/qqwqvwsb/.rbenv/shims/bundle exec puma -C config/puma.rb
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

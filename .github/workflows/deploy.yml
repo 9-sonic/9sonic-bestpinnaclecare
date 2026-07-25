@@ -1,0 +1,161 @@
+name: 🚀 Deploy
+
+# Runs only on push to main — i.e. after a PR was merged, by which point PR
+# checks (CI, hygiene, reviews) have already passed on the pull request.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Path-scoped deploys: a backend-only change deploys only the Rails API, a
+# client-only change deploys only the frontend, a change to both deploys both.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  # Paths live under the Virtualmin virtual-server user's home (/home/qqwqvwsb).
+  # SERVER_USER (secret) must be that domain Unix user (qqwqvwsb); keep these in
+  # sync with it AND with deploy/systemd/bestpinnacle-api.service.
+  APP_DIR: /home/qqwqvwsb/app      # frontend static build (client/dist)
+  API_DIR: /home/qqwqvwsb/api      # Rails API (repo root)
+  # Rails API systemd service — restarted with sudo.
+  BACKEND_SERVICE: bestpinnacle-api
+
+jobs:
+  # ---- Detect what changed so we only deploy the affected side ----
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      client: ${{ steps.filter.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'app/**'
+              - 'config/**'
+              - 'db/**'
+              - 'lib/**'
+              - 'bin/**'
+              - 'public/**'
+              - 'vendor/**'
+              - 'deploy/**'
+              - 'Gemfile'
+              - 'Gemfile.lock'
+              - 'Rakefile'
+              - 'config.ru'
+              - '.ruby-version'
+            client:
+              - 'client/**'
+
+  # ---- Deploy the Rails API (repo root) ----
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Ship source only; server-side secrets (.env, master.key), runtime dirs
+      # (tmp, log, storage), tests and the frontend are excluded so --delete
+      # can't wipe them.
+      - name: Sync Rails app
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='client' \
+            --exclude='docs' \
+            --exclude='contracts' \
+            --exclude='spec' \
+            --exclude='node_modules' \
+            --exclude='tmp' \
+            --exclude='log' \
+            --exclude='storage' \
+            --exclude='.env' \
+            --exclude='config/master.key' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SERVER_PORT }}" \
+            ./ \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.API_DIR }}/
+
+      - name: Install gems, migrate, seed & restart API
+        run: |
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SERVER_PORT }} \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "set -e
+             export PATH=\"\$HOME/.rbenv/bin:\$HOME/.rbenv/shims:\$PATH\"
+             cd ${{ env.API_DIR }}
+             set -a; . ${{ env.API_DIR }}/.env; set +a
+             export RAILS_ENV=production
+             bundle config set --local deployment true
+             bundle config set --local without 'development test'
+             bundle install
+             bin/rails db:migrate
+             bin/rails db:seed
+             sudo install -m 0644 ${{ env.API_DIR }}/deploy/systemd/${{ env.BACKEND_SERVICE }}.service /etc/systemd/system/${{ env.BACKEND_SERVICE }}.service
+             sudo systemctl daemon-reload
+             sudo systemctl enable ${{ env.BACKEND_SERVICE }}
+             sudo systemctl restart ${{ env.BACKEND_SERVICE }}"
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+  # ---- Deploy the frontend (client/) ----
+  # React 19 + Vite SPA. `npm run build` emits a static bundle to client/dist,
+  # which the Virtualmin vhost (Apache/nginx) serves directly — no Node service.
+  # NOTE: provisional until the client is scaffolded. client/ is currently empty
+  # (folders client/pwa + client/admin-web, no package.json), so confirm the
+  # working-directory and build output once the SPA lands. Runs only on client/** changes.
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build frontend
+        working-directory: client
+        env:
+          # Vite inlines VITE_* at build time, so it must be set here.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Ship the built static bundle only; --delete keeps the web root clean.
+      - name: Sync frontend build
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SERVER_PORT }}" \
+            client/dist/ \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.APP_DIR }}/
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
