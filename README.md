@@ -2,7 +2,7 @@
 
 Private monorepo for the **15-day Clock In / Clock Out build** for Best Pinnacle Care.
 
-GitHub is the single source of truth. Product code lands here through pull requests — nothing is invented in side repos. **Backend is Ruby on Rails** under `/backend`.
+GitHub is the single source of truth. Product code lands here through pull requests — nothing is invented in side repos. **Backend is Ruby on Rails** — an API-only app at the repository root. The frontend lives under `/client`.
 
 | Resource | Link |
 |----------|------|
@@ -19,15 +19,14 @@ GitHub is the single source of truth. Product code lands here through pull reque
 
 | Path | What belongs here |
 |------|-------------------|
-| [`/pwa`](./pwa) | Carer mobile PWA — offline clock-in/out, GPS, shift dashboard |
-| [`/admin-web`](./admin-web) | Manager website — live board, alerts, timesheets, export |
-| [`/backend`](./backend) | **Rails** API and automation |
-| [`/contracts`](./contracts) | Shared API shapes between PWA, admin-web, and Rails |
-| [`/docs`](./docs) | Process, backlog, delivery notes |
+| [`/` (root)](./) | **Rails 8 API-only** app — auth, shifts, rotas, clocking, timesheets, staff chat |
+| [`/client`](./client) | Frontend SPA — [`client/pwa`](./client/pwa) (carer PWA) + [`client/admin-web`](./client/admin-web) (manager web); `/admin` and `/staff` are **routes** |
+| [`/contracts`](./contracts) | Shared API shapes between the client apps and the Rails API |
+| [`/docs`](./docs) | Process, backlog, delivery notes, and the Phase-1 build spec ([`context.md`](./docs/context.md)) |
 
 ### Contracts rule
 
-A PR that changes `/contracts` without a matching consumer change in `/pwa`, `/admin-web`, or `/backend` is incomplete. The carer app, manager app, and Rails API must stay aligned.
+A PR that changes `/contracts` without a matching consumer change in `/client` or the Rails API (root) is incomplete. The carer app, manager app, and Rails API must stay aligned.
 
 ---
 
@@ -59,7 +58,7 @@ Auth + Rails foundation → shifts → carer dashboard → clock in/out → offl
 2. Open the [board](https://github.com/orgs/9-sonic/projects/1) → take from **Ready**.  
 3. Comment `Taking this`, set status **In Progress**, branch from `main` (do not commit on `main`).  
 4. **Open a PR into `main`** with `Closes #…` — a branch alone is not delivery.  
-5. Keep checks green; Rails changes go in `/backend` only.
+5. Keep checks green; Rails changes live at the repo root, frontend changes under `/client`.
 
 ---
 
@@ -89,6 +88,7 @@ Operating detail: [docs/project-management.md](./docs/project-management.md).
 | **Board sync** | Linked issues → In Review on PR; Done on merge (Best Pinnacle project) |
 | **Fireworks AI review** | Sticky AI review on PRs (`FIREWORKS_API_KEY`; default Kimi K2.7 Code) |
 | **Main push guard** | Warns in Actions if `main` is updated without a clear PR merge |
+| **Deploy** | On merge to `main`, SSH + rsync to the Virtualmin host; deploys backend and/or client per changed paths (`deploy.yml`) |
 
 Details: [docs/ci.md](./docs/ci.md). Project UI workflows (⋯ → Workflows) remain useful as a backup for auto-add.
 
