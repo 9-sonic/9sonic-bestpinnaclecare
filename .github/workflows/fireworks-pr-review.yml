@@ -102,7 +102,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
+          MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/__invalid_primary_for_fallback_test__' }}
           # Fallback when primary times out / 5xx / empty — override via repo var
           FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/qwen3p7-plus' }}
           FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
