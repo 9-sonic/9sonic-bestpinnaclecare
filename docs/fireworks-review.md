@@ -68,3 +68,5 @@ Workflow: `.github/workflows/fireworks-pr-review.yml`
 - Your merge judgment  
 
 See also: [faq-pr-reviews.md](./faq-pr-reviews.md), [join-and-go.md](./join-and-go.md).
+
+<!-- fireworks smoke 2026-07-26T12:01:03Z -->
