@@ -361,12 +361,15 @@ jobs:
                 try {
                   data = await response.json();
                 } catch (parseErr) {
-                  throw new Error(
+                  const err = new Error(
                     'Invalid JSON from Fireworks (' +
                       response.status +
                       '): ' +
                       parseErr.message
                   );
+                  // Preserve status so 5xx parse failures stay retryable
+                  err.status = response.status;
+                  throw err;
                 }
                 if (!response.ok) {
                   const msg =
@@ -385,7 +388,9 @@ jobs:
                   data.choices[0].message &&
                   data.choices[0].message.content;
                 if (!text || !String(text).trim()) {
-                  throw new Error('Empty completion content');
+                  const err = new Error('Empty completion content');
+                  err.retryable = true;
+                  throw err;
                 }
                 return String(text).trim();
               } finally {
@@ -395,6 +400,7 @@ jobs:
 
             function isRetryable(err) {
               if (!err) return false;
+              if (err.retryable === true) return true;
               const msg = String(err.message || err);
               if (/abort|timeout|ECONN|ENOTFOUND|fetch failed|UND_ERR/i.test(msg)) {
                 return true;
@@ -406,10 +412,17 @@ jobs:
               return false;
             }
 
+            function isConfigError(err) {
+              const status = err && err.status;
+              return status === 400 || status === 401 || status === 403 || status === 404;
+            }
+
             let reviewText = null;
             let usedModel = null;
             let usedAttempt = 0;
             const attemptLog = [];
+            let sawRetryableFailure = false;
+            let sawConfigFailure = false;
 
             for (const candidate of modelChain) {
               for (let attempt = 1; attempt <= retriesPerModel; attempt++) {
@@ -442,12 +455,18 @@ jobs:
                       '): ' +
                       detail
                   );
+                  if (isRetryable(err)) {
+                    sawRetryableFailure = true;
+                  }
+                  if (isConfigError(err)) {
+                    sawConfigFailure = true;
+                  }
                   if (attempt < retriesPerModel && isRetryable(err)) {
                     await sleep(1500 * attempt);
                     continue;
                   }
-                  if (!isRetryable(err) && attempt >= 1) {
-                    // Auth/model-not-found: skip remaining retries for this model
+                  if (!isRetryable(err)) {
+                    // Auth / bad model path: do not burn retries on same model
                     break;
                   }
                 }
@@ -465,19 +484,33 @@ jobs:
                 marker,
                 '### Fireworks AI code review',
                 '',
-                '**Skipped:** Fireworks API unreachable or all models failed after retries.',
+                sawConfigFailure && !sawRetryableFailure
+                  ? '**Failed:** Fireworks rejected the request (likely bad API key or model id) — not a transient outage.'
+                  : '**Skipped:** Fireworks API unreachable or all models failed after retries.',
                 '',
                 'Tried:',
                 ...attemptLog.map((l) => '- `' + l + '`'),
                 '',
-                'Primary: `' + primaryModel + '` · Fallback: `' + fallbackModel + '`',
+                'Primary: `' +
+                  primaryModel +
+                  '` · Fallback: `' +
+                  fallbackModel +
+                  '`',
                 '',
-                'This is usually a **transient network/timeout** issue (not a code finding).',
-                '**Re-run** the *Fireworks AI Code Review* workflow, or review manually.',
+                sawConfigFailure && !sawRetryableFailure
+                  ? 'Check `FIREWORKS_API_KEY` and model vars (`FIREWORKS_MODEL` / `FIREWORKS_FALLBACK_MODEL`).'
+                  : 'This is usually a **transient network/timeout** issue (not a code finding). **Re-run** the workflow or review manually.',
                 'PM merge gate still applies; Copilot may still run separately.',
               ].join('\n');
               await postSticky(failBody);
-              // Soft-fail: do not block the PR on vendor outage
+              // Hard-fail config mistakes so misconfiguration is not silent green
+              if (sawConfigFailure && !sawRetryableFailure) {
+                core.setFailed(
+                  'Fireworks config error (400/401/403/404) after all models — fix secrets/model ids.'
+                );
+                return;
+              }
+              // Soft-fail vendor outage: do not block merge on network blips
               core.warning(
                 'Fireworks unavailable after fallbacks — posted skip notice (check green).'
               );
