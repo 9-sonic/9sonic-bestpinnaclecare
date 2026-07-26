@@ -97,6 +97,99 @@ components:
         mfa_enabled:
           type: boolean
           example: false
+    ServiceUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        full_name:
+          type: string
+        reference:
+          type: string
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        geofence_radius_m:
+          type: integer
+        geofence_mode:
+          type: string
+          nullable: true
+        access_notes:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+    Visit:
+      type: object
+      properties:
+        id:
+          type: integer
+        service_user_id:
+          type: integer
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          - cancelled
+        staff_required:
+          type: integer
+        published_at:
+          type: string
+          nullable: true
+    VisitAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+        visit_id:
+          type: integer
+        employee_id:
+          type: integer
+        lifecycle_state:
+          type: string
+          enum:
+          - scheduled
+          - check_in_window
+          - grace_period
+          - late
+          - in_progress
+          - overdue
+          - pending_review
+          - completed
+          - missed
+          - cancelled
+        assignment_status:
+          type: string
+        worked_minutes:
+          type: integer
+          nullable: true
+        flags:
+          type: array
+          items:
+            type: string
+        visit:
+          "$ref": "#/components/schemas/Visit"
 paths:
   "/api/v1/admin/auth/login":
     post:
@@ -385,6 +478,232 @@ paths:
               required:
               - token
               - password
+  "/api/v1/staff/visit_assignments/{visit_assignment_id}/clock":
+    parameters:
+    - name: visit_assignment_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Clock in/out of a visit (geofenced)
+      tags:
+      - Clocking
+      security:
+      - bearerAuth: []
+      description: Live clock-in/out at the service user's home. Within 150 m -> pass;
+        outside -> 422 too_far; no GPS -> allowed + flagged. Idempotent on client_event_id.
+      parameters: []
+      responses:
+        '201':
+          description: clocked in (geofence pass)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                  lifecycle_state:
+                    type: string
+                  geofence:
+                    type: string
+                  distance_m:
+                    type: integer
+                    nullable: true
+        '422':
+          description: too far from the home
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  distance_m:
+                    type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - clock_in
+                  - clock_out
+                client_event_id:
+                  type: string
+                  format: uuid
+                occurred_at:
+                  type: string
+                  format: date-time
+                lat:
+                  type: number
+                  nullable: true
+                lng:
+                  type: number
+                  nullable: true
+                accuracy_m:
+                  type: integer
+                  nullable: true
+                device_fingerprint:
+                  type: string
+                  format: uuid
+                  nullable: true
+              required:
+              - kind
+              - client_event_id
+              - occurred_at
+  "/api/v1/staff/sync/events":
+    post:
+      summary: Sync offline clock events (batch, idempotent)
+      tags:
+      - Sync
+      security:
+      - bearerAuth: []
+      description: Uploads the PWA outbox. Each event is idempotent on client_event_id;
+        out-of-range offline clock-ins are recorded + flagged, never dropped.
+      parameters: []
+      responses:
+        '200':
+          description: ingest results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        client_event_id:
+                          type: string
+                        status:
+                          type: string
+                        geofence:
+                          type: string
+                          nullable: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      visit_assignment_id:
+                        type: integer
+                      kind:
+                        type: string
+                      client_event_id:
+                        type: string
+                      occurred_at:
+                        type: string
+                      lat:
+                        type: number
+                        nullable: true
+                      lng:
+                        type: number
+                        nullable: true
+  "/api/v1/staff/sync/changes":
+    get:
+      summary: Download visits to cache offline
+      tags:
+      - Sync
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: since
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      description: The carer's non-terminal assigned visits + service-user home coords
+        for the offline geofence.
+      responses:
+        '200':
+          description: changeset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                  cursor:
+                    type: string
+                  visits:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/VisitAssignment"
+  "/api/v1/admin/visits/generate":
+    post:
+      summary: Generate dated visits from care packages
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: visits created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date
+                to:
+                  type: string
+                  format: date
+              required:
+              - from
+              - to
+  "/api/v1/admin/visit_assignments":
+    post:
+      summary: Assign a carer to a visit
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: assigned
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/VisitAssignment"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_id:
+                  type: integer
+                employee_id:
+                  type: integer
+              required:
+              - visit_id
+              - employee_id
   "/api/v1/staff/webauthn/registration/options":
     post:
       summary: Passkey registration options

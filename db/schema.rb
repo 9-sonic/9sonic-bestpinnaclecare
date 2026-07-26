@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -71,6 +71,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.index ["subject_type", "subject_id", "alert_type"], name: "idx_alerts_dedupe", unique: true, where: "(state = 'open'::alert_state)"
   end
 
+  create_table "care_package_slots", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "break_minutes", default: 0, null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.date "effective_from", null: false
+    t.date "effective_to"
+    t.time "end_time", null: false
+    t.text "name", null: false
+    t.text "recurrence", null: false
+    t.bigint "service_user_id", null: false
+    t.integer "staff_required", default: 1, null: false
+    t.time "start_time", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["service_user_id"], name: "index_care_package_slots_on_service_user_id"
+    t.check_constraint "staff_required > 0 AND break_minutes >= 0", name: "shift_templates_positive"
+  end
+
   create_table "clock_events", force: :cascade do |t|
     t.integer "accuracy_m"
     t.uuid "client_event_id", null: false
@@ -87,10 +104,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.timestamptz "occurred_at", null: false
     t.text "reason"
     t.timestamptz "recorded_at", default: -> { "now()" }, null: false
-    t.bigint "shift_assignment_id", null: false
+    t.bigint "visit_assignment_id", null: false
     t.index ["client_event_id"], name: "index_clock_events_on_client_event_id", unique: true
     t.index ["corrects_id"], name: "idx_clock_events_corrects"
-    t.index ["shift_assignment_id", "occurred_at"], name: "idx_clock_events_assignment"
+    t.index ["visit_assignment_id", "occurred_at"], name: "idx_clock_events_assignment"
     t.check_constraint "method <> 'manual_admin'::text OR reason IS NOT NULL", name: "clock_events_reason_when_manual"
   end
 
@@ -188,21 +205,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.index ["jti"], name: "index_jwt_denylist_on_jti"
   end
 
-  create_table "locations", force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.text "address_line1"
-    t.text "address_line2"
-    t.text "city"
-    t.timestamptz "created_at", default: -> { "now()" }, null: false
-    t.text "geofence_mode"
-    t.integer "geofence_radius_m"
-    t.decimal "lat", precision: 10, scale: 7
-    t.decimal "lng", precision: 10, scale: 7
-    t.text "name", null: false
-    t.text "postcode"
-    t.timestamptz "updated_at", default: -> { "now()" }, null: false
-  end
-
   create_table "message_attachments", force: :cascade do |t|
     t.bigint "byte_size"
     t.text "content_type"
@@ -276,6 +278,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.index ["owner_type", "owner_id"], name: "idx_refresh_owner"
   end
 
+  create_table "service_users", force: :cascade do |t|
+    t.text "access_notes"
+    t.boolean "active", default: true, null: false
+    t.text "address_line1"
+    t.text "address_line2"
+    t.text "city"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.date "date_of_birth"
+    t.text "first_name", null: false
+    t.text "geofence_mode"
+    t.integer "geofence_radius_m", default: 150, null: false
+    t.text "last_name", null: false
+    t.decimal "lat", precision: 10, scale: 7
+    t.decimal "lng", precision: 10, scale: 7
+    t.text "phone"
+    t.text "postcode"
+    t.text "reference"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["active"], name: "idx_service_users_active", where: "active"
+  end
+
   create_table "settings", id: :integer, default: 1, force: :cascade do |t|
     t.text "address_line1"
     t.text "address_line2"
@@ -309,62 +332,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.check_constraint "id = 1", name: "settings_single_row"
   end
 
-  create_table "shift_assignments", force: :cascade do |t|
-    t.timestamptz "actual_end"
-    t.timestamptz "actual_start"
-    t.bigint "assigned_by_admin_id"
-    t.text "assignment_status", default: "assigned", null: false
-    t.timestamptz "created_at", default: -> { "now()" }, null: false
-    t.bigint "employee_id", null: false
-    t.text "flags", default: [], null: false, array: true
-    t.enum "lifecycle_state", default: "scheduled", null: false, enum_type: "lifecycle_state"
-    t.text "override_reason"
-    t.text "role", default: "worker", null: false
-    t.bigint "shift_id", null: false
-    t.timestamptz "updated_at", default: -> { "now()" }, null: false
-    t.integer "worked_minutes"
-    t.index ["employee_id", "lifecycle_state"], name: "idx_assignments_employee"
-    t.index ["lifecycle_state"], name: "idx_assignments_state"
-    t.index ["shift_id", "employee_id"], name: "idx_assignments_unique", unique: true, where: "(assignment_status = 'assigned'::text)"
-  end
-
-  create_table "shift_templates", force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.integer "break_minutes", default: 0, null: false
-    t.timestamptz "created_at", default: -> { "now()" }, null: false
-    t.date "effective_from", null: false
-    t.date "effective_to"
-    t.time "end_time", null: false
-    t.bigint "location_id"
-    t.text "name", null: false
-    t.text "recurrence", null: false
-    t.integer "staff_required", default: 1, null: false
-    t.time "start_time", null: false
-    t.timestamptz "updated_at", default: -> { "now()" }, null: false
-    t.check_constraint "staff_required > 0 AND break_minutes >= 0", name: "shift_templates_positive"
-  end
-
-  create_table "shifts", force: :cascade do |t|
-    t.integer "break_minutes", default: 0, null: false
-    t.text "cancellation_reason"
-    t.timestamptz "cancelled_at"
-    t.timestamptz "created_at", default: -> { "now()" }, null: false
-    t.bigint "location_id"
-    t.text "notes"
-    t.timestamptz "published_at"
-    t.bigint "published_by_admin_id"
-    t.timestamptz "scheduled_end", null: false
-    t.timestamptz "scheduled_start", null: false
-    t.bigint "shift_template_id"
-    t.integer "staff_required", default: 1, null: false
-    t.enum "status", default: "draft", null: false, enum_type: "shift_status"
-    t.timestamptz "updated_at", default: -> { "now()" }, null: false
-    t.index ["scheduled_start"], name: "idx_shifts_start"
-    t.index ["shift_template_id", "scheduled_start"], name: "idx_shifts_template_slot", unique: true, where: "(shift_template_id IS NOT NULL)"
-    t.index ["status", "scheduled_start"], name: "idx_shifts_status"
-    t.check_constraint "scheduled_end > scheduled_start", name: "shifts_end_after_start"
-  end
-
   create_table "timesheet_disputes", force: :cascade do |t|
     t.timestamptz "created_at", default: -> { "now()" }, null: false
     t.bigint "raised_by_employee_id", null: false
@@ -380,12 +347,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.bigint "employee_id", null: false
     t.text "flags", default: [], null: false, array: true
     t.integer "scheduled_minutes", null: false
-    t.bigint "shift_assignment_id", null: false
     t.bigint "timesheet_period_id", null: false
+    t.bigint "visit_assignment_id", null: false
     t.date "work_date", null: false
     t.integer "worked_minutes", null: false
     t.index ["employee_id", "work_date"], name: "idx_timesheet_lines_employee"
-    t.index ["timesheet_period_id", "shift_assignment_id"], name: "idx_on_timesheet_period_id_shift_assignment_id_0d0e2364ac", unique: true
+    t.index ["timesheet_period_id", "visit_assignment_id"], name: "idx_on_timesheet_period_id_visit_assignment_id_57b4ac0514", unique: true
   end
 
   create_table "timesheet_periods", force: :cascade do |t|
@@ -397,6 +364,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
     t.string "status", default: "open", null: false
     t.index ["starts_on"], name: "index_timesheet_periods_on_starts_on", unique: true
     t.check_constraint "ends_on >= starts_on", name: "timesheet_periods_range"
+  end
+
+  create_table "visit_assignments", force: :cascade do |t|
+    t.timestamptz "actual_end"
+    t.timestamptz "actual_start"
+    t.bigint "assigned_by_admin_id"
+    t.text "assignment_status", default: "assigned", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "employee_id", null: false
+    t.text "flags", default: [], null: false, array: true
+    t.enum "lifecycle_state", default: "scheduled", null: false, enum_type: "lifecycle_state"
+    t.text "override_reason"
+    t.text "role", default: "worker", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.bigint "visit_id", null: false
+    t.integer "worked_minutes"
+    t.index ["employee_id", "lifecycle_state"], name: "idx_assignments_employee"
+    t.index ["lifecycle_state"], name: "idx_assignments_state"
+    t.index ["visit_id", "employee_id"], name: "idx_assignments_unique", unique: true, where: "(assignment_status = 'assigned'::text)"
+  end
+
+  create_table "visits", force: :cascade do |t|
+    t.integer "break_minutes", default: 0, null: false
+    t.text "cancellation_reason"
+    t.timestamptz "cancelled_at"
+    t.bigint "care_package_slot_id"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.text "notes"
+    t.timestamptz "published_at"
+    t.bigint "published_by_admin_id"
+    t.timestamptz "scheduled_end", null: false
+    t.timestamptz "scheduled_start", null: false
+    t.bigint "service_user_id", null: false
+    t.integer "staff_required", default: 1, null: false
+    t.enum "status", default: "draft", null: false, enum_type: "shift_status"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["care_package_slot_id", "scheduled_start"], name: "idx_shifts_template_slot", unique: true, where: "(care_package_slot_id IS NOT NULL)"
+    t.index ["scheduled_start"], name: "idx_shifts_start"
+    t.index ["service_user_id"], name: "index_visits_on_service_user_id"
+    t.index ["status", "scheduled_start"], name: "idx_shifts_status"
+    t.check_constraint "scheduled_end > scheduled_start", name: "shifts_end_after_start"
   end
 
   create_table "webauthn_credentials", force: :cascade do |t|
@@ -413,26 +421,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
   end
 
   add_foreign_key "alerts", "admins", column: "acknowledged_by_admin_id"
+  add_foreign_key "care_package_slots", "service_users"
   add_foreign_key "clock_events", "clock_events", column: "corrects_id"
-  add_foreign_key "clock_events", "shift_assignments"
+  add_foreign_key "clock_events", "visit_assignments"
   add_foreign_key "conversation_participants", "conversations"
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_receipts", "messages"
   add_foreign_key "messages", "conversations"
   add_foreign_key "notifications", "alerts"
   add_foreign_key "refresh_tokens", "devices"
-  add_foreign_key "shift_assignments", "admins", column: "assigned_by_admin_id"
-  add_foreign_key "shift_assignments", "employees"
-  add_foreign_key "shift_assignments", "shifts"
-  add_foreign_key "shift_templates", "locations"
-  add_foreign_key "shifts", "admins", column: "published_by_admin_id"
-  add_foreign_key "shifts", "locations"
-  add_foreign_key "shifts", "shift_templates"
   add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
   add_foreign_key "timesheet_disputes", "employees", column: "raised_by_employee_id"
   add_foreign_key "timesheet_disputes", "timesheet_lines"
   add_foreign_key "timesheet_lines", "employees"
-  add_foreign_key "timesheet_lines", "shift_assignments"
   add_foreign_key "timesheet_lines", "timesheet_periods"
+  add_foreign_key "timesheet_lines", "visit_assignments"
   add_foreign_key "timesheet_periods", "admins", column: "approved_by_admin_id"
+  add_foreign_key "visit_assignments", "admins", column: "assigned_by_admin_id"
+  add_foreign_key "visit_assignments", "employees"
+  add_foreign_key "visit_assignments", "visits"
+  add_foreign_key "visits", "admins", column: "published_by_admin_id"
+  add_foreign_key "visits", "care_package_slots"
+  add_foreign_key "visits", "service_users"
 end

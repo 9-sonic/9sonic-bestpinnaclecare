@@ -13,5 +13,9 @@ module ErrorHandling
     rescue_from ActionController::ParameterMissing do |e|
       render json: { error: "parameter_missing", param: e.param }, status: :bad_request
     end
+
+    rescue_from ActiveRecord::RecordNotUnique do |_e|
+      render json: { error: "conflict" }, status: :conflict
+    end
   end
 end

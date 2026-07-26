@@ -15,6 +15,18 @@ Rails.application.routes.draw do
       delete "auth/logout", to: "sessions#logout"
       post   "auth/mfa",    to: "mfa_sessions#create"   # two-step MFA: exchange challenge + code for a token
 
+      # Shared notifications (recipient is Admin or Employee)
+      get   "notifications",            to: "notifications#index"
+      post  "notifications/:id/seen",   to: "notifications#seen"
+      get   "notification_preferences", to: "notification_preferences#index"
+      patch "notification_preferences", to: "notification_preferences#update"
+
+      # Shared chat (participants are Admin or Employee)
+      resources :conversations, only: %i[index create] do
+        resources :messages, only: %i[index create]
+      end
+      post "messages/:id/receipts", to: "message_receipts#create"
+
       # Office (Admin)
       namespace :admin do
         post "auth/login",    to: "auth#create"
@@ -23,6 +35,47 @@ Rails.application.routes.draw do
         post "mfa",           to: "mfa#create"          # begin TOTP enrolment
         post "mfa/confirm",   to: "mfa#confirm"          # activate + return backup codes
         get  "me",            to: "me#show"
+
+        # Domain: service users, care packages, visits, assignments
+        resources :service_users,      only: %i[index show create update]
+        resources :care_package_slots, only: %i[index create update]
+        resources :visits, only: %i[index create] do
+          member     { post :publish }
+          collection { post :generate }   # generate dated visits from care packages
+        end
+        resources :visit_assignments, only: %i[create destroy]
+
+        # User management (invitations)
+        resources :employees, only: %i[index show create update]
+        resources :admins,    only: %i[index show create update]
+
+        # Provider config, dashboard, rota copy
+        resource :settings, only: %i[show update], controller: "settings"
+        get  "dashboard",   to: "dashboard#index"
+        post "rota_copies", to: "rota_copies#create"
+
+        # Monitoring + corrections
+        get  "live_board",        to: "live_board#index"
+        get  "exceptions",        to: "exceptions#index"
+        post "clock_corrections", to: "clock_corrections#create"
+        resources :alerts, only: %i[index] do
+          member do
+            post :acknowledge
+            post :resolve
+          end
+        end
+
+        # Timesheets / attendance
+        resources :timesheet_periods, only: %i[index show create] do
+          member do
+            post :approve
+            post :lock
+          end
+        end
+        get "timesheet_exports/:id", to: "timesheet_exports#show"
+        resources :timesheet_disputes, only: %i[index] do
+          member { post :resolve }
+        end
       end
 
       # Carer PWA (Employee)
@@ -39,6 +92,16 @@ Rails.application.routes.draw do
         post "webauthn/registration",           to: "webauthn_registrations#create"
         post "webauthn/authentication/options", to: "webauthn_sessions#create_options"
         post "webauthn/authentication",         to: "webauthn_sessions#create"
+
+        # Visits + geofenced clock-in/out + offline sync
+        get  "visits", to: "visits#index"
+        post "visit_assignments/:visit_assignment_id/clock", to: "clock#create"
+        post "sync/events",  to: "sync#events"
+        get  "sync/changes", to: "sync#changes"
+
+        # Attendance
+        get  "timesheet", to: "timesheet#show"
+        post "disputes",  to: "disputes#create"
       end
     end
   end

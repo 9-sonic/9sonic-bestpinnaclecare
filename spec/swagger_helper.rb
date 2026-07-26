@@ -62,6 +62,38 @@ RSpec.configure do |config|
               active:             { type: :boolean, example: true },
               mfa_enabled:        { type: :boolean, example: false }
             }
+          },
+          ServiceUser: {
+            type: :object,
+            properties: {
+              id: { type: :integer }, first_name: { type: :string }, last_name: { type: :string },
+              full_name: { type: :string }, reference: { type: :string, nullable: true },
+              address_line1: { type: :string, nullable: true }, postcode: { type: :string, nullable: true },
+              lat: { type: :number, nullable: true }, lng: { type: :number, nullable: true },
+              geofence_radius_m: { type: :integer }, geofence_mode: { type: :string, nullable: true },
+              access_notes: { type: :string, nullable: true }, active: { type: :boolean }
+            }
+          },
+          Visit: {
+            type: :object,
+            properties: {
+              id: { type: :integer }, service_user_id: { type: :integer },
+              scheduled_start: { type: :string, format: 'date-time' },
+              scheduled_end: { type: :string, format: 'date-time' },
+              status: { type: :string, enum: %w[draft published cancelled] },
+              staff_required: { type: :integer }, published_at: { type: :string, nullable: true }
+            }
+          },
+          VisitAssignment: {
+            type: :object,
+            properties: {
+              id: { type: :integer }, visit_id: { type: :integer }, employee_id: { type: :integer },
+              lifecycle_state: { type: :string,
+                enum: %w[scheduled check_in_window grace_period late in_progress overdue pending_review completed missed cancelled] },
+              assignment_status: { type: :string }, worked_minutes: { type: :integer, nullable: true },
+              flags: { type: :array, items: { type: :string } },
+              visit: { '$ref' => '#/components/schemas/Visit' }
+            }
           }
         }
       }

@@ -23,6 +23,16 @@ gem "rqrcode"
 # Biometric/passkey login for the carer PWA (WebAuthn / FIDO2)
 gem "webauthn"
 
+# Geocode service-user home addresses -> lat/lng (geofence centre)
+gem "geocoder"
+
+# Timesheet exports (CSV is no longer a default gem on Ruby 4.0; caxlsx for XLSX)
+gem "csv"
+gem "caxlsx"
+
+# Request throttling / rate limiting
+gem "rack-attack"
+
 # OpenAPI/Swagger docs (served at /api-docs) generated from request specs
 gem "rswag-api"
 gem "rswag-ui"

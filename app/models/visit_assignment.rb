@@ -1,6 +1,7 @@
-# Timer-driven lifecycle FSM lives on lifecycle_state (advanced by Lifecycle::EvaluateStatesJob).
-class ShiftAssignment < ApplicationRecord
-  belongs_to :shift
+# One carer's slot on one visit (was ShiftAssignment). Carries the timer-driven
+# lifecycle FSM, the clock events, and the worked minutes (attendance).
+class VisitAssignment < ApplicationRecord
+  belongs_to :visit
   belongs_to :employee
   belongs_to :assigned_by, class_name: "Admin", foreign_key: :assigned_by_admin_id, optional: true
   has_many   :clock_events, dependent: :restrict_with_error

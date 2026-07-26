@@ -4,8 +4,8 @@ class Employee < ApplicationRecord
 
   enum :role, { carer: "carer", senior_carer: "senior_carer" }
 
-  has_many :shift_assignments, dependent: :restrict_with_error
-  has_many :shifts, through: :shift_assignments
+  has_many :visit_assignments, dependent: :restrict_with_error
+  has_many :visits, through: :visit_assignments
   has_many :timesheet_lines
   has_many :raised_disputes, class_name: "TimesheetDispute", foreign_key: :raised_by_employee_id
 end

@@ -2,7 +2,7 @@
 class ClockEvent < ApplicationRecord
   include AppendOnly
 
-  belongs_to :shift_assignment
+  belongs_to :visit_assignment
   belongs_to :created_by, polymorphic: true, optional: true   # Admin (correction) | Employee (own clock)
   belongs_to :corrects, class_name: "ClockEvent", optional: true
   has_one    :corrected_by, class_name: "ClockEvent", foreign_key: :corrects_id

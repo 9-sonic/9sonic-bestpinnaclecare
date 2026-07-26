@@ -3,6 +3,8 @@ module Api
     module Admin
       # Base for office (Admin) endpoints — requires a valid Admin JWT.
       class BaseController < ApplicationController
+        include RoleAuthorization
+
         before_action :authenticate_admin!
 
         private
