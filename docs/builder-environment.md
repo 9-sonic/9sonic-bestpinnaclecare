@@ -25,25 +25,25 @@ This file is what **developers clone with the app**.
 | Truth | Tool |
 |-------|------|
 | **Code** | GitHub monorepo |
-| **Tasks (dual)** | GitHub Issues + Project **and** Linear `BPC-xxx` (when connected) |
-| **Knowledge** | Notion (not a task board) |
+| **Status (dual)** | GitHub Issues + Project **and** Linear **`BES-xxx`** (team Best Pinnacle) |
+| **Knowledge** | Notion Engineering Hub (not a task board) |
 | **Design** | Figma (READY handoffs) |
 | **AI in editor** | Claude / Cursor + `.claude/` skills |
 | **AI on PRs** | Copilot + Fireworks |
 
-Details for dual boards: `.claude/skills/dual-review-and-boards.md` and CONTRIBUTING.
+Details: [docs/dual-board.md](./dual-board.md), `.claude/skills/dual-review-and-boards.md`, CONTRIBUTING.
 
 ---
 
 ## Dual board rules (summary)
 
-1. **Write once** — one ticket, not two unlinked tickets.  
-2. **Link** Linear ↔ GitHub when both exist.  
-3. **PRs** always carry `BPC-xxx` and/or `Closes #n`.  
+1. **Write once** — one status change, not two unlinked tickets.  
+2. **Link** Linear `BES-n` ↔ GitHub `#n` when both exist.  
+3. **PRs** always carry `BES-xxx` and/or `Closes #n`.  
 4. **If one tool is down**, the other still works; re-sync later.  
 5. **Merge truth** is always the GitHub PR.
 
-Linear setup is **Slice B** (integration + import). GitHub Project is live now.
+Linear + Notion arrangement for this product is live (epics, Ready Must path, Engineering Hub Start here / ADR log).
 
 ---
 

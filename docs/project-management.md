@@ -1,9 +1,11 @@
 # Delivery management — Best Pinnacle Care
 
-How this build is run. One project, clear statuses, no second board.
+How this build is run. Clear statuses; dual read / single write across GitHub and Linear.
 
-**Project:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
-**Repo:** [9sonic-bestpinnaclecare](https://github.com/9-sonic/9sonic-bestpinnaclecare)
+**GitHub Project:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
+**Linear:** [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) (`BES-xxx`)  
+**Repo:** [9sonic-bestpinnaclecare](https://github.com/9-sonic/9sonic-bestpinnaclecare)  
+**Map:** [dual-board.md](./dual-board.md)
 
 ---
 
