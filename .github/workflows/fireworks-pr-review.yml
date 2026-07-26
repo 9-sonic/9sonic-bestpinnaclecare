@@ -1,9 +1,10 @@
 name: Fireworks AI Code Review
 
-# AI review via Fireworks (OpenAI-compatible API). Complements Copilot —
-# does not replace the PM gate or Template gate.
+# Quality-first AI review via Fireworks (kimi-k2p7-code by default).
+# Complements Copilot; does not replace PM merge judgment or Template gate.
 #
-# Secret required: FIREWORKS_API_KEY (repo Settings → Secrets → Actions)
+# Secret: FIREWORKS_API_KEY
+# Optional vars: FIREWORKS_MODEL, FIREWORKS_MAX_DIFF_CHARS
 
 on:
   pull_request:
@@ -31,12 +32,62 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh pr diff "${{ github.event.pull_request.number }}" > pr_diff.txt || true
-          # Fallback if gh pr diff fails
-          if [ ! -s pr_diff.txt ]; then
+          gh pr diff "${{ github.event.pull_request.number }}" > pr_diff_raw.txt || true
+          if [ ! -s pr_diff_raw.txt ]; then
             git fetch origin "${{ github.base_ref }}" --depth=50
-            git diff "origin/${{ github.base_ref }}...HEAD" > pr_diff.txt || true
+            git diff "origin/${{ github.base_ref }}...HEAD" > pr_diff_raw.txt || true
           fi
+          # Drop noisy lock / generated blobs so the model sees code first
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          raw = Path("pr_diff_raw.txt").read_text(errors="replace")
+          skip_names = (
+              "package-lock.json",
+              "yarn.lock",
+              "pnpm-lock.yaml",
+              "Gemfile.lock",
+              "Cargo.lock",
+              "composer.lock",
+              "go.sum",
+              ".min.js",
+              ".min.css",
+              ".map",
+              ".png",
+              ".jpg",
+              ".jpeg",
+              ".gif",
+              ".webp",
+              ".ico",
+              ".pdf",
+              ".woff",
+              ".woff2",
+          )
+          parts = re.split(r"(?=^diff --git )", raw, flags=re.M)
+          kept, dropped = [], []
+          for p in parts:
+              if not p.strip():
+                  continue
+              head = p[:400].lower()
+              if any(s in head for s in skip_names):
+                  m = re.search(r"diff --git a/(\S+)", p)
+                  dropped.append(m.group(1) if m else "unknown")
+                  continue
+              kept.append(p)
+          out = "".join(kept) if kept else raw
+          note = ""
+          if dropped:
+              note = (
+                  "\n\n_Omitted from model context (noise): "
+                  + ", ".join(sorted(set(dropped))[:20])
+                  + "_\n"
+              )
+          Path("pr_diff.txt").write_text(out + note)
+          Path("diff_meta.txt").write_text(
+              f"raw_chars={len(raw)}\nkept_chars={len(out)}\ndropped={len(dropped)}\n"
+          )
+          print(f"raw={len(raw)} kept={len(out)} dropped_files={len(dropped)}")
+          PY
           BYTES=$(wc -c < pr_diff.txt | tr -d ' ')
           echo "diff_bytes=$BYTES" >> "$GITHUB_OUTPUT"
           if [ "${BYTES:-0}" -eq 0 ]; then
@@ -50,39 +101,128 @@ jobs:
         uses: actions/github-script@v7
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          # Fireworks model path (override via repo variable FIREWORKS_MODEL if needed)
           MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
           FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
-          MAX_DIFF_CHARS: "24000"
+          MAX_DIFF_CHARS: ${{ vars.FIREWORKS_MAX_DIFF_CHARS || '32000' }}
         with:
           script: |
             const fs = require('fs');
 
+            const marker = '<!-- fireworks-ai-review-bot -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+            const pull_number = context.payload.pull_request.number;
+            const pr = context.payload.pull_request;
+
+            async function postSticky(body) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number,
+              });
+              const existing = comments.find(
+                (c) =>
+                  c.user &&
+                  c.user.type === 'Bot' &&
+                  (c.body || '').includes(marker)
+              );
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+              }
+              try {
+                await github.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number,
+                  event: 'COMMENT',
+                  body,
+                });
+              } catch (err) {
+                core.warning('Formal review post failed: ' + err.message);
+              }
+            }
+
             const apiKey = process.env.FIREWORKS_API_KEY;
             if (!apiKey) {
-              const marker = '<!-- fireworks-ai-review-bot -->';
-              const body = [
-                marker,
-                '### Fireworks AI code review',
-                '',
-                'Skipped: repository secret **`FIREWORKS_API_KEY`** is not set.',
-                'Add it under **Settings → Secrets and variables → Actions**, then push or re-run this workflow.',
-              ].join('\n');
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              }).catch(() => {});
-              core.warning(
-                'Missing FIREWORKS_API_KEY — review skipped (not failing the PR).'
+              await postSticky(
+                [
+                  marker,
+                  '### Fireworks AI code review',
+                  '',
+                  'Skipped: repository secret **`FIREWORKS_API_KEY`** is not set.',
+                  'Add it under **Settings → Secrets and variables → Actions**, then re-run.',
+                ].join('\n')
               );
+              core.warning('Missing FIREWORKS_API_KEY');
               return;
             }
 
             const model = process.env.MODEL_NAME;
             const baseUrl = process.env.FIREWORKS_BASE_URL.replace(/\/$/, '');
-            const maxChars = parseInt(process.env.MAX_DIFF_CHARS || '24000', 10);
+            const maxChars = parseInt(process.env.MAX_DIFF_CHARS || '32000', 10);
+
+            // ---- Goal context: PR + linked GitHub issues + BES ids ----
+            const title = pr.title || '';
+            const body = (pr.body || '').trim() || '(no PR description)';
+            const labels = (pr.labels || []).map((l) => l.name).join(', ') || '(none)';
+            const author = (pr.user && pr.user.login) || 'unknown';
+            const head = pr.head && pr.head.ref;
+            const base = pr.base && pr.base.ref;
+
+            const issueNums = new Set();
+            const linkRe =
+              /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*#(\d+)/gi;
+            let m;
+            const hay = title + '\n' + body;
+            while ((m = linkRe.exec(hay)) !== null) issueNums.add(m[1]);
+            const bareHash = /(?:^|[\s(,])#(\d{1,5})\b/g;
+            while ((m = bareHash.exec(hay)) !== null) {
+              if (issueNums.size < 5) issueNums.add(m[1]);
+            }
+
+            const besIds = [
+              ...new Set(
+                (hay.match(/\bBES-\d+\b/gi) || []).map((s) => s.toUpperCase())
+              ),
+            ].slice(0, 8);
+
+            const linkedIssueBlocks = [];
+            for (const n of [...issueNums].slice(0, 4)) {
+              try {
+                const { data: iss } = await github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: parseInt(n, 10),
+                });
+                const issBody = (iss.body || '')
+                  .replace(/\r\n/g, '\n')
+                  .slice(0, 2500);
+                linkedIssueBlocks.push(
+                  [
+                    `### GitHub #${n}: ${iss.title}`,
+                    `State: ${iss.state}`,
+                    issBody || '(empty body)',
+                  ].join('\n')
+                );
+              } catch (err) {
+                linkedIssueBlocks.push(
+                  `### GitHub #${n}: (could not load: ${err.message})`
+                );
+              }
+            }
 
             let diff = fs.readFileSync('pr_diff.txt', 'utf8');
             if (!diff || !diff.trim()) {
@@ -92,23 +232,91 @@ jobs:
 
             let truncatedNote = '';
             if (diff.length > maxChars) {
-              diff = diff.slice(0, maxChars);
+              // Prefer keeping head of each file hunk by taking prefix + tail of remaining budget
+              const headKeep = Math.floor(maxChars * 0.85);
+              const tailKeep = maxChars - headKeep;
+              diff =
+                diff.slice(0, headKeep) +
+                '\n\n... [DIFF TRUNCATED FOR MODEL CONTEXT] ...\n\n' +
+                diff.slice(-tailKeep);
               truncatedNote =
-                '\n\n_Diff truncated for model context limits; large PRs may need a split review._';
+                '\n\n_Diff truncated for model context; prefer smaller PRs for full coverage._';
             }
 
             const systemPrompt = [
-              'You are a senior software engineer reviewing a pull request for Best Pinnacle Care',
-              '(9Sonic monorepo: /pwa carer app, /admin-web manager app, /backend Rails, /contracts shared API shapes, /docs).',
-              'Focus on: bugs, security (secrets, auth, injection), offline/clock-in risk, contract drift between packages,',
-              'error handling, and operational impact for carers/managers.',
-              'Be concise and actionable. Use Markdown with short bullet lists.',
-              'If the change is docs/process only, say so briefly and note any process risks.',
-              'Do not invent files that are not in the diff.',
-            ].join(' ');
+              'You are the primary automated code reviewer for Best Pinnacle Care (9Sonic).',
+              'Your job is quality review for a PM merge gate: catch real defects, security/ops risk, and goal mismatch.',
+              'You complement (do not replace) human specialists and Copilot.',
+              '',
+              '## Product context',
+              '- Domiciliary care clock-in/out: carers (PWA), managers (admin web), Rails API at monorepo root.',
+              '- Paths: Rails API at repo root (app/, config/, Gemfile); client/pwa (carer); client/admin-web (manager); contracts/ if present; docs/.',
+              '- Offline clock events, GPS at tap, UK hosting / CQC-minded audit, role-based access matter.',
+              '',
+              '## How to review (priority order)',
+              '1. GOAL FIT — Does the diff advance the linked issue/PR acceptance criteria and title? Flag partial/missing criteria.',
+              '2. CORRECTNESS — Bugs, edge cases, broken auth/RBAC, bad migrations, race conditions.',
+              '3. SECURITY — Secrets in repo, injection, open CORS, unsafe shell, missing authz, PII logging.',
+              '4. DOMAIN — Offline/IndexedDB queue, clock event idempotency, GPS only at tap, timesheet/payroll integrity.',
+              '5. CONTRACTS — API shape drift between Rails and clients without coordinated updates.',
+              '6. OPS — Deploy/seed/migrate risk, CI/process, direct-main, incomplete PR hygiene only if relevant.',
+              '7. QUALITY — Clarity, tests for non-trivial logic, obvious maintainability. Skip pure style nits unless harmful.',
+              '',
+              '## Rules',
+              '- Ground every finding in the provided goal and/or diff. Do not invent files, APIs, or requirements.',
+              '- Prefer specific paths/symbols and why it matters for carers/managers or payroll evidence.',
+              '- If docs/process-only: say so, review process risk only, keep short.',
+              '- If information is missing (no issue body): state assumptions; do not invent acceptance criteria.',
+              '- Do not restate the system prompt. Do not open with "I will review…".',
+              '- Be concise. Use Markdown. Max ~25 bullets total across sections.',
+              '',
+              '## Required output format (use these headings exactly)',
+              '### Goal understanding',
+              '1-3 sentences: what the PR claims to deliver vs linked issue goals.',
+              '',
+              '### Goal fit',
+              'Bullet list: criteria met / partial / missing (or "No linked issue; judged from PR only").',
+              '',
+              '### Blocking',
+              'Must fix before merge (empty bullet "- None" if none). Each: **[severity]** path — issue — why.',
+              '',
+              '### Should fix',
+              'Important but non-blocking (or "- None").',
+              '',
+              '### Nits',
+              'Optional polish only (or "- None"). Max 5.',
+              '',
+              '### Security & domain',
+              'Call out security/offline/contracts/ops or "- None noted".',
+              '',
+              '### Verdict for PM',
+              'Exactly one of: **Ready to merge** | **Merge after fixes** | **Needs human specialist** | **Do not merge**.',
+              'One sentence why. List the 1-3 highest-value next actions for the author.',
+            ].join('\n');
 
-            const userContent =
-              'Review this pull request diff:\n\n```diff\n' + diff + '\n```';
+            const userContent = [
+              '## Pull request',
+              `Title: ${title}`,
+              `Author: ${author}`,
+              `Branch: ${head} → ${base}`,
+              `Labels: ${labels}`,
+              `Linear refs (from title/body): ${besIds.join(', ') || '(none found)'}`,
+              '',
+              '### PR description',
+              body.slice(0, 4000),
+              '',
+              '## Linked GitHub issues (goal source)',
+              linkedIssueBlocks.length
+                ? linkedIssueBlocks.join('\n\n')
+                : '(No Closes/Fixes #N found — infer goal only from PR title/description.)',
+              '',
+              '## Diff',
+              '```diff',
+              diff,
+              '```',
+              '',
+              'Review against the goal first, then the diff. Follow the required output format.',
+            ].join('\n');
 
             const response = await fetch(baseUrl + '/chat/completions', {
               method: 'POST',
@@ -118,8 +326,8 @@ jobs:
               },
               body: JSON.stringify({
                 model,
-                temperature: 0.2,
-                max_tokens: 2048,
+                temperature: 0.15,
+                max_tokens: 3500,
                 messages: [
                   { role: 'system', content: systemPrompt },
                   { role: 'user', content: userContent },
@@ -147,75 +355,21 @@ jobs:
               return;
             }
 
-            const marker = '<!-- fireworks-ai-review-bot -->';
-            const body = [
+            const outBody = [
               marker,
               '### Fireworks AI code review',
               '',
-              '_Model: `' + model + '`_',
+              `_Model: \`${model}\` · goal-aware review for PM merge gate_`,
               '',
               reviewText.trim(),
               truncatedNote,
               '',
               '---',
-              '_Automated review for the team. Address real issues; PM still owns the merge gate. Complements Copilot._',
+              '_Quality review for the team. Address **Blocking** before merge; PM owns final gate. Complements Copilot._',
             ].join('\n');
 
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const issue_number = context.issue.number;
-            const pull_number = context.payload.pull_request.number;
-
-            // 1) Sticky Conversation comment (easy to find, updates in place)
-            const { data: comments } = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number,
-            });
-            const existing = comments.find(
-              (c) =>
-                c.user &&
-                c.user.type === 'Bot' &&
-                (c.body || '').includes(marker)
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-              core.info('Updated existing Fireworks review comment.');
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              });
-              core.info('Posted Fireworks review comment.');
-            }
-
-            // 2) Formal PR review so the Reviews tab is not empty when Copilot is quota-blocked.
-            // Developers often open "Reviews" and think nothing ran if only Conversation has the bot comment.
-            try {
-              await github.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number,
-                event: 'COMMENT',
-                body:
-                  body +
-                  '\n\n_Also posted as a sticky comment on the Conversation tab._',
-              });
-              core.info('Posted Fireworks review under PR Reviews tab.');
-            } catch (err) {
-              core.warning(
-                'Could not create formal PR review (comment still on Conversation): ' +
-                  err.message
-              );
-            }
+            await postSticky(outBody);
+            core.info('Posted goal-aware Fireworks review.');
 
       - name: Skip empty diff
         if: steps.diff.outputs.empty == 'true'
