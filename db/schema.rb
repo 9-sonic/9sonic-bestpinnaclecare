@@ -10,8 +10,429 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 0) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_120017) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pgcrypto"
 
+  # Custom types defined in this database.
+  # Note that some types may not work with other database engines. Be careful if changing database.
+  create_enum "admin_role", ["registered_manager", "manager", "coordinator", "finance", "auditor"]
+  create_enum "alert_state", ["open", "acknowledged", "resolved"]
+  create_enum "clock_kind", ["clock_in", "clock_out"]
+  create_enum "conversation_kind", ["direct", "group"]
+  create_enum "employee_role", ["carer", "senior_carer"]
+  create_enum "geofence_result", ["pass", "fail", "no_fix", "not_checked"]
+  create_enum "lifecycle_state", ["scheduled", "check_in_window", "grace_period", "late", "in_progress", "overdue", "pending_review", "completed", "missed", "cancelled"]
+  create_enum "shift_status", ["draft", "published", "cancelled"]
+
+  create_table "admins", force: :cascade do |t|
+    t.timestamptz "accepted_invite_at"
+    t.boolean "active", default: true, null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.citext "email", null: false
+    t.text "encrypted_password", default: "", null: false
+    t.integer "failed_attempts", default: 0, null: false
+    t.text "first_name", null: false
+    t.timestamptz "invited_at"
+    t.text "last_name", null: false
+    t.timestamptz "last_sign_in_at"
+    t.timestamptz "locked_at"
+    t.text "mfa_backup_codes", default: [], null: false, array: true
+    t.timestamptz "mfa_confirmed_at"
+    t.boolean "mfa_enabled", default: true, null: false
+    t.text "mfa_secret"
+    t.text "phone"
+    t.timestamptz "reset_password_sent_at"
+    t.string "reset_password_token"
+    t.enum "role", null: false, enum_type: "admin_role"
+    t.string "unlock_token"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.string "webauthn_id"
+    t.index ["active"], name: "idx_admins_active", where: "active"
+    t.index ["email"], name: "index_admins_on_email", unique: true
+    t.index ["reset_password_token"], name: "index_admins_on_reset_password_token", unique: true
+    t.index ["unlock_token"], name: "index_admins_on_unlock_token", unique: true
+  end
+
+  create_table "alerts", force: :cascade do |t|
+    t.timestamptz "acknowledged_at"
+    t.bigint "acknowledged_by_admin_id"
+    t.text "alert_type", null: false
+    t.timestamptz "raised_at", default: -> { "now()" }, null: false
+    t.text "resolution_note"
+    t.timestamptz "resolved_at"
+    t.text "severity", default: "normal", null: false
+    t.enum "state", default: "open", null: false, enum_type: "alert_state"
+    t.bigint "subject_id", null: false
+    t.text "subject_type", null: false
+    t.index ["state", "raised_at"], name: "idx_alerts_open", order: { raised_at: :desc }
+    t.index ["subject_type", "subject_id", "alert_type"], name: "idx_alerts_dedupe", unique: true, where: "(state = 'open'::alert_state)"
+  end
+
+  create_table "clock_events", force: :cascade do |t|
+    t.integer "accuracy_m"
+    t.uuid "client_event_id", null: false
+    t.bigint "corrects_id"
+    t.bigint "created_by_id"
+    t.text "created_by_type"
+    t.uuid "device_fingerprint"
+    t.integer "distance_from_site_m"
+    t.enum "geofence_result", default: "not_checked", null: false, enum_type: "geofence_result"
+    t.enum "kind", null: false, enum_type: "clock_kind"
+    t.decimal "lat", precision: 10, scale: 7
+    t.decimal "lng", precision: 10, scale: 7
+    t.text "method", default: "gps", null: false
+    t.timestamptz "occurred_at", null: false
+    t.text "reason"
+    t.timestamptz "recorded_at", default: -> { "now()" }, null: false
+    t.bigint "shift_assignment_id", null: false
+    t.index ["client_event_id"], name: "index_clock_events_on_client_event_id", unique: true
+    t.index ["corrects_id"], name: "idx_clock_events_corrects"
+    t.index ["shift_assignment_id", "occurred_at"], name: "idx_clock_events_assignment"
+    t.check_constraint "method <> 'manual_admin'::text OR reason IS NOT NULL", name: "clock_events_reason_when_manual"
+  end
+
+  create_table "conversation_participants", force: :cascade do |t|
+    t.bigint "conversation_id", null: false
+    t.timestamptz "joined_at", default: -> { "now()" }, null: false
+    t.bigint "last_read_message_id"
+    t.timestamptz "left_at"
+    t.boolean "muted", default: false, null: false
+    t.bigint "participant_id", null: false
+    t.text "participant_type", null: false
+    t.text "role", default: "member", null: false
+    t.index ["conversation_id", "participant_type", "participant_id"], name: "idx_participants_unique", unique: true
+    t.index ["participant_type", "participant_id"], name: "idx_participants_person", where: "(left_at IS NULL)"
+  end
+
+  create_table "conversations", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "created_by_id"
+    t.text "created_by_type"
+    t.text "direct_key"
+    t.enum "kind", null: false, enum_type: "conversation_kind"
+    t.timestamptz "last_message_at"
+    t.text "title"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["direct_key"], name: "index_conversations_on_direct_key", unique: true
+    t.index ["last_message_at"], name: "idx_conversations_recent", order: :desc
+    t.check_constraint "kind <> 'direct'::conversation_kind OR direct_key IS NOT NULL", name: "conversations_direct_key"
+  end
+
+  create_table "devices", force: :cascade do |t|
+    t.text "app_version"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.uuid "fingerprint", null: false
+    t.timestamptz "last_seen_at"
+    t.bigint "owner_id", null: false
+    t.text "owner_type", null: false
+    t.text "platform"
+    t.jsonb "push_subscription"
+    t.timestamptz "revoked_at"
+    t.index ["fingerprint"], name: "index_devices_on_fingerprint", unique: true
+    t.index ["owner_type", "owner_id"], name: "idx_devices_owner"
+  end
+
+  create_table "employees", force: :cascade do |t|
+    t.timestamptz "accepted_invite_at"
+    t.boolean "active", default: true, null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.citext "email", null: false
+    t.text "employee_reference"
+    t.text "encrypted_password", default: "", null: false
+    t.integer "failed_attempts", default: 0, null: false
+    t.text "first_name", null: false
+    t.timestamptz "invited_at"
+    t.text "last_name", null: false
+    t.timestamptz "last_sign_in_at"
+    t.timestamptz "locked_at"
+    t.text "mfa_backup_codes", default: [], null: false, array: true
+    t.timestamptz "mfa_confirmed_at"
+    t.boolean "mfa_enabled", default: false, null: false
+    t.text "mfa_secret"
+    t.text "phone"
+    t.timestamptz "reset_password_sent_at"
+    t.string "reset_password_token"
+    t.enum "role", default: "carer", null: false, enum_type: "employee_role"
+    t.string "unlock_token"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.string "webauthn_id"
+    t.index ["active"], name: "idx_employees_active", where: "active"
+    t.index ["email"], name: "index_employees_on_email", unique: true
+    t.index ["reset_password_token"], name: "index_employees_on_reset_password_token", unique: true
+    t.index ["unlock_token"], name: "index_employees_on_unlock_token", unique: true
+  end
+
+  create_table "events", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.text "actor_type", null: false
+    t.bigint "aggregate_id", null: false
+    t.text "aggregate_type", null: false
+    t.uuid "client_event_id"
+    t.text "event_type", null: false
+    t.timestamptz "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.timestamptz "recorded_at", default: -> { "now()" }, null: false
+    t.timestamptz "redacted_at"
+    t.index ["aggregate_type", "aggregate_id"], name: "idx_events_aggregate"
+    t.index ["client_event_id"], name: "index_events_on_client_event_id", unique: true
+    t.index ["event_type", "occurred_at"], name: "idx_events_type", order: { occurred_at: :desc }
+    t.index ["occurred_at"], name: "idx_events_time", order: :desc
+  end
+
+  create_table "jwt_denylist", force: :cascade do |t|
+    t.timestamptz "exp", null: false
+    t.string "jti", null: false
+    t.index ["jti"], name: "index_jwt_denylist_on_jti"
+  end
+
+  create_table "locations", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.text "address_line1"
+    t.text "address_line2"
+    t.text "city"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.text "geofence_mode"
+    t.integer "geofence_radius_m"
+    t.decimal "lat", precision: 10, scale: 7
+    t.decimal "lng", precision: 10, scale: 7
+    t.text "name", null: false
+    t.text "postcode"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+  end
+
+  create_table "message_attachments", force: :cascade do |t|
+    t.bigint "byte_size"
+    t.text "content_type"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.text "filename", null: false
+    t.bigint "message_id", null: false
+    t.text "storage_key", null: false
+  end
+
+  create_table "message_receipts", force: :cascade do |t|
+    t.timestamptz "delivered_at"
+    t.bigint "message_id", null: false
+    t.timestamptz "read_at"
+    t.bigint "recipient_id", null: false
+    t.text "recipient_type", null: false
+    t.index ["message_id", "recipient_type", "recipient_id"], name: "idx_receipts_unique", unique: true
+    t.index ["recipient_type", "recipient_id"], name: "idx_receipts_unread", where: "(read_at IS NULL)"
+  end
+
+  create_table "messages", force: :cascade do |t|
+    t.text "body"
+    t.uuid "client_message_id", null: false
+    t.bigint "conversation_id", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.timestamptz "deleted_at"
+    t.timestamptz "edited_at"
+    t.bigint "sender_id", null: false
+    t.text "sender_type", null: false
+    t.index ["client_message_id"], name: "index_messages_on_client_message_id", unique: true
+    t.index ["conversation_id", "created_at"], name: "idx_messages_conversation", order: { created_at: :desc }
+  end
+
+  create_table "notification_preferences", force: :cascade do |t|
+    t.boolean "email", default: false, null: false
+    t.boolean "in_app", default: true, null: false
+    t.text "notification_type", null: false
+    t.bigint "owner_id", null: false
+    t.text "owner_type", null: false
+    t.boolean "push", default: true, null: false
+    t.index ["owner_type", "owner_id", "notification_type"], name: "idx_notification_prefs_unique", unique: true
+  end
+
+  create_table "notifications", force: :cascade do |t|
+    t.bigint "alert_id"
+    t.text "body"
+    t.text "channel", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.timestamptz "delivered_at"
+    t.text "failed_reason"
+    t.text "notification_type", null: false
+    t.bigint "recipient_id", null: false
+    t.text "recipient_type", null: false
+    t.timestamptz "seen_at"
+    t.timestamptz "sent_at"
+    t.text "status", default: "queued", null: false
+    t.bigint "subject_id"
+    t.text "subject_type"
+    t.text "title", null: false
+    t.index ["recipient_type", "recipient_id", "created_at"], name: "idx_notifications_recipient", order: { created_at: :desc }
+    t.index ["recipient_type", "recipient_id"], name: "idx_notifications_unseen", where: "((seen_at IS NULL) AND (channel = 'in_app'::text))"
+  end
+
+  create_table "refresh_tokens", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "device_id"
+    t.timestamptz "expires_at", null: false
+    t.bigint "owner_id", null: false
+    t.text "owner_type", null: false
+    t.timestamptz "revoked_at"
+    t.text "token_digest", null: false
+    t.index ["owner_type", "owner_id"], name: "idx_refresh_owner"
+  end
+
+  create_table "settings", id: :integer, default: 1, force: :cascade do |t|
+    t.text "address_line1"
+    t.text "address_line2"
+    t.integer "auto_close_after_minutes", default: 240, null: false
+    t.text "brand_primary_colour"
+    t.integer "checkin_window_before_start_minutes", default: 15, null: false
+    t.text "city"
+    t.integer "clock_skew_tolerance_minutes", default: 10, null: false
+    t.text "company_name", null: false
+    t.text "cqc_location_id"
+    t.text "cqc_provider_id"
+    t.text "currency_code", default: "GBP", null: false
+    t.integer "early_leave_tolerance_minutes", default: 10, null: false
+    t.text "email"
+    t.jsonb "extra", default: {}, null: false
+    t.text "geofence_mode", default: "block", null: false
+    t.integer "geofence_radius_m", default: 150, null: false
+    t.integer "late_grace_minutes", default: 5, null: false
+    t.text "logo_key"
+    t.integer "missed_threshold_minutes", default: 30, null: false
+    t.jsonb "modules_enabled", default: {"shifts" => true}, null: false
+    t.integer "overdue_threshold_minutes", default: 60, null: false
+    t.text "phone"
+    t.text "postcode"
+    t.text "timesheet_period", default: "weekly", null: false
+    t.integer "timesheet_rounding_minutes", default: 0, null: false
+    t.integer "timesheet_week_starts_on", default: 1, null: false
+    t.text "timezone", default: "Europe/London", null: false
+    t.text "trading_name"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.check_constraint "id = 1", name: "settings_single_row"
+  end
+
+  create_table "shift_assignments", force: :cascade do |t|
+    t.timestamptz "actual_end"
+    t.timestamptz "actual_start"
+    t.bigint "assigned_by_admin_id"
+    t.text "assignment_status", default: "assigned", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "employee_id", null: false
+    t.text "flags", default: [], null: false, array: true
+    t.enum "lifecycle_state", default: "scheduled", null: false, enum_type: "lifecycle_state"
+    t.text "override_reason"
+    t.text "role", default: "worker", null: false
+    t.bigint "shift_id", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.integer "worked_minutes"
+    t.index ["employee_id", "lifecycle_state"], name: "idx_assignments_employee"
+    t.index ["lifecycle_state"], name: "idx_assignments_state"
+    t.index ["shift_id", "employee_id"], name: "idx_assignments_unique", unique: true, where: "(assignment_status = 'assigned'::text)"
+  end
+
+  create_table "shift_templates", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "break_minutes", default: 0, null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.date "effective_from", null: false
+    t.date "effective_to"
+    t.time "end_time", null: false
+    t.bigint "location_id"
+    t.text "name", null: false
+    t.text "recurrence", null: false
+    t.integer "staff_required", default: 1, null: false
+    t.time "start_time", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.check_constraint "staff_required > 0 AND break_minutes >= 0", name: "shift_templates_positive"
+  end
+
+  create_table "shifts", force: :cascade do |t|
+    t.integer "break_minutes", default: 0, null: false
+    t.text "cancellation_reason"
+    t.timestamptz "cancelled_at"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "location_id"
+    t.text "notes"
+    t.timestamptz "published_at"
+    t.bigint "published_by_admin_id"
+    t.timestamptz "scheduled_end", null: false
+    t.timestamptz "scheduled_start", null: false
+    t.bigint "shift_template_id"
+    t.integer "staff_required", default: 1, null: false
+    t.enum "status", default: "draft", null: false, enum_type: "shift_status"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["scheduled_start"], name: "idx_shifts_start"
+    t.index ["shift_template_id", "scheduled_start"], name: "idx_shifts_template_slot", unique: true, where: "(shift_template_id IS NOT NULL)"
+    t.index ["status", "scheduled_start"], name: "idx_shifts_status"
+    t.check_constraint "scheduled_end > scheduled_start", name: "shifts_end_after_start"
+  end
+
+  create_table "timesheet_disputes", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "raised_by_employee_id", null: false
+    t.text "reason", null: false
+    t.text "resolution_note"
+    t.bigint "resolved_by_admin_id"
+    t.text "state", default: "open", null: false
+    t.bigint "timesheet_line_id", null: false
+  end
+
+  create_table "timesheet_lines", force: :cascade do |t|
+    t.integer "break_minutes", default: 0, null: false
+    t.bigint "employee_id", null: false
+    t.text "flags", default: [], null: false, array: true
+    t.integer "scheduled_minutes", null: false
+    t.bigint "shift_assignment_id", null: false
+    t.bigint "timesheet_period_id", null: false
+    t.date "work_date", null: false
+    t.integer "worked_minutes", null: false
+    t.index ["employee_id", "work_date"], name: "idx_timesheet_lines_employee"
+    t.index ["timesheet_period_id", "shift_assignment_id"], name: "idx_on_timesheet_period_id_shift_assignment_id_0d0e2364ac", unique: true
+  end
+
+  create_table "timesheet_periods", force: :cascade do |t|
+    t.timestamptz "approved_at"
+    t.bigint "approved_by_admin_id"
+    t.date "ends_on", null: false
+    t.timestamptz "locked_at"
+    t.date "starts_on", null: false
+    t.string "status", default: "open", null: false
+    t.index ["starts_on"], name: "index_timesheet_periods_on_starts_on", unique: true
+    t.check_constraint "ends_on >= starts_on", name: "timesheet_periods_range"
+  end
+
+  create_table "webauthn_credentials", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.string "external_id", null: false
+    t.timestamptz "last_used_at"
+    t.text "nickname"
+    t.bigint "owner_id", null: false
+    t.text "owner_type", null: false
+    t.text "public_key", null: false
+    t.bigint "sign_count", default: 0, null: false
+    t.index ["external_id"], name: "index_webauthn_credentials_on_external_id", unique: true
+    t.index ["owner_type", "owner_id"], name: "idx_webauthn_credentials_owner"
+  end
+
+  add_foreign_key "alerts", "admins", column: "acknowledged_by_admin_id"
+  add_foreign_key "clock_events", "clock_events", column: "corrects_id"
+  add_foreign_key "clock_events", "shift_assignments"
+  add_foreign_key "conversation_participants", "conversations"
+  add_foreign_key "message_attachments", "messages"
+  add_foreign_key "message_receipts", "messages"
+  add_foreign_key "messages", "conversations"
+  add_foreign_key "notifications", "alerts"
+  add_foreign_key "refresh_tokens", "devices"
+  add_foreign_key "shift_assignments", "admins", column: "assigned_by_admin_id"
+  add_foreign_key "shift_assignments", "employees"
+  add_foreign_key "shift_assignments", "shifts"
+  add_foreign_key "shift_templates", "locations"
+  add_foreign_key "shifts", "admins", column: "published_by_admin_id"
+  add_foreign_key "shifts", "locations"
+  add_foreign_key "shifts", "shift_templates"
+  add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
+  add_foreign_key "timesheet_disputes", "employees", column: "raised_by_employee_id"
+  add_foreign_key "timesheet_disputes", "timesheet_lines"
+  add_foreign_key "timesheet_lines", "employees"
+  add_foreign_key "timesheet_lines", "shift_assignments"
+  add_foreign_key "timesheet_lines", "timesheet_periods"
+  add_foreign_key "timesheet_periods", "admins", column: "approved_by_admin_id"
 end

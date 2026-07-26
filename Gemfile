@@ -12,6 +12,22 @@ gem "puma", ">= 5.0"
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
 
+# Authentication (Admin + Employee) with JWT for the API
+gem "devise"
+gem "devise-jwt"
+
+# TOTP multi-factor auth (authenticator app + QR enrolment)
+gem "rotp"
+gem "rqrcode"
+
+# Biometric/passkey login for the carer PWA (WebAuthn / FIDO2)
+gem "webauthn"
+
+# OpenAPI/Swagger docs (served at /api-docs) generated from request specs
+gem "rswag-api"
+gem "rswag-ui"
+gem "ostruct" # rswag-ui needs it; no longer a default gem on Ruby 4.0
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
@@ -39,6 +55,9 @@ group :development, :test do
   # RSpec test framework and fixtures replacement.
   gem "rspec-rails"
   gem "factory_bot_rails"
+
+  # Generates the OpenAPI doc from request specs (rake rswag:specs:swaggerize)
+  gem "rswag-specs"
 
   # Audits gems for known security defects (use config/bundler-audit.yml to ignore issues)
   gem "bundler-audit", require: false
