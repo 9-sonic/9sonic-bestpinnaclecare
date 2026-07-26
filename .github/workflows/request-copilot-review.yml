@@ -63,10 +63,11 @@ jobs:
               marker,
               '### Copilot review required',
               '',
-              'Automatic reviewer assignment via API did not succeed on this plan.',
-              '**Assign manually:** Reviewers → search `copilot` → select **Copilot**.',
+              'Automatic reviewer assignment via API did not succeed on this plan (common on free / quota limits).',
+              '**Assign manually:** Reviewers → search `copilot` → select **Copilot** (optional if quota is exhausted).',
               '',
-              'Do not merge until Copilot has reviewed and critical findings are resolved.',
+              '**Fireworks AI review still runs** on this PR (Conversation sticky + Reviews tab when the Action succeeds).',
+              'Use Fireworks + human judgment if Copilot is unavailable — see `docs/faq-pr-reviews.md`.',
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({

@@ -73,6 +73,13 @@ Then ship:
 
 **Branch alone is not delivery.** Never push product work straight to `main`.
 
+### If you “don’t see a review”
+
+1. Confirm a **Pull Request** exists (not only a remote branch).  
+2. Open the PR → **Conversation** and **Checks** (Fireworks + Template gate).  
+3. Copilot may be missing (quota/plan) — Fireworks is the reliable AI lane.  
+4. Full FAQ: [faq-pr-reviews.md](./faq-pr-reviews.md).
+
 ---
 
 ## Operating rules (non-negotiable)
