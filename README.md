@@ -66,10 +66,11 @@ Auth + Rails foundation → shifts → carer dashboard → clock in/out → offl
 ## Starting work (developers)
 
 1. Read **[docs/join-and-go.md](./docs/join-and-go.md)** then [CONTRIBUTING.md](./CONTRIBUTING.md).  
-2. Open Linear **Ready** (or [GitHub board](https://github.com/orgs/9-sonic/projects/1) Ready).  
+2. Open Linear **Sprint 1** (Must work is Todo in the cycle) or the [GitHub board](https://github.com/orgs/9-sonic/projects/1).  
 3. Claim the ticket → branch `feat/BES-<n>-short-slug` from `main` (do not commit on `main`).  
 4. **Open a PR into `main`** with `BES-<n>` and `Closes #…` when closing a GitHub issue.  
-5. Address Fireworks **Blocking** items; keep template gate + CI + secret scan green.
+5. Address Fireworks **Blocking** items; keep template gate + CI + secret scan green.  
+6. Optional: [MCP setup](./docs/mcp-setup.md) · [local-dev](./docs/local-dev.md).
 
 ---
 

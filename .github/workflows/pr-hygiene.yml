@@ -71,7 +71,7 @@ jobs:
             }
             if (!hasScope) {
               missing.push(
-                'Tick monorepo **Scope** in the PR template (`/pwa`, `/admin-web`, `/backend`, `/contracts`, and/or `/docs`).'
+                'Tick monorepo **Scope** in the PR template (`client/pwa`, `client/admin-web`, Rails root, `/contracts`, and/or `/docs`).'
               );
             }
             if (touchesUi && !hasScreenshot) {

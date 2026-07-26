@@ -18,6 +18,8 @@ Start here based on what you need. Root **[CONTRIBUTING.md](../CONTRIBUTING.md)*
 | File | Purpose |
 |------|---------|
 | [join-and-go.md](./join-and-go.md) | Day-one checklist when access lands |
+| [mcp-setup.md](./mcp-setup.md) | Self-serve Linear / Notion / GitHub MCP (not installed by clone) |
+| [local-dev.md](./local-dev.md) | Boot Rails + clients locally |
 | [dual-board.md](./dual-board.md) | BES ↔ GitHub map, Must path, write-once rules |
 | [builder-environment.md](./builder-environment.md) | Live rails (Actions, Claude, dual board) |
 | [project-management.md](./project-management.md) | PM rhythm, board views, check-ins |
@@ -54,7 +56,9 @@ Open the repo in Claude Code or Cursor after clone.
 |-----------|------|
 | First day | [join-and-go.md](./join-and-go.md) |
 | How to ship a change | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Pick Must work | Linear Ready + [dual-board.md](./dual-board.md) |
+| Pick Must work | Linear **Sprint 1** + [dual-board.md](./dual-board.md) |
+| MCP for Claude/Cursor | [mcp-setup.md](./mcp-setup.md) |
+| Run the app | [local-dev.md](./local-dev.md) |
 | No AI review showing | [faq-pr-reviews.md](./faq-pr-reviews.md) |
 | Fireworks quality | [fireworks-review.md](./fireworks-review.md) |
 | What is “Done” | [definition_of_done.md](./definition_of_done.md) |

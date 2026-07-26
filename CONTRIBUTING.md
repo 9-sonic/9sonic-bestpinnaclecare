@@ -119,9 +119,9 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 
 ### 1. Pick
 
-1. Prefer Linear team [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) → status **Ready** (Must first).  
-2. Or open [GitHub Project Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board** → **Ready**.  
-3. Do not start Should/Could unless Must is on track or the PM has promoted the card to Ready.
+1. Prefer Linear team [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) → cycle **Sprint 1** → **Todo** / unstarted Must work.  
+2. Or open [GitHub Project Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board**.  
+3. Do not start Should/Could unless Must is on track or the PM has promoted the card.
 
 ### 2. Claim
 

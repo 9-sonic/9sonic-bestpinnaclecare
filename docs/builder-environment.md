@@ -86,17 +86,14 @@ Never: commit only on a branch with no PR, or push to `main` without a PR.
 
 ---
 
-## Next setup slices (not all done yet)
+## Setup status (rails)
 
-| Slice | Content |
-|-------|---------|
-| **B** | Linear team BES, GitHub sync, import Must issues |
-| **C** | Notion Start-here + ADR log; Figma READY habit |
-| **D** | MCP configs (GitHub + Linear) per machine |
+| Slice | Content | Status |
+|-------|---------|--------|
+| **A** | GitHub Actions, PR gates, Fireworks | **Done** |
+| **B** | Linear BES, epics, Must in Sprint 1 | **Done** (GitHub OAuth still human — BES-28) |
+| **C** | Notion Start here, ADR, join-and-go | **Done** (Figma later) |
+| **D** | Per-machine MCP | Guide: [mcp-setup.md](./mcp-setup.md) — each person configures their client |
+| **E** | Local app boot | Guide: [local-dev.md](./local-dev.md) |
 
----
-
-## Apply kit later
-
-Full apply checklist lives in the external kit README (`builder_environment/README.md`).  
-This repo carries the **applied** rails that affect coding day-to-day.
+External research kit: `builder_environment/` (PM folder). This repo carries the **applied** day-to-day rails.

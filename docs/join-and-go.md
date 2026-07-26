@@ -29,8 +29,8 @@ You can still prepare:
 ### 1. Confirm access (5 min)
 
 - [ ] Open the [repo](https://github.com/9-sonic/9sonic-bestpinnaclecare) — you can see code and open a PR.
-- [ ] Open Linear team **Best Pinnacle** — filter status **Ready**.
-- [ ] Open Notion Engineering Hub → **Start here (engineering)**.
+- [ ] Open Linear team **Best Pinnacle** — open cycle **Sprint 1** (Must work is **Todo** in the cycle).
+- [ ] Open Notion Engineering Hub → **Start here (engineering)** / **Join and go**.
 - [ ] Clone:  
   `git clone https://github.com/9-sonic/9sonic-bestpinnaclecare.git`
 
@@ -39,6 +39,8 @@ You can still prepare:
 - [ ] Open the repo in Claude Code or Cursor.
 - [ ] Read `.claude/CLAUDE.md` and `.claude/context/team-alignment.md`.
 - [ ] Skills live under `.claude/skills/` (PR path, dual boards, role handoffs).
+- [ ] Optional AI tools: [mcp-setup.md](./mcp-setup.md) (Linear / Notion / GitHub MCP — **not** installed by clone).
+- [ ] App boot: [local-dev.md](./local-dev.md) when you need Rails + clients running.
 
 ### 3. Notifications (5 min)
 
@@ -53,22 +55,24 @@ Pick **one** path:
 
 | Role | First move |
 |------|------------|
-| **Frontend** | Linear **Ready** + EPIC Shifts / Clock / Auth with `scope:pwa` or `scope:admin-web` |
-| **Backend** | Linear **Ready** + EPIC Infrastructure / Auth / Clock with `scope:backend` |
+| **Frontend** | Linear **Sprint 1** → Todo + EPIC Shifts / Clock / Auth |
+| **Backend** | Linear **Sprint 1** → Todo + EPIC Infrastructure / Auth / Clock |
 | **PM / env** | Env & Tooling project; keep boards healthy |
 | **CEO / Jesse** | Linear views for Must / client; do not manage commits |
 | **Design** | When Figma is enabled later — use `design` label; until then, UI notes on tickets/PRs |
 
+**How you receive work:** Must issues live in **Sprint 1**. They are not auto-assigned. Claim one (comment or assignee = you), set **In Progress**, enable notifications so assigns/mentions reach you.
+
 Then ship:
 
 ```text
-1. Claim issue in Linear → In Progress
+1. Claim issue in Linear (Sprint 1) → In Progress
 2. git checkout -b feat/BES-<n>-short-slug
 3. Small change → open PR
 4. PR title/body: BES-<n> and Closes #<github> if closing an issue
 5. Wait for CI + Fireworks (+ Copilot if available)
 6. Merge when green (developers may merge)
-7. Linear → Done when merged
+7. Linear → Done when merged (manual until GitHub integration is on)
 ```
 
 **Branch alone is not delivery.** Never push product work straight to `main`.

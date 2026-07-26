@@ -20,9 +20,9 @@ One sentence: what Best Pinnacle Care can do when this is done.
 - [ ] Meets `docs/definition_of_done.md`
 
 ## Scope (monorepo)
-- [ ] `/pwa`
-- [ ] `/admin-web`
-- [ ] `/backend` (Rails)
+- [ ] `client/pwa`
+- [ ] `client/admin-web`
+- [ ] Rails API (repo root)
 - [ ] `/contracts`
 - [ ] `/docs`
 
