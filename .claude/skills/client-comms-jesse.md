@@ -36,7 +36,7 @@ Do **not** expand into full care-plans/eMAR/finance modules in a clock-in status
 2. **Truth over theatre** — don’t claim live behaviours that are still in progress.  
 3. **Separate facts / options / asks** — clients should see what is done, what is open, what you need from them.  
 4. **No silent policy** — location strictness, grace periods, SMS, tablet counts are confirmations, not assumptions.  
-5. **Visible internally** — client-originated work becomes `BPC-xxx`; decisions worth remembering can land in Notion.  
+5. **Visible internally** — client-originated work becomes `BES-xxx`; decisions worth remembering can land in Notion.  
 6. **Calm tone** — care operators are busy; short sections beat long essays.  
 
 ---
@@ -177,7 +177,7 @@ Never hide a trust issue that would mislead the client about readiness. Soften t
 
 - What is **actually** demonstrable now?  
 - What is still **in review**?  
-- Which `BPC-xxx` items map to client-visible outcomes?  
+- Which `BES-xxx` items map to client-visible outcomes?  
 - Any **open policy** the client might think is already decided?  
 - Any **privacy** wording needed for staff handbook / location explanation?
 

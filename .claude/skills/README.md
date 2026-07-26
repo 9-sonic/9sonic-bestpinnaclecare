@@ -9,7 +9,7 @@ Use a skill when the situation matches. Cite it mentally or in chat (“applying
 | Skill file | When to load | Primary people |
 | --- | --- | --- |
 | [`uncertain-work.md`](./uncertain-work.md) | New idea with no known method; client ask; design improvement; bug found in review | Everyone |
-| [`issue-handling.md`](./issue-handling.md) | Creating, refining, or splitting Linear work items linked to GitHub | Everyone who touches `BPC-xxx` |
+| [`issue-handling.md`](./issue-handling.md) | Creating, refining, or splitting Linear work items linked to GitHub | Everyone who touches `BES-xxx` |
 | [`pr-and-review.md`](./pr-and-review.md) | Branching, opening PRs, reviewing, PM glance at PRs | Dennis Kabui, Ian Ndegwa, reviewers, Gichogu Macharia |
 | [`cross-role-handoffs.md`](./cross-role-handoffs.md) | Work must move between design, FE, BE, PM, client | Whole team |
 | [`clock-in-conventions.md`](./clock-in-conventions.md) | Coding or designing anything that touches attendance, offline, audit, location | Dennis, Ian, Athaliah, Claude |

@@ -10,8 +10,8 @@
 
 Canonical patterns:
 
-- `feature/BPC-xxx-short-desc` — new behaviour
-- `fix/BPC-xxx-short-desc` — bug fix
+- `feature/BES-xxx-short-desc` — new behaviour
+- `fix/BES-xxx-short-desc` — bug fix
 
 Other accepted prefixes (use when the work doesn’t fit feature/fix):
 
@@ -24,11 +24,11 @@ Other accepted prefixes (use when the work doesn’t fit feature/fix):
 
 **Examples**
 
-- `feature/BPC-118-offline-pending-indicator`  
-- `feature/BPC-123-carer-clock-in`  
-- `fix/BPC-141-duplicate-clock-in`  
-- `fix/BPC-150-manager-correction-audit`  
-- `chore/BPC-160-ci-placeholder`  
+- `feature/BES-118-offline-pending-indicator`  
+- `feature/BES-123-carer-clock-in`  
+- `fix/BES-141-duplicate-clock-in`  
+- `fix/BES-150-manager-correction-audit`  
+- `chore/BES-160-ci-placeholder`  
 
 **Rules of thumb**
 
@@ -36,7 +36,7 @@ Other accepted prefixes (use when the work doesn’t fit feature/fix):
 - Short slug; English words; no client secrets  
 - Prefer short-lived branches; reopen from default if heavily stale  
 
-If work starts before a ticket exists, **create the ticket first** (or immediately) so the branch name can include `BPC-xxx`. Silent branches undermine Jesse/Gichogu visibility.
+If work starts before a ticket exists, **create the ticket first** (or immediately) so the branch name can include `BES-xxx`. Silent branches undermine Jesse/Gichogu visibility.
 
 ---
 
@@ -44,8 +44,8 @@ If work starts before a ticket exists, **create the ticket first** (or immediate
 
 ### Intent and linkage
 
-- [ ] Linear `BPC-xxx` exists and matches the PR outcome  
-- [ ] PR title contains `BPC-xxx`  
+- [ ] Linear `BES-xxx` exists and matches the PR outcome  
+- [ ] PR title contains `BES-xxx`  
 - [ ] PR description explains **why**, not only **what**  
 - [ ] Linear status moved to In Progress / In Review as appropriate  
 - [ ] Related design/decision links included when relevant  
@@ -80,7 +80,7 @@ Copy-paste this into every PR description and fill each section.
 
 ```markdown
 ## Summary
-BPC-XXX — [one paragraph outcome]
+BES-XXX — [one paragraph outcome]
 
 ## Why
 [User/system problem]
@@ -89,7 +89,7 @@ BPC-XXX — [one paragraph outcome]
 - …
 
 ## Checklist
-- [ ] Linked to BPC-XXX
+- [ ] Linked to BES-XXX
 - [ ] Offline tested (or N/A with reason)
 - [ ] Audit log preserved (original events not overwritten)
 - [ ] No duplicate clock records (idempotency verified)
@@ -113,7 +113,7 @@ BPC-XXX — [one paragraph outcome]
 [if FE/BE boundary]
 
 ## Open questions / follow-ups
-- … (link BPC- if already created)
+- … (link BES- if already created)
 
 ## Risk notes
 - …
@@ -183,7 +183,7 @@ Avoid:
 
 You are **not** re-implementing the review. You check **visibility and risk surface**:
 
-- [ ] PR references `BPC-xxx`  
+- [ ] PR references `BES-xxx`  
 - [ ] Linear status roughly matches (In Review when PR open)  
 - [ ] Description has a test plan or clear verification path  
 - [ ] Open questions aren’t client-policy landmines left unnamed  
@@ -199,10 +199,10 @@ If something looks invisible or trust-risky, **nudge on the ticket/PR** — don�
 Discovery mid-implementation is expected. Procedure:
 
 1. **Stabilise** what you already understand into a safe, mergeable slice.  
-2. **Open follow-up `BPC-xxx`** for the new surface area.  
+2. **Open follow-up `BES-xxx`** for the new surface area.  
 3. **Do not** grow one PR into “while I was here” redesign + infra + feature.  
 4. If the discovery is a **trust break** on mainline behaviour, prefer fix before merge or explicit block.  
-5. Say in the PR: “Split out BPC-YYY for …”
+5. Say in the PR: “Split out BES-YYY for …”
 
 ### When to split immediately
 
@@ -241,7 +241,7 @@ After merge:
 
 ### Good PR summary
 
-> BPC-141 — Treat repeated clock-in submissions with the same client-generated event id as one attendance open. Offline replay verified; manager board still shows single on-shift state.
+> BES-141 — Treat repeated clock-in submissions with the same client-generated event id as one attendance open. Offline replay verified; manager board still shows single on-shift state.
 
 ### Weak PR summary
 

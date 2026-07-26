@@ -15,7 +15,7 @@ Uncertainty is normal in iterative delivery. The correct response is:
 1. **Name the outcome** people care about.  
 2. **Separate known product truths** from **open decisions**.  
 3. **Pick the smallest learning or delivery step**.  
-4. **Make it visible** in Linear (`BPC-xxx`) and, when code exists, a PR.  
+4. **Make it visible** in Linear (`BES-xxx`) and, when code exists, a PR.  
 5. **Leave craft method to the specialist** unless they ask for options.
 
 Claude and helpers **align minds**; they do not seize the wheel.
@@ -41,8 +41,8 @@ If the work is a bug fix, use `fix/bpc-xxx-short-desc`. If it’s a spike or exp
 
 ### PR title and description
 
-Title: `[BPC-xxx] Short description of outcome`  
-Description: Link the Linear ticket, summarise what changed and why, list any open questions or follow-up tickets. If the PR closes the ticket, include `Closes BPC-xxx` so Linear updates automatically.
+Title: `[BES-xxx] Short description of outcome`  
+Description: Link the Linear ticket, summarise what changed and why, list any open questions or follow-up tickets. If the PR closes the ticket, include `Closes BES-xxx` so Linear updates automatically.
 
 ---
 
@@ -55,7 +55,7 @@ Description: Link the Linear ticket, summarise what changed and why, list any op
 1. **Capture the request in the client’s words.** Jesse owns the relationship; others do not freelance client promises. Write down exactly what was asked, who asked it, and the business reason if stated.  
 2. **Translate to internal outcome language** without adding features. Example: “Managers want to see who forgot to clock out” becomes “Provide a manager-facing exception list of missing clock-out events.”  
 3. **Flag policy vs product mechanism.** Policy example: “warn if away from site” vs “block clock-in.” Mechanism example: how the frontend shows the warning; how the backend stores the event.  
-4. **Create a new Linear issue** using the template below. Assign it a `BPC-xxx` number immediately — do not wait for a perfect ticket.  
+4. **Create a new Linear issue** using the template below. Assign it a `BES-xxx` number immediately — do not wait for a perfect ticket.  
 5. **Tag the owner.** If the work is primarily frontend, tag Dennis; if backend, tag Ian; if design exploration, tag Athaliah; if environment/visibility, tag Gichogu. Jesse remains the client point of contact.  
 6. **Propose the smallest reversible step.** This could be a spike to confirm data availability, a mock API response, or a single-screen prototype. The step must be small enough to discard if the client changes direction.  
 7. **Draft confirmation questions** Jesse can send to Best Pinnacle (see `client-comms-jesse.md`) when something is ambiguous.  
@@ -102,7 +102,7 @@ Not doing now:
 - Implementing the strictest possible rule “to be safe” without confirmation  
 - Losing the request in chat with no Linear record  
 - Claude inventing go-live dates or Stage 2 scope as if agreed  
-- Waiting for a “perfect” ticket before creating the BPC-xxx — draft it immediately and refine
+- Waiting for a “perfect” ticket before creating the BES-xxx — draft it immediately and refine
 
 ---
 
@@ -115,7 +115,7 @@ Not doing now:
 1. **Start from the current experience.** Athaliah describes the problem with the existing flow — not a greenfield redesign.  
 2. **Name the user moment.** Example: “Carer clocking in while offline” or “Manager viewing an empty exception list.”  
 3. **Describe all states,** not only the happy path: loading, empty, offline queued, sync failed, permission denied, location unavailable.  
-4. **Create a Linear issue** using the design improvement template below. Assign it a `BPC-xxx` number.  
+4. **Create a Linear issue** using the design improvement template below. Assign it a `BES-xxx` number.  
 5. **Tag the owner.** Athaliah owns the design direction; Dennis owns frontend implementation. If backend changes are needed, tag Ian. If client copy or policy is involved, tag Jesse.  
 6. **Propose the smallest reversible step.** This might be a Figma mockup of one state, a static HTML prototype, or a feature-flagged UI change behind a toggle. The step must be small enough to revert if user feedback is negative.  
 7. **Handoff packet** (see `cross-role-handoffs.md`): goal, flows, states, what is exploratory vs ready to build. Attach Figma links or screenshots to the ticket.  
@@ -187,8 +187,8 @@ Suggested first implementation step (smallest reversible step):
    - **Polish** — copy, spacing, non-blocking UX.  
 3. **Decide fix-now vs follow-up ticket:**  
    - Same PR if small and in scope.  
-   - New `BPC-xxx` if larger or orthogonal.  
-4. **Create a Linear issue** using the bug template below if a follow-up ticket is needed. Assign it a `BPC-xxx` number.  
+   - New `BES-xxx` if larger or orthogonal.  
+4. **Create a Linear issue** using the bug template below if a follow-up ticket is needed. Assign it a `BES-xxx` number.  
 5. **Tag the owner.** Dennis for frontend bugs, Ian for backend, Athaliah if design behaviour is wrong, Jesse if client policy is involved.  
 6. **Propose the smallest reversible step.** For trust-breaking bugs, the step might be a revert of the offending commit or a feature flag to disable the broken path. For others, a targeted fix with a test.  
 7. **Link the PR** in the Linear ticket. If the fix is in the same PR, comment on the PR with the bug details and tag the author.  
@@ -201,7 +201,7 @@ Suggested first implementation step (smallest reversible step):
 ```markdown
 Title: [Bug] Duplicate clock-in record when double-tapping during offline sync
 
-Found in: PR #42 / BPC-155
+Found in: PR #42 / BES-155
 
 Expected:
 - A single clock-in record is created even if the carer taps the button multiple times while offline.
@@ -228,7 +228,7 @@ Acceptance criteria for fix:
 
 Proposal:
 - Fix in this PR: no — too large for current scope.
-- Follow-up ticket: BPC-168 (created from this template).
+- Follow-up ticket: BES-168 (created from this template).
 
 Suggested first implementation step (smallest reversible step):
 - Ian adds an idempotency key to the clock-in endpoint and writes a test that sends duplicate requests. Dennis updates the frontend to generate and persist the key during offline queueing. Feature-flagged behind `idempotencyFix` until validated on staging.
