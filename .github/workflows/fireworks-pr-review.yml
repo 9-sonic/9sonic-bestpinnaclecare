@@ -1,10 +1,11 @@
 name: Fireworks AI Code Review
 
-# Quality-first AI review via Fireworks (kimi-k2p7-code by default).
+# Quality-first AI review via Fireworks.
+# Primary model: kimi-k2p7-code (quality). On timeout/API error: retry, then fallback model.
 # Complements Copilot; does not replace PM merge judgment or Template gate.
 #
 # Secret: FIREWORKS_API_KEY
-# Optional vars: FIREWORKS_MODEL, FIREWORKS_MAX_DIFF_CHARS
+# Optional vars: FIREWORKS_MODEL, FIREWORKS_FALLBACK_MODEL, FIREWORKS_MAX_DIFF_CHARS
 
 on:
   pull_request:
@@ -102,8 +103,12 @@ jobs:
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
+          # Fallback when primary times out / 5xx / empty — override via repo var
+          FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/qwen3p7-plus' }}
           FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
           MAX_DIFF_CHARS: ${{ vars.FIREWORKS_MAX_DIFF_CHARS || '32000' }}
+          REQUEST_TIMEOUT_MS: '55000'
+          RETRIES_PER_MODEL: '2'
         with:
           script: |
             const fs = require('fs');
@@ -114,6 +119,10 @@ jobs:
             const issue_number = context.issue.number;
             const pull_number = context.payload.pull_request.number;
             const pr = context.payload.pull_request;
+
+            function sleep(ms) {
+              return new Promise((resolve) => setTimeout(resolve, ms));
+            }
 
             async function postSticky(body) {
               const { data: comments } = await github.rest.issues.listComments({
@@ -170,9 +179,12 @@ jobs:
               return;
             }
 
-            const model = process.env.MODEL_NAME;
+            const primaryModel = process.env.MODEL_NAME;
+            const fallbackModel = process.env.FALLBACK_MODEL;
             const baseUrl = process.env.FIREWORKS_BASE_URL.replace(/\/$/, '');
             const maxChars = parseInt(process.env.MAX_DIFF_CHARS || '32000', 10);
+            const timeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '55000', 10);
+            const retriesPerModel = parseInt(process.env.RETRIES_PER_MODEL || '2', 10);
 
             // ---- Goal context: PR + linked GitHub issues + BES ids ----
             const title = pr.title || '';
@@ -318,58 +330,228 @@ jobs:
               'Review against the goal first, then the diff. Follow the required output format.',
             ].join('\n');
 
-            const response = await fetch(baseUrl + '/chat/completions', {
-              method: 'POST',
-              headers: {
-                Authorization: 'Bearer ' + apiKey,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model,
-                temperature: 0.15,
-                max_tokens: 3500,
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: userContent },
-                ],
-              }),
-            });
+            // Model chain: primary (quality) → fallback (availability).
+            // Each model: RETRIES_PER_MODEL attempts with backoff on timeout/5xx/network.
+            const modelChain = [primaryModel, fallbackModel].filter(
+              (m, i, arr) => m && arr.indexOf(m) === i
+            );
 
-            const data = await response.json();
-            if (!response.ok) {
-              const msg =
-                (data && data.error && data.error.message) ||
-                response.statusText ||
-                JSON.stringify(data);
-              core.setFailed('Fireworks API error: ' + msg);
-              return;
+            async function callChatCompletions(modelName) {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), timeoutMs);
+              try {
+                const response = await fetch(baseUrl + '/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    Authorization: 'Bearer ' + apiKey,
+                    'Content-Type': 'application/json',
+                  },
+                  signal: controller.signal,
+                  body: JSON.stringify({
+                    model: modelName,
+                    temperature: 0.15,
+                    max_tokens: 3500,
+                    messages: [
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: userContent },
+                    ],
+                  }),
+                });
+                let data = null;
+                try {
+                  data = await response.json();
+                } catch (parseErr) {
+                  const err = new Error(
+                    'Invalid JSON from Fireworks (' +
+                      response.status +
+                      '): ' +
+                      parseErr.message
+                  );
+                  // Preserve status so 5xx parse failures stay retryable
+                  err.status = response.status;
+                  throw err;
+                }
+                if (!response.ok) {
+                  const msg =
+                    (data && data.error && data.error.message) ||
+                    response.statusText ||
+                    JSON.stringify(data);
+                  const err = new Error(
+                    'HTTP ' + response.status + ': ' + msg
+                  );
+                  err.status = response.status;
+                  throw err;
+                }
+                const text =
+                  data.choices &&
+                  data.choices[0] &&
+                  data.choices[0].message &&
+                  data.choices[0].message.content;
+                if (!text || !String(text).trim()) {
+                  const err = new Error('Empty completion content');
+                  err.retryable = true;
+                  throw err;
+                }
+                return String(text).trim();
+              } finally {
+                clearTimeout(timer);
+              }
             }
 
-            const reviewText =
-              data.choices &&
-              data.choices[0] &&
-              data.choices[0].message &&
-              data.choices[0].message.content;
+            function isRetryable(err) {
+              if (!err) return false;
+              if (err.retryable === true) return true;
+              const msg = String(err.message || err);
+              if (/abort|timeout|ECONN|ENOTFOUND|fetch failed|UND_ERR/i.test(msg)) {
+                return true;
+              }
+              const status = err.status;
+              if (status === 408 || status === 429 || (status >= 500 && status <= 599)) {
+                return true;
+              }
+              return false;
+            }
+
+            function isConfigError(err) {
+              const status = err && err.status;
+              return status === 400 || status === 401 || status === 403 || status === 404;
+            }
+
+            let reviewText = null;
+            let usedModel = null;
+            let usedAttempt = 0;
+            const attemptLog = [];
+            let sawRetryableFailure = false;
+            let sawConfigFailure = false;
+
+            for (const candidate of modelChain) {
+              for (let attempt = 1; attempt <= retriesPerModel; attempt++) {
+                usedAttempt = attempt;
+                core.info(
+                  'Fireworks try model=' +
+                    candidate +
+                    ' attempt=' +
+                    attempt +
+                    '/' +
+                    retriesPerModel
+                );
+                try {
+                  reviewText = await callChatCompletions(candidate);
+                  usedModel = candidate;
+                  attemptLog.push(
+                    candidate + ' attempt ' + attempt + ': ok'
+                  );
+                  break;
+                } catch (err) {
+                  const detail = err.message || String(err);
+                  attemptLog.push(
+                    candidate + ' attempt ' + attempt + ': ' + detail
+                  );
+                  core.warning(
+                    'Fireworks failed (' +
+                      candidate +
+                      ' #' +
+                      attempt +
+                      '): ' +
+                      detail
+                  );
+                  if (isRetryable(err)) {
+                    sawRetryableFailure = true;
+                  }
+                  if (isConfigError(err)) {
+                    sawConfigFailure = true;
+                  }
+                  if (attempt < retriesPerModel && isRetryable(err)) {
+                    await sleep(1500 * attempt);
+                    continue;
+                  }
+                  if (!isRetryable(err)) {
+                    // Auth / bad model path: do not burn retries on same model
+                    break;
+                  }
+                }
+              }
+              if (reviewText) break;
+              core.warning(
+                'Giving up on model ' +
+                  candidate +
+                  '; trying next if available.'
+              );
+            }
+
             if (!reviewText) {
-              core.setFailed('Fireworks returned an empty review.');
+              const failBody = [
+                marker,
+                '### Fireworks AI code review',
+                '',
+                sawConfigFailure && !sawRetryableFailure
+                  ? '**Failed:** Fireworks rejected the request (likely bad API key or model id) — not a transient outage.'
+                  : '**Skipped:** Fireworks API unreachable or all models failed after retries.',
+                '',
+                'Tried:',
+                ...attemptLog.map((l) => '- `' + l + '`'),
+                '',
+                'Primary: `' +
+                  primaryModel +
+                  '` · Fallback: `' +
+                  fallbackModel +
+                  '`',
+                '',
+                sawConfigFailure && !sawRetryableFailure
+                  ? 'Check `FIREWORKS_API_KEY` and model vars (`FIREWORKS_MODEL` / `FIREWORKS_FALLBACK_MODEL`).'
+                  : 'This is usually a **transient network/timeout** issue (not a code finding). **Re-run** the workflow or review manually.',
+                'PM merge gate still applies; Copilot may still run separately.',
+              ].join('\n');
+              await postSticky(failBody);
+              // Hard-fail config mistakes so misconfiguration is not silent green
+              if (sawConfigFailure && !sawRetryableFailure) {
+                core.setFailed(
+                  'Fireworks config error (400/401/403/404) after all models — fix secrets/model ids.'
+                );
+                return;
+              }
+              // Soft-fail vendor outage: do not block merge on network blips
+              core.warning(
+                'Fireworks unavailable after fallbacks — posted skip notice (check green).'
+              );
               return;
             }
+
+            const fallbackNote =
+              usedModel !== primaryModel
+                ? '\n\n_Used **fallback model** `' +
+                  usedModel +
+                  '` after primary `' +
+                  primaryModel +
+                  '` failed._'
+                : '';
 
             const outBody = [
               marker,
               '### Fireworks AI code review',
               '',
-              `_Model: \`${model}\` · goal-aware review for PM merge gate_`,
+              '_Model: `' +
+                usedModel +
+                '` · goal-aware review for PM merge gate' +
+                (usedModel !== primaryModel ? ' · **fallback**' : '') +
+                '_',
               '',
-              reviewText.trim(),
+              reviewText,
               truncatedNote,
+              fallbackNote,
               '',
               '---',
               '_Quality review for the team. Address **Blocking** before merge; PM owns final gate. Complements Copilot._',
             ].join('\n');
 
             await postSticky(outBody);
-            core.info('Posted goal-aware Fireworks review.');
+            core.info(
+              'Posted goal-aware Fireworks review (model=' +
+                usedModel +
+                ', attempt=' +
+                usedAttempt +
+                ').'
+            );
 
       - name: Skip empty diff
         if: steps.diff.outputs.empty == 'true'

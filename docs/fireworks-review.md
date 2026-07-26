@@ -1,6 +1,18 @@
 # Fireworks AI PR review (quality lane)
 
-Primary automated review when Copilot quota fails. Model default: **`accounts/fireworks/models/kimi-k2p7-code`**.
+Primary automated review when Copilot quota fails.
+
+| Role | Default model | Override var |
+|------|---------------|--------------|
+| **Primary** (quality) | `accounts/fireworks/models/kimi-k2p7-code` | `FIREWORKS_MODEL` |
+| **Fallback** (if primary times out / 5xx / empty) | `accounts/fireworks/models/qwen3p7-plus` | `FIREWORKS_FALLBACK_MODEL` |
+
+Each model is tried up to **2 times** with backoff. Explicit connect timeout (~55s).
+
+| Outcome | Check result |
+|---------|----------------|
+| Transient failures only (timeout / 5xx / network) after all models | Skip notice + **soft-fail** (green — does not block merge) |
+| Config failures only (400 / 401 / 403 / 404) | Skip notice + **hard-fail** (red — fix key or model id) |
 
 ## Goal
 
@@ -34,7 +46,8 @@ Without a linked issue, the model only has the PR description — still useful, 
 | Secret / var | Purpose |
 |--------------|---------|
 | `FIREWORKS_API_KEY` | Required |
-| `FIREWORKS_MODEL` | Optional override of model path |
+| `FIREWORKS_MODEL` | Optional primary model path |
+| `FIREWORKS_FALLBACK_MODEL` | Optional fallback when primary fails |
 | `FIREWORKS_MAX_DIFF_CHARS` | Optional (default `32000`) |
 
 Workflow: `.github/workflows/fireworks-pr-review.yml`
