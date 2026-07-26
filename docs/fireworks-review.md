@@ -5,7 +5,7 @@ Primary automated review when Copilot quota fails.
 | Role | Default model | Override var |
 |------|---------------|--------------|
 | **Primary** (quality) | `accounts/fireworks/models/kimi-k2p7-code` | `FIREWORKS_MODEL` |
-| **Fallback** (if primary times out / 5xx / empty) | `accounts/fireworks/models/kimi-k2p5` | `FIREWORKS_FALLBACK_MODEL` |
+| **Fallback** (if primary times out / 5xx / empty) | `accounts/fireworks/models/qwen3p7-plus` | `FIREWORKS_FALLBACK_MODEL` |
 
 Each model is tried up to **2 times** with backoff. Explicit connect timeout (~55s). If **all** attempts fail, a skip notice is posted and the check **soft-fails** (does not block merge on vendor outage).
 

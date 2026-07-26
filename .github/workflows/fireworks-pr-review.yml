@@ -104,7 +104,7 @@ jobs:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
           # Fallback when primary times out / 5xx / empty — override via repo var
-          FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/kimi-k2p5' }}
+          FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/qwen3p7-plus' }}
           FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
           MAX_DIFF_CHARS: ${{ vars.FIREWORKS_MAX_DIFF_CHARS || '32000' }}
           REQUEST_TIMEOUT_MS: '55000'
