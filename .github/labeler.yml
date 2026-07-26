@@ -3,15 +3,27 @@
 
 scope:pwa:
   - changed-files:
-      - any-glob-to-any-file: "pwa/**"
+      - any-glob-to-any-file:
+          - "client/pwa/**"
+          - "pwa/**"
 
 scope:admin-web:
   - changed-files:
-      - any-glob-to-any-file: "admin-web/**"
+      - any-glob-to-any-file:
+          - "client/admin-web/**"
+          - "admin-web/**"
 
 scope:backend:
   - changed-files:
-      - any-glob-to-any-file: "backend/**"
+      - any-glob-to-any-file:
+          - "app/**"
+          - "config/**"
+          - "db/**"
+          - "spec/**"
+          - "Gemfile"
+          - "Gemfile.lock"
+          - "backend/**"
+          - "deploy/**"
 
 scope:contracts:
   - changed-files:
@@ -22,5 +34,6 @@ scope:docs:
       - any-glob-to-any-file:
           - "docs/**"
           - ".github/**"
+          - ".claude/**"
           - "README.md"
           - "CONTRIBUTING.md"

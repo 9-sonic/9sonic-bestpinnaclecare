@@ -36,12 +36,17 @@ jobs:
             const paths = files.map((f) => f.filename);
 
             const touchesUi = paths.some(
-              (p) => p.startsWith('pwa/') || p.startsWith('admin-web/')
+              (p) =>
+                p.startsWith('client/pwa/') ||
+                p.startsWith('client/admin-web/') ||
+                p.startsWith('pwa/') ||
+                p.startsWith('admin-web/')
             );
             const onlyProcessPaths = paths.every(
               (p) =>
                 p.startsWith('docs/') ||
                 p.startsWith('.github/') ||
+                p.startsWith('.claude/') ||
                 p === 'README.md' ||
                 p === 'CONTRIBUTING.md' ||
                 p === '.gitignore'
@@ -49,7 +54,9 @@ jobs:
 
             const hasIssueLink = /(Closes|Fixes|Resolves)\s+#\d+/i.test(body);
             const hasScope =
-              /\/pwa|\/admin-web|\/backend|\/contracts|\/docs/i.test(body);
+              /\/pwa|\/admin-web|\/backend|\/contracts|\/docs|client\/pwa|client\/admin-web|Rails|\/app\//i.test(
+                body
+              );
             const hasScreenshot =
               /!\[[^\]]*\]\([^)]+\)/i.test(body) ||
               /<img[\s>]/i.test(body) ||

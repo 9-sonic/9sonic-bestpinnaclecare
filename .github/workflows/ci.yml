@@ -26,10 +26,18 @@ jobs:
         with:
           filters: |
             pwa:
+              - 'client/pwa/**'
               - 'pwa/**'
             admin_web:
+              - 'client/admin-web/**'
               - 'admin-web/**'
             backend:
+              - 'app/**'
+              - 'config/**'
+              - 'db/**'
+              - 'spec/**'
+              - 'Gemfile'
+              - 'Gemfile.lock'
               - 'backend/**'
             contracts:
               - 'contracts/**'
@@ -42,9 +50,11 @@ jobs:
       - name: Required monorepo paths
         run: |
           set -euo pipefail
-          for d in pwa admin-web backend contracts docs .github; do
+          # Rails at repo root; frontends under client/
+          for d in client/pwa client/admin-web contracts docs .github app config; do
             test -d "$d" || { echo "Missing required directory: $d"; exit 1; }
           done
+          test -f Gemfile || { echo "Missing Gemfile (Rails API root)"; exit 1; }
           echo "Monorepo layout OK"
       - name: Block committed env files
         run: |
