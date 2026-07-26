@@ -127,7 +127,7 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 3. Branch from latest `main` (both styles accepted):
 
 ```text
-feature/BPC-123-short-slug    # preferred when Linear id exists
+feature/BES-123-short-slug    # preferred when Linear id exists
 feat/<short-name>
 fix/BPC-123-short-slug
 fix/<short-name>
