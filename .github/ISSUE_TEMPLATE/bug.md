@@ -21,9 +21,9 @@ What happens instead?
 3. …
 
 ## Environment
-- [ ] `/pwa` (carer)
-- [ ] `/admin-web` (manager)
-- [ ] `/backend` (Rails)
+- [ ] `client/pwa` (carer)
+- [ ] `client/admin-web` (manager)
+- [ ] Rails API (repo root)
 - Browser / device (if known):
 - Build / branch / PR (if known):
 

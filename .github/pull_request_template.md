@@ -5,11 +5,11 @@
 Closes #
 
 ## Scope
-- [ ] `/pwa`
-- [ ] `/admin-web`
-- [ ] `/backend`
+- [ ] `client/pwa` (carer)
+- [ ] `client/admin-web` (manager)
+- [ ] Rails API (repo root: `app/`, `config/`, …)
 - [ ] `/contracts`
-- [ ] `/docs`
+- [ ] `/docs` / `.github` / process
 
 ## What Best Pinnacle Care outcome does this change?
 Describe the carer or manager experience, not only the code.
@@ -32,7 +32,7 @@ Example: "Carer can now clock in while offline; the record syncs automatically w
 - [ ] Human / PM review requested
 - [ ] CI green
 - [ ] No secrets / keys committed
-- [ ] Screenshot attached for any UI change (required for `/pwa` or `/admin-web`)
+- [ ] Screenshot attached for any UI change (required for `client/pwa` or `client/admin-web`)
 
 ## Review notes
 - Copilot flagged anything critical? (paste link to comment)

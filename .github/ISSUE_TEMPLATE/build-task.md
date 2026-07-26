@@ -30,9 +30,9 @@ Example: "Managers need to see a late-visit alert on the live board within 2 min
 - [ ] PR reviewed + merged (Copilot review + human)
 
 ## Affected monorepo paths
-- [ ] `/pwa/...`
-- [ ] `/admin-web/...`
-- [ ] `/backend/...` (Rails)
+- [ ] `client/pwa/...`
+- [ ] `client/admin-web/...`
+- [ ] Rails root (`app/`, `config/`, …)
 - [ ] `/contracts/...`
 - [ ] `/docs/...`
 
