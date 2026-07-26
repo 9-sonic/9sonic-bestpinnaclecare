@@ -28,23 +28,25 @@ Neither replaces human/PM merge judgment. Address real findings; ignore noise wi
 | Board | Role |
 |-------|------|
 | **GitHub Issues + Project “Best Pinnacle”** | Live today; code-adjacent visibility |
-| **Linear `BPC-xxx`** | Team task board (when connected); cycles Sprint 1 / 2 |
+| **Linear `BES-xxx`** | Team status board (team key **BES**); cycles Sprint 1 / 2 when enabled |
+
+Product name **BPC** is fine in prose; Linear issue prefix is always **BES**.
 
 ### Rules
 
-1. **Create a work item in one place only** (prefer Linear when live; GitHub Issue if Linear is down).  
-2. **Link, don’t duplicate:** Linear description should link GitHub `#n` if both exist; PR body should include **`BPC-xxx` and/or `Closes #n`**.  
+1. **Create a work item in one place only** (prefer Linear; GitHub Issue if Linear is down).  
+2. **Link, don’t duplicate:** Linear description should link GitHub `#n` if both exist; PR body should include **`BES-xxx` and/or `Closes #n`**.  
 3. **Do not** open Linear *and* GitHub issues for the same work without a link between them.  
 4. If sync breaks: **GitHub PR is source of truth for merge**; fix Linear next session.  
-5. Status moves via automation where possible (PR open → In Review; merge → Done).
+5. Status moves via automation where possible (PR open → In Review; merge → Done) once Linear↔GitHub integration is on.
 
 ### Branch names (both accepted)
 
 ```text
-feature/BPC-123-short-slug    # preferred when Linear id exists
+feature/BES-123-short-slug    # preferred when Linear id exists
 feat/short-slug               # still valid
-fix/BPC-123-short-slug
-docs/BPC-123-short-slug
+fix/BES-123-short-slug
+docs/BES-123-short-slug
 ```
 
 ## Repo layout (current)
