@@ -90,7 +90,7 @@ Never: commit only on a branch with no PR, or push to `main` without a PR.
 
 | Slice | Content |
 |-------|---------|
-| **B** | Linear team BPC, GitHub sync, import Must issues |
+| **B** | Linear team BES, GitHub sync, import Must issues |
 | **C** | Notion Start-here + ADR log; Figma READY habit |
 | **D** | MCP configs (GitHub + Linear) per machine |
 

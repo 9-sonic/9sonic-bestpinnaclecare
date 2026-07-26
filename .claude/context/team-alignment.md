@@ -3,7 +3,7 @@
 This is the shared mindset for **9Sonic** delivering **Best Pinnacle Care** clock in / clock out. Load it when roles, process, or “who decides” is unclear.
 
 **Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
-**Work truth:** Linear `BPC-xxx` + GitHub PRs  
+**Work truth:** Linear `BES-xxx` + GitHub PRs  
 **Knowledge:** Notion for durable decisions — **not** the task board  
 **Horizon:** Sprint 1 (build & connect) · Sprint 2 (test & refine) — no day plans in this kit
 
@@ -43,7 +43,7 @@ We do **not** align by:
 
 ## When work appears
 
-1. Capture **outcome** in Linear (`BPC-xxx`).  
+1. Capture **outcome** in Linear (`BES-xxx`).  
 2. Branch + PR linked to the ticket for code.  
 3. Review with product truths in mind.  
 4. Merge and mark status honestly.  

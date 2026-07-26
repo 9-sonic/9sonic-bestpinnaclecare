@@ -1,6 +1,6 @@
 # Skill: Issue handling (Linear + GitHub)
 
-**Purpose:** Make work **visible, reviewable, and honest** using Linear tickets `BPC-xxx` as task truth together with GitHub branches/PRs — without turning tickets into fake certainty or day plans.
+**Purpose:** Make work **visible, reviewable, and honest** using Linear tickets `BES-xxx` as task truth together with GitHub branches/PRs — without turning tickets into fake certainty or day plans.
 
 **Use when:** Creating work, refining a fuzzy idea into a ticket, splitting scope, linking PRs, updating status, or helping non-devs (Jesse, Gichogu, Athaliah) write good issues.
 
@@ -77,7 +77,7 @@ For bugs and feature work that need precise reproduction and acceptance, use thi
 
 ## Links
 - Design: …
-- Related: BPC-…
+- Related: BES-…
 - Client confirmation: …
 ```
 
@@ -98,18 +98,18 @@ Apply these labels to make the board filterable and to trigger any automation (i
 
 ### Automation rules (Linear ↔ GitHub)
 
-- **Auto-link PR via branch name:** When a branch is named `feat/BPC-123-short-slug`, `fix/BPC-123-short-slug`, `chore/BPC-123-short-slug`, or `docs/BPC-123-short-slug`, Linear will automatically link the PR if the integration is active. The ticket ID (`BPC-123`) is the key.
+- **Auto-link PR via branch name:** When a branch is named `feat/BES-123-short-slug`, `fix/BES-123-short-slug`, `chore/BES-123-short-slug`, or `docs/BES-123-short-slug`, Linear will automatically link the PR if the integration is active. The ticket ID (`BES-123`) is the key.
 - **Status transitions:** If your workspace has automations, configure:
   - Branch creation → move ticket to **In Progress**
   - PR opened → move to **In Review**
   - PR merged → move to **Done**
-- **Manual fallback:** If automation is off or fails, paste the PR link into the Linear ticket's description or Links section, and include `BPC-xxx` in the PR title and body. Manual links in both places beat perfect automation.
+- **Manual fallback:** If automation is off or fails, paste the PR link into the Linear ticket's description or Links section, and include `BES-xxx` in the PR title and body. Manual links in both places beat perfect automation.
 
 ---
 
 ## Step-by-step: Creating a Linear ticket from an idea
 
-This guide turns a raw idea into a concrete, trackable `BPC-xxx` ticket. Anyone on the team can follow it — Jesse, Gichogu, Athaliah, Dennis, Ian — and Claude can assist at any step.
+This guide turns a raw idea into a concrete, trackable `BES-xxx` ticket. Anyone on the team can follow it — Jesse, Gichogu, Athaliah, Dennis, Ian — and Claude can assist at any step.
 
 ### When to create a ticket
 - The idea is clear enough that someone could start work on it within the current sprint.
@@ -161,17 +161,17 @@ This guide turns a raw idea into a concrete, trackable `BPC-xxx` ticket. Anyone 
 - If your Linear setup uses priority levels (e.g., Urgent, High, Medium, Low), set one based on impact. Default to Medium unless it’s trust-breaking or blocking others.
 
 ### Step 8: Save the ticket
-- Click **Create Issue**. Linear will assign a unique ID like `BPC-142`. This ID is now the canonical reference for all related work.
+- Click **Create Issue**. Linear will assign a unique ID like `BES-142`. This ID is now the canonical reference for all related work.
 
 ### Step 9: Link to a GitHub branch (when work starts)
 - When you begin coding, create a branch with the naming convention:
-  - `feat/BPC-142-short-slug` (for features)
-  - `fix/BPC-142-short-slug` (for bugs)
-  - `chore/BPC-142-short-slug` (for tooling)
-  - `docs/BPC-142-short-slug` (for documentation)
+  - `feat/BES-142-short-slug` (for features)
+  - `fix/BES-142-short-slug` (for bugs)
+  - `chore/BES-142-short-slug` (for tooling)
+  - `docs/BES-142-short-slug` (for documentation)
 - In your pull request (PR):
-  - Include `BPC-142` in the PR title.
-  - In the PR body, add a link back to the Linear ticket: `https://linear.app/.../BPC-142`.
+  - Include `BES-142` in the PR title.
+  - In the PR body, add a link back to the Linear ticket: `https://linear.app/.../BES-142`.
 - In the Linear ticket:
   - Paste the PR link into the description or the **Links** section.
   - If your Linear-GitHub integration is active, the PR will appear automatically (see Automation rules). If not, manual linking is fine — **manual links in both places beat perfect automation**.
@@ -192,19 +192,19 @@ This guide turns a raw idea into a concrete, trackable `BPC-xxx` ticket. Anyone 
      - [ ] Badge persists across app restarts until sync.
    - Product truths: Offline behaviour considered, One official record / retries, Audit / corrections.
    - Open questions: What exact UI element? Does it need a retry button?
-   - Links: Design mockup (Figma link), related BPC-140.
+   - Links: Design mockup (Figma link), related BES-140.
 3. **Assignee:** Dennis (frontend)
 4. **Sprint:** Sprint 1
 5. **Labels:** `frontend`, `design`
 6. **Priority:** Medium
-7. **Save** → ticket `BPC-143` created.
-8. **Later, when coding:** branch `feat/BPC-143-pending-sync-badge`, PR title `BPC-143 Add pending sync badge to clock button`.
+7. **Save** → ticket `BES-143` created.
+8. **Later, when coding:** branch `feat/BES-143-pending-sync-badge`, PR title `BES-143 Add pending sync badge to clock button`.
 
 ---
 
 ## Refining a vague request into an actionable ticket
 
-When someone brings a fuzzy idea (“the clock-in is broken”, “we need offline mode”, “client wants better reports”), use this checklist to turn it into a concrete `BPC-xxx` ticket. Anyone can facilitate this — Jesse, Gichogu, Athaliah, Dennis, Ian — and Claude can help draft.
+When someone brings a fuzzy idea (“the clock-in is broken”, “we need offline mode”, “client wants better reports”), use this checklist to turn it into a concrete `BES-xxx` ticket. Anyone can facilitate this — Jesse, Gichogu, Athaliah, Dennis, Ian — and Claude can help draft.
 
 ### Refinement checklist
 
@@ -280,7 +280,7 @@ Before a ticket moves to **In Progress**, verify these points. The author and th
 
 ---
 
-## What a good `BPC-xxx` contains
+## What a good `BES-xxx` contains
 
 Every real work item should be understandable by someone who was not in the conversation.
 
@@ -349,8 +349,8 @@ Gichogu can help if automation should move status on PR open/merge; humans still
 
 ## GitHub linkage conventions
 
-- Branch: `feat/BPC-123-short-slug` (or `fix/`, `chore/`, `docs/`)  
-- PR title: include `BPC-123`  
+- Branch: `feat/BES-123-short-slug` (or `fix/`, `chore/`, `docs/`)  
+- PR title: include `BES-123`  
 - PR body: summary, test plan, open questions, product truths touched  
 - Linear: paste PR link; GitHub: paste ticket id  
 
@@ -401,7 +401,7 @@ Use this for bugs and features that need precise current/expected behavior and r
 
 ## Links
 - Design: …
-- Related: BPC-…
+- Related: BES-…
 - Client confirmation: …
 ```
 
@@ -434,7 +434,7 @@ Use this for bugs and features that need precise current/expected behavior and r
 ## Links
 - Design: …
 - PR: …
-- Related: BPC-…
+- Related: BES-…
 ```
 
 ### B. Bug (lightweight)
@@ -522,7 +522,7 @@ No user impact, no acceptance, no owner path.
 When implementation reveals more work:
 
 1. **Finish a safe slice** in the current ticket/PR if possible.  
-2. **Open a new `BPC-xxx`** for the discovery — do not silently inflate the original forever.  
+2. **Open a new `BES-xxx`** for the discovery — do not silently inflate the original forever.  
 3. Cross-link tickets.  
 4. If discovery is trust-breaking, escalate visibility (comment + tag Ian/Dennis; Jesse if client impact).
 

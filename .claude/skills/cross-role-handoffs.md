@@ -10,7 +10,7 @@
 
 1. **Outcome first** — what should be true after the next person acts.  
 2. **States, not only screenshots** — offline, error, empty, permission, retry.  
-3. **One visible ticket** (`BPC-xxx`) as the spine; artifacts hang off it.  
+3. **One visible ticket** (`BES-xxx`) as the spine; artifacts hang off it.  
 4. **Explicit open questions** — especially client policy vs craft.  
 5. **Pull, don’t push-control** — specialists accept method; handoff offers clarity.  
 6. **Close the loop** — “landed / blocked / needs you again” comment on the ticket.
@@ -22,7 +22,7 @@
 ```text
 Jesse (client intent)
     ↓ confirmed / clarified
-Linear BPC-xxx
+Linear BES-xxx
     ↙        ↓        ↘
 Athaliah   Dennis    Ian
  (UX)       (FE)     (BE)
@@ -50,14 +50,14 @@ Current experience improvement is ready enough that Dennis can implement a slice
 - [ ] Any motion/interaction notes are attached
 - [ ] Out-of-scope items are explicitly listed
 - [ ] Open questions (needs Ian? needs Jesse?) are called out
-- [ ] The ticket (`BPC-xxx`) is linked and the handoff comment is posted
+- [ ] The ticket (`BES-xxx`) is linked and the handoff comment is posted
 
 ### Handoff packet
 
 Copy and paste the block below into the Linear ticket as a comment, then fill in the bracketed parts.
 
 ```markdown
-## BPC-xxx — UX handoff for Dennis
+## BES-xxx — UX handoff for Dennis
 
 ### User moment
 [e.g. Carer clocks in with no signal]
@@ -95,14 +95,14 @@ Copy and paste the block below into the Linear ticket as a comment, then fill in
 - Needs Jesse/client? [e.g. Should we show the exact GPS coordinates to the carer?]
 
 ### Definition of “implemented enough for me to re-review”
-- [e.g. All states above render with real or mocked data; PR is open and tagged with BPC-xxx; Athaliah is tagged for UX review]
+- [e.g. All states above render with real or mocked data; PR is open and tagged with BES-xxx; Athaliah is tagged for UX review]
 ```
 
 ### Dennis receives by
 
 - Confirming understanding on the ticket within the same thread
 - Noting API gaps immediately (don’t invent backend) — if a field is missing, open a Dennis → Ian handoff
-- Shipping a PR that references `BPC-xxx` and tags Athaliah for UX pass when visual
+- Shipping a PR that references `BES-xxx` and tags Athaliah for UX pass when visual
 
 ### Anti-patterns
 
@@ -124,7 +124,7 @@ UI requires data, commands, or guarantees FE cannot fake safely (idempotency, co
 Copy and paste the block below into the Linear ticket as a comment, then fill in the bracketed parts.
 
 ```markdown
-## BPC-xxx — API contract change request for Ian
+## BES-xxx — API contract change request for Ian
 
 ### Change type
 - [ ] New endpoint
@@ -215,7 +215,7 @@ API exists, changed, or error semantics shifted.
 Copy and paste the block below into the Linear ticket as a comment.
 
 ```markdown
-## BPC-xxx — API ready for Dennis
+## BES-xxx — API ready for Dennis
 
 ### Endpoints / events
 - `POST /api/v1/clock-in` — creates a clock-in record
@@ -278,10 +278,10 @@ Jesse has received a decision, clarification, or policy answer from Best Pinnacl
 
 ### Handoff packet
 
-Copy and paste the block below into a **new Linear ticket** (or as a comment on an existing `BPC-xxx` if the decision directly unblocks it). Jesse owns creating this ticket; the team owns reading and acting.
+Copy and paste the block below into a **new Linear ticket** (or as a comment on an existing `BES-xxx` if the decision directly unblocks it). Jesse owns creating this ticket; the team owns reading and acting.
 
 ```markdown
-## BPC-xxx — Client decision from Best Pinnacle (via Jesse)
+## BES-xxx — Client decision from Best Pinnacle (via Jesse)
 
 ### What was decided
 [One or two sentences — the core answer]
@@ -314,7 +314,7 @@ Copy and paste the block below into a **new Linear ticket** (or as a comment on 
 
 ### Jesse’s responsibility
 
-- Create the ticket in Linear with the `BPC-xxx` prefix
+- Create the ticket in Linear with the `BES-xxx` prefix
 - Tag the relevant team members who need to act
 - Keep the language plain — no engineering assumptions
 - If the decision is urgent, also post a short Slack note pointing to the ticket (but the ticket is the source of truth)
@@ -361,7 +361,7 @@ Experience depends on domain states only BE can guarantee (e.g. correction histo
 Copy and paste the block below into the Linear ticket as a comment.
 
 ```markdown
-## Need from Best Pinnacle (via Jesse) — BPC-xxx
+## Need from Best Pinnacle (via Jesse) — BES-xxx
 
 ### Decision needed
 …
@@ -402,7 +402,7 @@ Jesse converts this into client-facing language (`client-comms-jesse.md`). Engin
 Copy and paste the block below into the Linear ticket as a comment.
 
 ```markdown
-## Environment help — BPC-xxx or unblocked work
+## Environment help — BES-xxx or unblocked work
 
 ### What I can’t do right now
 …
@@ -470,6 +470,6 @@ Gichogu unblocks rails; does not reassign craft methods as a condition of help.
 
 ## Claude facilitation
 
-When asked to “handoff this,” produce the **right packet template**, name the **next human**, and ensure **BPC-xxx** linkage language is present. Do not invent that Athaliah finished design or that Jesse confirmed policy.
+When asked to “handoff this,” produce the **right packet template**, name the **next human**, and ensure **BES-xxx** linkage language is present. Do not invent that Athaliah finished design or that Jesse confirmed policy.
 
 Healthy handoffs keep speed **and** trust: the next person can act without re-deriving context, and the board still tells the truth.

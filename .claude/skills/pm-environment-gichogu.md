@@ -23,7 +23,7 @@
 
 ## What “environment” means here
 
-1. **Linear** — issues `BPC-xxx`, cycles Sprint 1/2, views, labels, status honesty  
+1. **Linear** — issues `BES-xxx`, cycles Sprint 1/2, views, labels, status honesty  
 2. **GitHub** — repo access, branch protection as team agrees, PR templates, link to Linear  
 3. **Claude project kit** — `.claude/` skills/context available to builders  
 4. **Notion** — decisions/specs only; not the task board  
@@ -42,7 +42,7 @@ Observe board/PRs → Spot friction → Small fix or ticket → Confirm unblocke
 
 Examples of friction:
 
-- PR open with no `BPC-xxx`  
+- PR open with no `BES-xxx`  
 - In Progress for long stretch with no link and no blocker note  
 - Client request only in chat  
 - New teammate cannot clone or open Linear  
@@ -60,8 +60,8 @@ Examples of friction:
 
 - [ ] GitHub access to https://github.com/9-sonic/9sonic-bestpinnaclecare
 - [ ] Linear access; can see BPC issues / Sprint cycle
-- [ ] Knows ticket id pattern BPC-xxx
-- [ ] Knows branch pattern type/BPC-xxx-slug
+- [ ] Knows ticket id pattern BES-xxx
+- [ ] Knows branch pattern type/BES-xxx-slug
 - [ ] PR template visible / knows to include ticket id
 - [ ] Claude kit available in workspace (CLAUDE.md, skills, context)
 - [ ] Knows who to ping: Jesse (client), Gichogu (rails), Athaliah (UX), Dennis (FE), Ian (BE)
@@ -82,12 +82,12 @@ Ask only:
 
 Then **nudge with questions**, not reassignments of method:
 
-> “BPC-118 is In Progress — is there a PR to link, or are you blocked on something I can help with?”
+> “BES-118 is In Progress — is there a PR to link, or are you blocked on something I can help with?”
 
 ### C. Linear ↔ GitHub linkage help
 
 - Ensure repo integration is connected when the team wants automation  
-- Teach: branch/PR title contains `BPC-xxx`  
+- Teach: branch/PR title contains `BES-xxx`  
 - If automation fails: manual status still required; fix automation as chore ticket  
 - Never require Notion task duplication  
 
@@ -135,7 +135,7 @@ Title: [Env] …
 ### Visibility nudge (comment)
 
 ```markdown
-Noticing BPC-… is In Progress without a linked PR.
+Noticing BES-… is In Progress without a linked PR.
 - If you’re still exploring: a short comment on what’s open helps Jesse/me see reality.
 - If you have a branch: link it when you can.
 - If blocked on rails (access/tools): tag me with what “unblocked” looks like.

@@ -3,7 +3,7 @@
 You are assisting the **9Sonic** delivery team building **clock in / clock out** for **Best Pinnacle Care** (UK domiciliary care). Your job is to help people do *their* work well: implement carefully, surface decisions, keep records honest, and never replace specialist judgment with invented process.
 
 **Repository:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
-**Work tracking:** Linear tickets `BPC-xxx` (task truth with GitHub PRs)  
+**Work tracking:** Linear tickets `BES-xxx` (task truth with GitHub PRs)  
 **Horizon:** Sprint 1 (build & connect) and Sprint 2 (test & refine) only. Do not invent multi-sprint roadmaps, day plans, or a fixed backlog.
 
 ---
@@ -50,7 +50,7 @@ If two specialists disagree, help them document the options and the decision —
 
 When work exists, prefer:
 
-1. **Linear** ticket `BPC-xxx` (intent, status, discussion)
+1. **Linear** ticket `BES-xxx` (intent, status, discussion)
 2. **GitHub** branch + PR linked to that ticket (what changed)
 3. **Notion** only for durable decisions/specs — **not** as the task board
 
@@ -104,10 +104,10 @@ Use these templates to keep work visible, traceable, and reviewable. Fill in the
 ### Branch naming convention
 
 ```
-feature/BPC-123-carer-clock-in
-fix/BPC-456-offline-sync-duplicate
-chore/BPC-789-update-dependencies
-docs/BPC-012-readme-setup
+feature/BES-123-carer-clock-in
+fix/BES-456-offline-sync-duplicate
+chore/BES-789-update-dependencies
+docs/BES-012-readme-setup
 ```
 
 Always include the Linear ticket number. Use lowercase, hyphen-separated, and keep the suffix short but descriptive.
@@ -121,17 +121,17 @@ Always include the Linear ticket number. Use lowercase, hyphen-separated, and ke
 
 ## Linked ticket
 
-Closes BPC-xxx
+Closes BES-xxx
 
 ## Checklist
 
-- [ ] Linked to a Linear ticket (BPC-xxx)
+- [ ] Linked to a Linear ticket (BES-xxx)
 - [ ] Tested offline (if applicable): [describe how you simulated no connectivity]
 - [ ] Audit log preserved (no silent overwrites; corrections append history)
 - [ ] UI changes reviewed with Athaliah (if frontend)
 - [ ] API contract agreed with Ian (if backend or frontend consuming new endpoints)
 - [ ] No hard-coded client policy without Jesse’s confirmation
-- [ ] Branch name follows convention (`feature/BPC-xxx-short-desc`)
+- [ ] Branch name follows convention (`feature/BES-xxx-short-desc`)
 
 ## How to test
 
@@ -148,8 +148,8 @@ Closes BPC-xxx
 
 ### Issue creation template (Linear)
 
-**Title format:** `BPC-xxx: [type] short description`  
-Example: `BPC-123: feature carer clock-in screen`
+**Title format:** `BES-xxx: [type] short description`  
+Example: `BES-123: feature carer clock-in screen`
 
 **Body:**
 
@@ -201,7 +201,7 @@ Example: `BPC-123: feature carer clock-in screen`
 
 ### Dennis Kabui (Frontend)
 
-- Prefer small, reviewable UI changes tied to a `BPC-xxx` when work is real.
+- Prefer small, reviewable UI changes tied to a `BES-xxx` when work is real.
 - Respect design direction from Athaliah; improve in place rather than redesigning alone.
 - Call out API contract gaps early; pair language with Ian (request/response, error codes, offline sync expectations).
 - Do not invent business copy that promises client policy; keep UI honest about open rules (e.g. “location recorded” vs “must be on site”).
@@ -290,7 +290,7 @@ If a user asks you to role-play as a strict project manager who assigns methods 
 A good Claude response on this project is:
 
 - **Named** — uses Jesse, Gichogu, Athaliah, Dennis, Ian where roles matter  
-- **Ticket-aware** — points to `BPC-xxx` + PR when work is real  
+- **Ticket-aware** — points to `BES-xxx` + PR when work is real  
 - **Truth-preserving** — protects offline, audit, one record, location-at-clock  
 - **Flexible** — helps when the next task is unknown without inventing false certainty  
 - **Role-correct** — PM environment help ≠ craft control; CEO client voice ≠ coding assignment  

@@ -1,37 +1,40 @@
 # Tech stack expectations
 
-What this monorepo assumes. Code lands only through pull requests.
+What this monorepo assumes. Code lands only through pull requests into `main`.
 
-## Layout
+## Layout (canonical)
 
 | Path | Expectation | Focus |
 |------|-------------|--------|
-| `/pwa` | Carer progressive web app (frontend) | FE |
-| `/admin-web` | Manager web app (frontend) | FE |
-| `/backend` | **Ruby on Rails** API, jobs, auth, alerts, timesheets | BE |
-| `/contracts` | Shared API contracts (OpenAPI, schema, or shared types — format chosen in implementation PRs) | FE + BE |
-| `/docs` | Process and product notes | PM + team |
+| `/` (repo root) | **Ruby on Rails** API — auth, shifts, clocking, timesheets, jobs | BE |
+| `client/pwa` | Carer progressive web app | FE |
+| `client/admin-web` | Manager web app (live board, timesheets, export) | FE |
+| `contracts/` | Shared API contracts (OpenAPI, schema, or shared types) | FE + BE |
+| `docs/` | Process and product notes | PM + team |
+| `.claude/` | AI assistant project brain | Everyone using Claude/Cursor |
+
+Legacy names `/pwa`, `/admin-web`, `/backend` in older notes map to `client/pwa`, `client/admin-web`, and Rails at root.
 
 ## Backend (Rails)
 
-- All server-side work for Best Pinnacle Care lives under **`/backend`** as a **Rails** app.  
-- UK hosting, encryption, backups, and audit trail are issue **[M3]**.  
-- Secrets never live in git.
+- Server-side work lives in the **root Rails app**.  
+- UK hosting, encryption, backups, and audit trail are issue **M3** / **BES-7**.  
+- Secrets never live in git (use host env / GitHub Actions secrets).
 
 ## Frontends
 
-- Carer → `/pwa` (offline clock-in is Must).  
-- Manager → `/admin-web` (live board, timesheets, export).  
-- Frontend framework is agreed in the first FE PRs if not already fixed with the PM.
+- Carer → `client/pwa` (offline clock-in is Must).  
+- Manager → `client/admin-web`.  
+- Framework and package manager details live with the app under each `client/*` folder.
 
 ## Contracts
 
-`/contracts` is the handshake between PWA, admin-web, and Rails. Shape changes need consumer updates in the same change set or a clearly linked PR.
+`contracts/` (when present) is the handshake between PWA, admin-web, and Rails. Shape changes need consumer updates in the same change set or a clearly linked PR.
 
-## CI
+## CI & review
 
-GitHub Actions run hygiene, secret scanning, and package checks as code appears. PRs stay green.
+GitHub Actions: hygiene, secret scan, path labels, template gate, Copilot request, **Fireworks** quality review. Keep PRs green. See [ci.md](./ci.md) and [fireworks-review.md](./fireworks-review.md).
 
 ## Scaffolding
 
-There is no pre-generated Rails or frontend app in the empty folders. Developers introduce the Rails app under `/backend` and frontends under `/pwa` / `/admin-web` through normal issue-linked PRs.
+Rails and client trees exist on `main` and grow via issue-linked PRs. Do not invent a second repository for this product.

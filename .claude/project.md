@@ -3,7 +3,7 @@
 This file is the product + process guideline for humans and Claude working in the **9Sonic / Best Pinnacle Care** clock-in delivery. It orients without inventing a backlog. Exact tasks, methods, and order of implementation belong to the specialists when work appears.
 
 **Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
-**Linear:** `BPC-xxx`  
+**Linear:** `BES-xxx`  
 **Task truth:** Linear status + GitHub PR history (together). Notion holds durable knowledge, not the board.
 
 ---
@@ -73,7 +73,7 @@ When someone asks “are we in Sprint 1 or 2?”, answer from the team’s actua
 
 Use this path every time work becomes real. It is a **shape**, not a bureaucracy.
 
-### 1. Capture intent in Linear (`BPC-xxx`)
+### 1. Capture intent in Linear (`BES-xxx`)
 
 Write the **outcome** and context. Do not fake certainty about method if method is still unknown.
 
@@ -93,10 +93,10 @@ If the work came from Best Pinnacle, Jesse should ensure the ticket language mat
 
 Short-lived branch from the team’s default branch, name includes ticket id:
 
-- `feat/BPC-123-short-slug`
-- `fix/BPC-123-short-slug`
-- `chore/BPC-123-short-slug`
-- `docs/BPC-123-short-slug`
+- `feat/BES-123-short-slug`
+- `fix/BES-123-short-slug`
+- `chore/BES-123-short-slug`
+- `docs/BES-123-short-slug`
 
 ### 3. Implement the smallest honest slice
 

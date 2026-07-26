@@ -119,8 +119,8 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 
 ### 1. Pick
 
-1. Open [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board**.  
-2. Take from **Ready** (Must first).  
+1. Prefer Linear team [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) → status **Ready** (Must first).  
+2. Or open [GitHub Project Best Pinnacle](https://github.com/orgs/9-sonic/projects/1) → **Board** → **Ready**.  
 3. Do not start Should/Could unless Must is on track or the PM has promoted the card to Ready.
 
 ### 2. Claim
@@ -132,8 +132,9 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 ```text
 feature/BES-123-short-slug    # preferred when Linear id exists
 feat/<short-name>
-fix/BPC-123-short-slug
+fix/BES-123-short-slug
 fix/<short-name>
+docs/BES-123-short-slug
 docs/<short-name>
 ```
 
@@ -147,7 +148,7 @@ docs/<short-name>
 
 1. Open a PR from your branch **into `main`** — mandatory for any change that should ship.  
 2. Complete the PR template.  
-3. Link work: `Closes #123` and/or Linear `BPC-xxx` in title/body.  
+3. Link work: `Closes #123` and/or Linear `BES-xxx` in title/body.  
 4. Tick monorepo **Scope** (paths may say `/pwa` or `client/pwa` — same intent).  
 5. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
 6. Screenshots required for UI (`client/pwa` or `client/admin-web`).  
