@@ -2,8 +2,22 @@
 
 This monorepo is the only place product work for the 15-day Best Pinnacle Care build is tracked and merged. GitHub is the source of truth. WhatsApp is for check-ins every 3–4 days and real blockers — not for status that belongs on the board.
 
-**Board:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
+**GitHub board:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
 **Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
+**Builder environment:** [docs/builder-environment.md](./docs/builder-environment.md) · Claude rails in [`.claude/`](./.claude/)  
+
+---
+
+## Dual boards (GitHub + Linear)
+
+**Write once, link, keep both in sync** — redundancy if one tool fails.
+
+| Board | Role |
+|-------|------|
+| GitHub Issues + Project | Live now; code-adjacent |
+| Linear `BPC-xxx` | Team task board when connected |
+
+Rules: do not open the same work twice without a link; every PR includes **`BPC-xxx` and/or `Closes #n`**; if sync breaks, the **GitHub PR** is merge truth. Full detail: `.claude/skills/dual-review-and-boards.md`.
 
 ---
 
@@ -12,10 +26,10 @@ This monorepo is the only place product work for the 15-day Best Pinnacle Care b
 | Role | Responsibility |
 |------|----------------|
 | **PM** | Priority, Ready queue, operational answers, final PR gate, board health |
-| **Developers** | Implement features and bugs, open PRs, respond to Copilot and review comments |
-| **Copilot** | First review on every PR. Auto-requested by the **Request Copilot review** Action on open/push; if missing, assign under Reviewers → `copilot` |
+| **Developers** | Implement features and bugs, open PRs, respond to Copilot / Fireworks and review comments |
+| **Copilot + Fireworks** | Automated PR review (Action + sticky comment) |
 
-The PM does not implement application code. Developers own `/pwa`, `/admin-web`, and `/backend` (Rails).
+The PM helps the **environment**, not craft. Specialists own implementation (see `.claude/context/team-alignment.md`).
 
 ---
 
@@ -23,17 +37,18 @@ The PM does not implement application code. Developers own `/pwa`, `/admin-web`,
 
 | Path | Purpose |
 |------|---------|
-| `/pwa` | Carer mobile PWA |
-| `/admin-web` | Manager website |
-| `/backend` | **Ruby on Rails** API and jobs |
-| `/contracts` | Shared API shapes between apps |
+| `/` (root) | **Rails** API |
+| `client/pwa` | Carer mobile PWA |
+| `client/admin-web` | Manager website |
+| `/contracts` | Shared API shapes |
 | `/docs` | Process, backlog, delivery notes |
+| `.claude/` | Claude/Cursor project brain + skills |
 
 See [docs/tech-stack.md](./docs/tech-stack.md). **Do not open a second repository for this build.**
 
 ### Contracts rule
 
-If a PR changes `/contracts` without updating the consumers (`/pwa`, `/admin-web`, and/or `/backend`), it is incomplete. State which PR completes the handshake.
+If a PR changes `/contracts` without updating the consumers (`client/*` and/or Rails root), it is incomplete. State which PR completes the handshake.
 
 ---
 
@@ -106,18 +121,19 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 
 1. Comment on the issue: `Taking this`.  
 2. Set Status to **In Progress**.  
-3. Branch from latest `main`:
+3. Branch from latest `main` (both styles accepted):
 
 ```text
+feature/BPC-123-short-slug    # preferred when Linear id exists
 feat/<short-name>
+fix/BPC-123-short-slug
 fix/<short-name>
 docs/<short-name>
 ```
 
 ### 3. Implement
 
-- Stay in the correct package path.  
-- Rails work only under `/backend`.  
+- Stay in the correct package path (Rails at root; frontends under `client/`).  
 - Meet [Definition of Done](./docs/definition_of_done.md).  
 - Prefer small PRs (open the PR within 24–48 hours of starting; do not sit on a long-lived branch with no PR).
 
@@ -125,10 +141,10 @@ docs/<short-name>
 
 1. Open a PR from your branch **into `main`** — mandatory for any change that should ship.  
 2. Complete the PR template.  
-3. Link the issue: `Closes #123` or `Fixes #123`.  
-4. Tick monorepo **Scope**.  
+3. Link work: `Closes #123` and/or Linear `BPC-xxx` in title/body.  
+4. Tick monorepo **Scope** (paths may say `/pwa` or `client/pwa` — same intent).  
 5. Describe the **Best Pinnacle Care outcome** in operational language (not only code jargon).  
-6. Screenshots required for UI (`/pwa` or `/admin-web`).  
+6. Screenshots required for UI (`client/pwa` or `client/admin-web`).  
 7. Confirm **Copilot** is a reviewer (workflow requests it; assign under Reviewers → `copilot` if missing).  
 8. Read **Fireworks AI** review comment when present.  
 9. Keep **Template gate**, **CI summary**, and **Secret scan** green.  

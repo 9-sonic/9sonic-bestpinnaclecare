@@ -12,6 +12,7 @@ GitHub is the single source of truth. Product code lands here through pull reque
 | **Definition of Done** | [docs/definition_of_done.md](./docs/definition_of_done.md) |
 | **Stack expectations** | [docs/tech-stack.md](./docs/tech-stack.md) |
 | **Product backlog (source)** | [docs/backlog.md](./docs/backlog.md) |
+| **Builder environment** | [docs/builder-environment.md](./docs/builder-environment.md) · [`.claude/`](./.claude/) |
 
 ---
 
