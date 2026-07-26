@@ -69,6 +69,13 @@ Skills index: `.claude/skills/README.md`.
 
 ---
 
+## Join and go
+
+New people (when invites land): **[join-and-go.md](./join-and-go.md)** — day-one checklist, first PR path, PM invite blurb.  
+Team access and Figma are optional later; rails work without them.
+
+---
+
 ## Ship path
 
 ```text

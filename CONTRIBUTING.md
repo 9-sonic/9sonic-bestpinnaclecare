@@ -5,6 +5,7 @@ This monorepo is the only place product code for the 15-day Best Pinnacle Care b
 **GitHub board:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
 **Linear team:** [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) (issue key **BES**, not BPC)  
 **Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
+**Join and go (new people):** [docs/join-and-go.md](./docs/join-and-go.md)  
 **Dual-board map:** [docs/dual-board.md](./docs/dual-board.md)  
 **Builder environment:** [docs/builder-environment.md](./docs/builder-environment.md) · Claude rails in [`.claude/`](./.claude/)  
 
