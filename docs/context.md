@@ -1,46 +1,90 @@
 # Best Pinnacle Care — Phase 1 Build Context
 
 > Single-file context for an LLM to build **Phase 1 only** (week 1).
-> Scope: foundation + shifts, rotas, clocking, timesheets, staff chat.
-> Out of scope for Phase 1: service users, visits, eMAR, HR, finance, care planning.
+> Scope: foundation + service-user visits, care-package rotas, geofenced clock in/out, attendance, staff chat, notifications.
+> Out of scope for Phase 1: eMAR, HR detail, finance/pay, care planning. (Service users & visits ARE Phase 1 now — see §1a, which supersedes the location-based shift model in §5–§9.)
 
 ---
 
 ## 1. What this is
 
-A care-management app for **Best Pinnacle Care**, a UK domiciliary (home-care) provider. Phase 1 delivers staff **shift scheduling and clock in/out** — the office builds a rota, carers see it on their phones, clock in and out with GPS + time captured, and hours flow into approvable timesheets. Staff-only chat ships alongside.
+A care-management app for **Best Pinnacle Care**, a UK domiciliary (home-care) provider. Phase 1 delivers staff **shift scheduling and clock in/out** — the office builds a rota, carers see it on their phones, clock in/out with GPS + time captured, and hours flow into approvable timesheets. Staff chat and notifications ship alongside.
 
-**Deployment:** single-tenant. This codebase runs as one instance for Best Pinnacle on their own server (Virtualmin), own database, own resources. **There is no `organisation_id`, no multi-tenancy, no row-level security.** One install = one provider. All provider configuration lives in a single-row `settings` table, editable in-app.
+**Deployment:** single-tenant. One instance for Best Pinnacle on their own server (Virtualmin), own database, own resources. **No `organisation_id`, no multi-tenancy, no row-level security.** One install = one provider. All provider configuration lives in a single-row `settings` table, editable in-app.
 
-## 2. Stack
+## 1a. Phase 1 revision — service-user visits & offline PWA (supersedes the location-based shift model in §5–§9)
 
-- **Backend:** Rails 8, **API-only** (no views, no Hotwire). Ruby 3.4, PostgreSQL 17.
-- **Frontend:** React 19 + TypeScript, Vite, one SPA with `/admin` (office) and `/staff` (carer PWA) routes. TanStack Query, React Router, Tailwind, Dexie for the offline outbox.
-- **Jobs/cache/cable:** SolidQueue, SolidCache, SolidCable (all Postgres-backed).
-- **Auth:** JWT (15-min access + rotating refresh bound to device). MFA required for admin roles; optional for carers. **Separate login endpoints** — `POST /api/v1/admin/auth/login` (office) and `POST /api/v1/staff/auth/login` (carer), each with its own login screen. Each endpoint rejects the wrong audience with 403: the admin endpoint refuses carers, the carer endpoint refuses office roles. Refresh and logout are shared.
+Phase 1 is **visit-based domiciliary care (EVV)**, not shift work at fixed sites. A carer travels to a **service user's home** and clocks in/out **at the home**, from a **PWA on their own phone**, verified by a geofence around that home. Service users and visits are therefore **core Phase 1** (they were wrongly deferred to Phase 2 in §14).
+
+### Core entities (rename map from §8–§9)
+| Old | New | Note |
+|---|---|---|
+| `Location` | **retired** | the geofence anchor is the service user's home, not a fixed site |
+| — | **`ServiceUser`** | the patient/client; home address is the geofence centre; **not a login** |
+| `ShiftTemplate` | **`CarePackageSlot`** | recurring contracted call, attached to a service user |
+| `Shift` | **`Visit`** | one dated call to one service user (`service_user_id`; no `location_id`) |
+| `ShiftAssignment` | **`VisitAssignment`** | the carer doing the visit; keeps the lifecycle FSM + worked minutes |
+| `Timesheet*` | **attendance** | `worked_minutes = clock_out − clock_in`; **no pay anywhere** |
+
+**`ServiceUser`**: name, reference, DOB?, phone, address; `lat`/`lng` (geocoded home = geofence centre); `geofence_radius_m` (default 150) + optional `geofence_mode`; access / key-safe notes; `active`. Not an auth identity (no login in Phase 1).
+
+**Spine**: `ServiceUser → CarePackageSlot (contracted times) → generated Visits → manually-assigned carer → geofenced clock-in/out per visit → attendance record`.
+
+**Carer turnover is high**, so: never delete a carer (soft-deactivate — history is immutable, CQC); reassignment on a leaver is **manual, per visit** (the visit stays, the assignment moves); durable data lives on the service user, never on the carer.
+
+### Geofence (revised — anchor is `service_user.home`)
+`block` mode, 150 m default. Within 150 m → `pass`; outside with a fix → blocked; no fix → allowed + `geo_anomaly`; stuck outside → `manual_admin` correction. **Server owns the result; the phone's result is never trusted.**
+
+### Offline-first clocking (carers sit in poor-signal homes for LONG stretches)
+Clock-in must work with **no connectivity, for extended periods (hours)**. Two tiers:
+
+1. **On device (provisional):** the carer's upcoming visits + each service user's home coords/radius/access notes are **synced down and cached** (IndexedDB). At tap time the PWA does a *local* geofence check for instant feedback and writes the event to an **outbox** with `client_event_id`, `occurred_at` (device tap time), lat/lng, accuracy — **no network or valid token needed to capture**.
+2. **On server (authoritative):** on reconnect the outbox syncs; the server **re-computes** geofence + skew from the submitted coords, sets the real `geofence_result`, advances the lifecycle, records `recorded_at`. Idempotent on `client_event_id` (unique) so replays can't double-record. Append-only — nothing captured in the field is dropped.
+
+**Long-offline logic (best-effort for hours-long outages):**
+- Capture never depends on a live session; **sync** re-authenticates in one biometric/passkey tap. Because carers may be offline for hours, the **staff access token gets a longer TTL and/or a device-bound refresh** so a day in the field doesn't churn logins — revisit the "full devise-jwt / no refresh" choice for the *staff* scope specifically.
+- An out-of-range clock-in captured offline (couldn't be blocked in real time) is **recorded, flagged `fail`, routed to `pending_review`** — never silently discarded (we can't un-capture a real event; we never lose a care record).
+- Sync is **cursor-based + resumable** (`GET /staff/sync/changes?since=`) and **batched** (`POST /staff/sync/events`) so a large backlog after a long outage lands in order without timing out; conflicts resolve by `occurred_at`.
+- Service worker caches the app shell; Web Push (VAPID) delivers notifications when the app is closed (subscription stored on `devices`).
+
+## 2. Two identities: Admin and Employee
+
+The system has **two separate kinds of person, in two separate tables, with two separate logins:**
+
+- **Admin** — the office. Roles: `registered_manager`, `manager`, `coordinator`, `finance`, `auditor`. Log in at the admin endpoint (desktop). Build rotas, assign staff, approve timesheets, handle exceptions, correct clock times.
+- **Employee** — the carers. Roles: `carer`, `senior_carer`. Log in at the carer endpoint (mobile PWA). Work shifts, clock in/out, chat, see their timesheet.
+
+They never share a table. Where a record could be created or owned by **either** an Admin or an Employee (chat, notifications, devices, the audit actor, a clock event's creator), the reference is **polymorphic** (`*_type` + `*_id`). Where only one kind applies, the FK is direct (`shift_assignments.employee_id`, `timesheet_periods.approved_by_admin_id`).
+
+## 3. Stack
+
+- **Backend:** Rails 8, **API-only**. Ruby 3.4, PostgreSQL 17.
+- **Frontend:** React 19 + TypeScript, Vite, one SPA — `/admin` (office) and `/staff` (carer PWA) routes. TanStack Query, React Router, Tailwind, Dexie for the offline outbox.
+- **Jobs/cache/cable:** SolidQueue, SolidCache, SolidCable (Postgres-backed).
+- **Auth:** JWT (15-min access + rotating refresh bound to device). MFA required for admins; optional for employees. **Separate login endpoints** — `POST /api/v1/admin/auth/login` authenticates against `admins`; `POST /api/v1/staff/auth/login` authenticates against `employees`. Each rejects the wrong table's credentials. Refresh and logout are shared.
 - **Deploy:** Kamal 2 to the UK Virtualmin host. Timezone `Europe/London`.
 
-## 3. Non-negotiable behavioural rules
+## 4. Non-negotiable behavioural rules
 
-1. **Append-only audit.** `clock_events` and `events` never update or delete (enforced by Postgres RULEs + REVOKE). A manager correcting a clock time inserts a **new** `clock_event` with `corrects_id` → the original and a mandatory `reason`. The original stays visible forever. The `effective_clock_events` view resolves the chain.
-2. **One writer to `events`.** `Events::Record.call` is the only insert path, called inside the same transaction as the change it describes. Every state change of consequence writes one.
-3. **Idempotency.** Every carer-originated mutation carries a client-generated UUID (`client_event_id`), unique-constrained. A retry after a dropped connection cannot double-record. Applies to clock events and chat messages.
-4. **Device time is honest.** `occurred_at` = when the carer tapped (device clock, offline-aware). `recorded_at` = when the server received it. A device clock more than `clock_skew_tolerance_minutes` off is flagged `time_anomaly` and routed to review, never silently discarded.
-5. **Server owns the truth.** Geofence result, lifecycle state, and worked-minutes are computed server-side. The client's geofence result is never trusted.
-6. **Clocking must not go down at 06:45.** Zero-downtime deploys; the offline outbox absorbs brief outages.
+1. **Append-only audit.** `clock_events` and `events` never update or delete (Postgres RULEs + REVOKE). A manager correcting a clock time inserts a **new** `clock_event` with `corrects_id` → the original and a mandatory `reason`. Original stays visible forever. `effective_clock_events` view resolves the chain.
+2. **One writer to `events`.** `Events::Record.call` is the only insert path, inside the same transaction as the change. `actor` is polymorphic (Admin | Employee | System).
+3. **Idempotency.** Every employee-originated mutation carries a client-generated UUID (`client_event_id` / `client_message_id`), unique-constrained. A retry can't double-record. Applies to clock events and chat messages.
+4. **Device time is honest.** `occurred_at` = tap time (device clock). `recorded_at` = server receipt. Device clock off by more than `clock_skew_tolerance_minutes` is flagged `time_anomaly` and routed to review, never silently dropped.
+5. **Server owns the truth.** Geofence result, lifecycle state, worked-minutes computed server-side. Client's geofence result is never trusted.
+6. **Clocking must not go down at 06:45.** Zero-downtime deploys; offline outbox absorbs brief outages.
 
-## 4. Geofence rule (clock-in)
+## 5. Geofence rule (clock-in) — anchor is the service user's home; offline-aware (see §1a)
 
 Provider default `geofence_mode = 'block'`, `geofence_radius_m = 150`:
 
-- **Within 150 m of the location, GPS fix present** → clock-in succeeds, `geofence_result = 'pass'`.
-- **Outside 150 m, GPS fix present** → clock-in **blocked**, `geofence_result = 'fail'`, no clock event written. UI: "You're too far from the location to start."
-- **No GPS fix at all** → clock-in **allowed**, `geofence_result = 'no_fix'`, raises a `geo_anomaly` alert to the office exceptions queue. Care recording is never blocked by a dead GPS chip.
-- **Genuinely stuck outside** → office authorises remotely via a `manual_admin` clock event with reason (the correction path).
+- **Within 150 m, GPS fix** → succeeds, `geofence_result = 'pass'`.
+- **Outside 150 m, GPS fix** → **blocked**, `geofence_result = 'fail'`, no clock event written. UI: "You're too far from the location to start."
+- **No GPS fix** → **allowed**, `geofence_result = 'no_fix'`, raises a `geo_anomaly` alert to the exceptions queue. Care recording is never blocked by a dead GPS chip.
+- **Stuck outside** → an admin authorises remotely via a `manual_admin` clock event with reason (the correction path).
 
-## 5. Shift lifecycle state machine
+## 6. Shift lifecycle state machine
 
-Timer-driven FSM on `shift_assignments.lifecycle_state`, advanced by a **1-minute** SolidQueue job (`Lifecycle::EvaluateStatesJob`). Thresholds come from `settings`.
+Timer-driven FSM on `shift_assignments.lifecycle_state`, advanced by a **1-minute** SolidQueue job (`Lifecycle::EvaluateStatesJob`). Thresholds from `settings`.
 
 ```
 scheduled
@@ -51,7 +95,6 @@ check_in_window ──valid clock_in──────────────�
    │ scheduled_start passed, no clock_in                        │ valid clock_out
    ▼                                                            ▼
 grace_period ──clock_in within grace──► late ──clock_out──► completed
-   │ (late is a flag-bearing path into in_progress)
    │ grace expired (missed_threshold_minutes, default 30), no clock_in
    ▼
 missed
@@ -59,85 +102,41 @@ missed
 in_progress ──scheduled_end + overdue_threshold (default 60)──► overdue
 overdue ──valid clock_out──► completed (flagged)
 overdue / grace_period ──anomaly (geo/time/no clock_out)──► pending_review
-pending_review ──coordinator confirms valid──► completed
-pending_review ──coordinator confirms failed──► missed
-in_progress ──scheduled_end + auto_close_after (default 240)──► auto clock-out, flag 'auto_closed', blocks timesheet approval until manager confirms
+pending_review ──admin confirms valid──► completed
+pending_review ──admin confirms failed──► missed
+in_progress ──scheduled_end + auto_close_after (default 240)──► auto clock-out, flag 'auto_closed', blocks timesheet approval until an admin confirms
 any ──authorised cancel──► cancelled
 ```
 
-Alert suppression is a requirement: don't re-raise an alert already open for the same subject+type; respect the cooldown. False-positive SMS/email alerts cost money and erode trust.
+Alert suppression is required: don't re-raise an alert already open for the same subject+type; respect the cooldown.
 
----
+## 7. Notifications — how people get told
 
-## 5a. Notifications — how people get told
+**Alert** = an operational condition an admin must act on (a carer is late/missed). Lives in `alerts`, has an acknowledge/resolve lifecycle. **Notification** = one delivery of a heads-up to one person on one channel. Lives in `notifications`. An alert fans out into notifications; a chat message produces a notification with **no** alert.
 
-Two concepts, kept separate on purpose:
+Recipients are polymorphic — a notification goes to an Admin or an Employee.
 
-- **Alert** = an operational condition the office must act on (a carer is late, a shift was missed). Lives in `alerts`. Has an acknowledge/resolve lifecycle.
-- **Notification** = one delivery of a message to one person on one channel. Lives in `notifications`. An alert fans out into several notifications; a chat message produces a notification with **no** alert.
-
-### Channels
-
-| Channel | Mechanism | Reaches user when… |
-|---|---|---|
-| `in_app` | Server broadcasts over WebSocket (ActionCable/SolidCable) to `NotificationsChannel`; the bell updates live, no refresh | app is open |
-| `push` | Web Push (VAPID) to the registered device; shows on lock screen | app is closed (needs one-time permission; PWA-limited on iOS) |
-| `email` | ActionMailer, queued via SolidQueue | anytime; used for waitable items + fallback |
-
-### What fires, to whom, on which channels (Phase 1)
+**Channels:** `in_app` (WebSocket broadcast, live bell), `push` (Web Push/VAPID, lock screen when app closed), `email` (ActionMailer, for waitable items + critical fallback).
 
 | Trigger | Recipients | Channels | Raises alert? |
 |---|---|---|---|
-| Rota published | carers on the rota | push + in_app | no |
-| A carer's shift changed / cancelled | that carer | push + in_app | no |
-| Shift assigned to a carer | that carer | in_app (push if within 24h) | no |
-| **Missed shift** (no clock-in past threshold) | on-duty coordinators | in_app + push + live board | **yes** (`missed`) |
-| **Late clock-in** | coordinators | in_app + live board | **yes** (`late`) |
-| **No clock-out** past overdue | coordinators | in_app + push | **yes** (`no_clock_out`) |
-| **Geofence blocked / no-GPS-fix** clock-in | coordinators | in_app (exceptions queue) | **yes** (`geo_anomaly`) |
-| **Clock time correction** by office | the affected carer | in_app | no |
-| Timesheet period ready to approve | managers | in_app + email | no |
-| Timesheet dispute raised | coordinators | in_app | no |
-| **New chat message** | conversation participants | in_app instantly; **push if still unread after 2 min** | no |
+| Rota published | employees on the rota | push + in_app | no |
+| Shift changed / cancelled | that employee | push + in_app | no |
+| Shift assigned | that employee | in_app (push if <24h) | no |
+| **Missed shift** | on-duty admins | in_app + push | **yes** |
+| **Late clock-in** | admins | in_app | **yes** |
+| **No clock-out** overdue | admins | in_app + push | **yes** |
+| **Geofence block / no-fix** | admins | in_app (exceptions) | **yes** |
+| Clock correction by admin | affected employee | in_app | no |
+| Timesheet ready to approve | admins (manager) | in_app + email | no |
+| Timesheet dispute raised | admins | in_app | no |
+| **New chat message** | thread participants | in_app instantly; push if unread after 2 min | no |
 
-Note: a carer clocking in does **not** notify themselves — they see on-screen confirmation. Clock notifications flow to the office.
-
-### Delivery pipeline (one path for everything)
-
-```
-condition happens
-   │
-   ├─ shift/clock condition → Alerts::Raise (dedupe + cooldown) ─┐
-   │                                                             │
-   └─ chat message ─────────────────────────────────────────────┤
-                                                                 ▼
-                                                     Notifications::Deliver
-                                                                 │
-                        Notifications::ResolveRecipients (role-aware)
-                                                                 │
-                    per recipient: check NotificationPreference per channel
-                                                                 │
-                        writes one `notifications` row per enabled channel
-                                                                 ▼
-              ┌───────────────┬───────────────────┬──────────────────┐
-        InAppChannel      PushChannel         EmailChannel
-        broadcast WS      Web Push (VAPID)    ActionMailer + SolidQueue
-              │                 │                     │
-        status=delivered   status=sent/failed   status=sent/failed
-```
-
-- **Delivery is idempotent per (alert/message, user, channel)** — re-running the deliver job won't double-send.
-- **Preferences win.** `notification_preferences` is per-user, per-type, per-channel. Defaults: in_app on, push on, email off — except timesheet-ready which defaults email on for managers. Safety-critical office alerts (missed shift, no clock-out) ignore the off-switch for in_app so they can't be silenced.
-- **Retry.** A failed push/email is retried by `Notifications::RetryFailedJob`; after final failure the row is marked `failed` and, for a critical alert, it falls back to email.
-- **Unread-push debounce.** `Messaging::NotifyUnreadJob` runs ~2 min after a message; if the recipient still hasn't read it (no `message_receipt.read_at`), it sends a push. This stops a push firing while they're actively reading the thread.
-
-### Reliability note (PWA)
-
-Web Push works on the carer PWA but is weaker than native, especially iOS (requires Add-to-Home-Screen, background delivery is unreliable). Phase 1 relies on in_app (guaranteed when open) + push (best-effort when closed). This is acceptable because carers open the app to see their rota; if lock-screen delivery must be guaranteed every time, that's the native-app decision, out of scope here.
+Pipeline: condition → `Alerts::Raise` (shift/clock) or straight to `Notifications::Deliver` (chat) → `ResolveRecipients` → check each recipient's `NotificationPreference` per channel → write one `notifications` row per enabled channel → channel sends. Idempotent per (source, recipient, channel). Critical in-app alerts (missed, no-clock-out) ignore the preference off-switch. Failed push/email retried, then email fallback for critical alerts.
 
 ---
 
-## 6. Schema — Phase 1 (PostgreSQL 17)
+## 8. Schema — Phase 1 (PostgreSQL 17)
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -174,20 +173,20 @@ CREATE TABLE settings (
     CHECK (id = 1)
 );
 
--- ---- Identity -------------------------------------------------------
-CREATE TYPE role_name AS ENUM
-    ('registered_manager','manager','coordinator','carer','finance','auditor');
+-- ---- Admins (office) ------------------------------------------------
+CREATE TYPE admin_role AS ENUM
+    ('registered_manager','manager','coordinator','finance','auditor');
 
-CREATE TABLE users (
+CREATE TABLE admins (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email               citext NOT NULL UNIQUE,
-    password_digest     text,
+    password_digest     text NOT NULL,
     first_name          text NOT NULL,
     last_name           text NOT NULL,
     phone               text,
-    role                role_name NOT NULL,
+    role                admin_role NOT NULL,
     mfa_secret          text,
-    mfa_enabled         boolean NOT NULL DEFAULT false,
+    mfa_enabled         boolean NOT NULL DEFAULT true,   -- required for admins
     failed_attempts     integer NOT NULL DEFAULT 0,
     locked_at           timestamptz,
     invited_at          timestamptz,
@@ -197,11 +196,38 @@ CREATE TABLE users (
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_users_active ON users(active) WHERE active;
+CREATE INDEX idx_admins_active ON admins(active) WHERE active;
 
+-- ---- Employees (carers) ---------------------------------------------
+CREATE TYPE employee_role AS ENUM ('carer','senior_carer');
+
+CREATE TABLE employees (
+    id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email               citext NOT NULL UNIQUE,
+    password_digest     text,
+    first_name          text NOT NULL,
+    last_name           text NOT NULL,
+    phone               text,
+    role                employee_role NOT NULL DEFAULT 'carer',
+    employee_reference  text,
+    mfa_secret          text,
+    mfa_enabled         boolean NOT NULL DEFAULT false,  -- optional for employees
+    failed_attempts     integer NOT NULL DEFAULT 0,
+    locked_at           timestamptz,
+    invited_at          timestamptz,
+    accepted_invite_at  timestamptz,
+    last_sign_in_at     timestamptz,
+    active              boolean NOT NULL DEFAULT true,
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_employees_active ON employees(active) WHERE active;
+
+-- ---- Devices & refresh tokens (owned by an Admin OR an Employee) ----
 CREATE TABLE devices (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id             bigint NOT NULL REFERENCES users(id),
+    owner_type          text NOT NULL,        -- 'Admin' | 'Employee'
+    owner_id            bigint NOT NULL,
     fingerprint         uuid NOT NULL UNIQUE,
     platform            text,
     app_version         text,
@@ -210,16 +236,19 @@ CREATE TABLE devices (
     revoked_at          timestamptz,
     created_at          timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_devices_owner ON devices(owner_type, owner_id);
 
 CREATE TABLE refresh_tokens (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id             bigint NOT NULL REFERENCES users(id),
+    owner_type          text NOT NULL,        -- 'Admin' | 'Employee'
+    owner_id            bigint NOT NULL,
     device_id           bigint REFERENCES devices(id),
     token_digest        text NOT NULL,
     expires_at          timestamptz NOT NULL,
     revoked_at          timestamptz,
     created_at          timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_refresh_owner ON refresh_tokens(owner_type, owner_id);
 
 -- ---- Event log (append-only) ---------------------------------------
 CREATE TABLE events (
@@ -227,7 +256,7 @@ CREATE TABLE events (
     event_type          text NOT NULL,
     aggregate_type      text NOT NULL,
     aggregate_id        bigint NOT NULL,
-    actor_type          text NOT NULL,        -- User | System
+    actor_type          text NOT NULL,        -- 'Admin' | 'Employee' | 'System'
     actor_id            bigint,
     payload             jsonb NOT NULL DEFAULT '{}'::jsonb,
     redacted_at         timestamptz,
@@ -247,8 +276,8 @@ CREATE TABLE locations (
     name                text NOT NULL,
     address_line1 text, address_line2 text, city text, postcode text,
     lat numeric(10,7), lng numeric(10,7),
-    geofence_radius_m   integer,        -- NULL = settings default
-    geofence_mode       text,           -- NULL = settings default
+    geofence_radius_m   integer,
+    geofence_mode       text,
     active              boolean NOT NULL DEFAULT true,
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now()
@@ -260,8 +289,8 @@ CREATE TABLE shift_templates (
     location_id         bigint REFERENCES locations(id),
     name                text NOT NULL,
     start_time          time NOT NULL,
-    end_time            time NOT NULL,          -- end < start ⇒ crosses midnight
-    recurrence          text NOT NULL,          -- RRULE
+    end_time            time NOT NULL,
+    recurrence          text NOT NULL,
     staff_required      integer NOT NULL DEFAULT 1,
     break_minutes       integer NOT NULL DEFAULT 0,
     effective_from      date NOT NULL,
@@ -276,14 +305,15 @@ CREATE TYPE shift_status AS ENUM ('draft','published','cancelled');
 
 CREATE TABLE shifts (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    shift_template_id   bigint REFERENCES shift_templates(id),  -- NULL = ad-hoc
+    shift_template_id   bigint REFERENCES shift_templates(id),
     location_id         bigint REFERENCES locations(id),
     scheduled_start     timestamptz NOT NULL,
     scheduled_end       timestamptz NOT NULL,
-    break_minutes       integer NOT NULL DEFAULT 0,   -- snapshot
-    staff_required      integer NOT NULL DEFAULT 1,   -- snapshot
+    break_minutes       integer NOT NULL DEFAULT 0,
+    staff_required      integer NOT NULL DEFAULT 1,
     status              shift_status NOT NULL DEFAULT 'draft',
     published_at        timestamptz,
+    published_by_admin_id bigint REFERENCES admins(id),
     cancelled_at        timestamptz,
     cancellation_reason text,
     notes               text,
@@ -305,7 +335,7 @@ CREATE TYPE lifecycle_state AS ENUM (
 CREATE TABLE shift_assignments (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     shift_id            bigint NOT NULL REFERENCES shifts(id),
-    user_id             bigint NOT NULL REFERENCES users(id),
+    employee_id         bigint NOT NULL REFERENCES employees(id),
     role                text NOT NULL DEFAULT 'worker',   -- worker|supervisor|shadow
     assignment_status   text NOT NULL DEFAULT 'assigned', -- assigned|withdrawn
     lifecycle_state     lifecycle_state NOT NULL DEFAULT 'scheduled',
@@ -314,16 +344,16 @@ CREATE TABLE shift_assignments (
     worked_minutes      integer,
     flags               text[] NOT NULL DEFAULT '{}',
     override_reason     text,
-    assigned_by_user_id bigint REFERENCES users(id),
+    assigned_by_admin_id bigint REFERENCES admins(id),
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX idx_assignments_unique
-    ON shift_assignments(shift_id, user_id) WHERE assignment_status = 'assigned';
-CREATE INDEX idx_assignments_user ON shift_assignments(user_id, lifecycle_state);
+    ON shift_assignments(shift_id, employee_id) WHERE assignment_status = 'assigned';
+CREATE INDEX idx_assignments_employee ON shift_assignments(employee_id, lifecycle_state);
 CREATE INDEX idx_assignments_state ON shift_assignments(lifecycle_state);
 
--- ---- Clock events (append-only, correction chain) ------------------
+-- ---- Clock events (append-only; creator is Admin or Employee) --------
 CREATE TYPE clock_kind AS ENUM ('clock_in','clock_out');
 CREATE TYPE geofence_result AS ENUM ('pass','fail','no_fix','not_checked');
 
@@ -333,15 +363,16 @@ CREATE TABLE clock_events (
     kind                  clock_kind NOT NULL,
     occurred_at           timestamptz NOT NULL,
     recorded_at           timestamptz NOT NULL DEFAULT now(),
-    method                text NOT NULL DEFAULT 'gps',  -- gps|manual_admin
+    method                text NOT NULL DEFAULT 'gps',   -- gps|manual_admin
     lat numeric(10,7), lng numeric(10,7), accuracy_m integer,
     geofence_result       geofence_result NOT NULL DEFAULT 'not_checked',
     distance_from_site_m  integer,
     device_fingerprint    uuid,
     client_event_id       uuid NOT NULL UNIQUE,
-    reason                text,                   -- required if manual_admin
+    reason                text,                 -- required if manual_admin
     corrects_id           bigint REFERENCES clock_events(id),
-    created_by_user_id    bigint REFERENCES users(id),
+    created_by_type       text,                 -- 'Admin' | 'Employee' (polymorphic creator)
+    created_by_id         bigint,
     CHECK (method <> 'manual_admin' OR reason IS NOT NULL)
 );
 CREATE INDEX idx_clock_events_assignment ON clock_events(shift_assignment_id, occurred_at);
@@ -353,18 +384,18 @@ CREATE VIEW effective_clock_events AS
 SELECT ce.* FROM clock_events ce
 WHERE NOT EXISTS (SELECT 1 FROM clock_events c2 WHERE c2.corrects_id = ce.id);
 
--- ---- Alerts ---------------------------------------------------------
+-- ---- Alerts (acknowledged only by admins) --------------------------
 CREATE TYPE alert_state AS ENUM ('open','acknowledged','resolved');
 
 CREATE TABLE alerts (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    alert_type          text NOT NULL,        -- late|missed|overdue|no_clock_out|geo_anomaly|time_anomaly
+    alert_type          text NOT NULL,
     subject_type        text NOT NULL,
     subject_id          bigint NOT NULL,
     severity            text NOT NULL DEFAULT 'normal',
     raised_at           timestamptz NOT NULL DEFAULT now(),
     state               alert_state NOT NULL DEFAULT 'open',
-    acknowledged_by     bigint REFERENCES users(id),
+    acknowledged_by_admin_id bigint REFERENCES admins(id),
     acknowledged_at     timestamptz,
     resolved_at         timestamptz,
     resolution_note     text
@@ -378,8 +409,8 @@ CREATE TABLE timesheet_periods (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     starts_on           date NOT NULL UNIQUE,
     ends_on             date NOT NULL,
-    status              text NOT NULL DEFAULT 'open',  -- open|approved|locked
-    approved_by         bigint REFERENCES users(id),
+    status              text NOT NULL DEFAULT 'open',   -- open|approved|locked
+    approved_by_admin_id bigint REFERENCES admins(id),
     approved_at         timestamptz,
     locked_at           timestamptz,
     CHECK (ends_on >= starts_on)
@@ -388,7 +419,7 @@ CREATE TABLE timesheet_periods (
 CREATE TABLE timesheet_lines (
     id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     timesheet_period_id   bigint NOT NULL REFERENCES timesheet_periods(id),
-    user_id               bigint NOT NULL REFERENCES users(id),
+    employee_id           bigint NOT NULL REFERENCES employees(id),
     shift_assignment_id   bigint NOT NULL REFERENCES shift_assignments(id),
     work_date             date NOT NULL,        -- overnight ⇒ shift START date
     scheduled_minutes     integer NOT NULL,
@@ -397,28 +428,29 @@ CREATE TABLE timesheet_lines (
     flags                 text[] NOT NULL DEFAULT '{}',
     UNIQUE (timesheet_period_id, shift_assignment_id)
 );
-CREATE INDEX idx_timesheet_lines_user ON timesheet_lines(user_id, work_date);
+CREATE INDEX idx_timesheet_lines_employee ON timesheet_lines(employee_id, work_date);
 
 CREATE TABLE timesheet_disputes (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     timesheet_line_id   bigint NOT NULL REFERENCES timesheet_lines(id),
-    raised_by           bigint NOT NULL REFERENCES users(id),
+    raised_by_employee_id bigint NOT NULL REFERENCES employees(id),
     reason              text NOT NULL,
     state               text NOT NULL DEFAULT 'open',
-    resolved_by         bigint REFERENCES users(id),
+    resolved_by_admin_id bigint REFERENCES admins(id),
     resolution_note     text,
     created_at          timestamptz NOT NULL DEFAULT now()
 );
 
--- ---- Messaging (staff-only chat: 1-to-1 and group) -----------------
+-- ---- Messaging (staff chat; participants are Admin OR Employee) ------
 CREATE TYPE conversation_kind AS ENUM ('direct','group');
 
 CREATE TABLE conversations (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     kind                conversation_kind NOT NULL,
     title               text,
-    direct_key          text UNIQUE,          -- sorted user-id pair, dedupes 1-to-1
-    created_by          bigint REFERENCES users(id),
+    direct_key          text UNIQUE,          -- sorted "Type:id" pair, dedupes 1-to-1
+    created_by_type     text,                 -- 'Admin' | 'Employee'
+    created_by_id       bigint,
     last_message_at     timestamptz,
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now(),
@@ -429,22 +461,25 @@ CREATE INDEX idx_conversations_recent ON conversations(last_message_at DESC NULL
 CREATE TABLE conversation_participants (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     conversation_id     bigint NOT NULL REFERENCES conversations(id),
-    user_id             bigint NOT NULL REFERENCES users(id),
+    participant_type    text NOT NULL,        -- 'Admin' | 'Employee'
+    participant_id      bigint NOT NULL,
     role                text NOT NULL DEFAULT 'member',
     joined_at           timestamptz NOT NULL DEFAULT now(),
     left_at             timestamptz,
     muted               boolean NOT NULL DEFAULT false,
     last_read_message_id bigint,
-    UNIQUE (conversation_id, user_id)
+    UNIQUE (conversation_id, participant_type, participant_id)
 );
-CREATE INDEX idx_participants_user ON conversation_participants(user_id) WHERE left_at IS NULL;
+CREATE INDEX idx_participants_person
+    ON conversation_participants(participant_type, participant_id) WHERE left_at IS NULL;
 
 CREATE TABLE messages (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     conversation_id     bigint NOT NULL REFERENCES conversations(id),
-    sender_id           bigint NOT NULL REFERENCES users(id),
+    sender_type         text NOT NULL,        -- 'Admin' | 'Employee'
+    sender_id           bigint NOT NULL,
     body                text,
-    client_message_id   uuid NOT NULL UNIQUE,  -- idempotent send
+    client_message_id   uuid NOT NULL UNIQUE,
     edited_at           timestamptz,
     deleted_at          timestamptz,
     created_at          timestamptz NOT NULL DEFAULT now()
@@ -464,17 +499,20 @@ CREATE TABLE message_attachments (
 CREATE TABLE message_receipts (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     message_id          bigint NOT NULL REFERENCES messages(id),
-    user_id             bigint NOT NULL REFERENCES users(id),
+    recipient_type      text NOT NULL,        -- 'Admin' | 'Employee'
+    recipient_id        bigint NOT NULL,
     delivered_at        timestamptz,
     read_at             timestamptz,
-    UNIQUE (message_id, user_id)
+    UNIQUE (message_id, recipient_type, recipient_id)
 );
-CREATE INDEX idx_receipts_unread ON message_receipts(user_id) WHERE read_at IS NULL;
+CREATE INDEX idx_receipts_unread
+    ON message_receipts(recipient_type, recipient_id) WHERE read_at IS NULL;
 
--- ---- Notifications --------------------------------------------------
+-- ---- Notifications (recipient is Admin OR Employee) ----------------
 CREATE TABLE notifications (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id             bigint NOT NULL REFERENCES users(id),
+    recipient_type      text NOT NULL,        -- 'Admin' | 'Employee'
+    recipient_id        bigint NOT NULL,
     notification_type   text NOT NULL,        -- alert|message|system
     alert_id            bigint REFERENCES alerts(id),
     subject_type        text,
@@ -487,27 +525,30 @@ CREATE TABLE notifications (
     failed_reason       text,
     created_at          timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_notifications_user ON notifications(user_id, created_at DESC);
+CREATE INDEX idx_notifications_recipient
+    ON notifications(recipient_type, recipient_id, created_at DESC);
 CREATE INDEX idx_notifications_unseen
-    ON notifications(user_id) WHERE seen_at IS NULL AND channel = 'in_app';
+    ON notifications(recipient_type, recipient_id)
+    WHERE seen_at IS NULL AND channel = 'in_app';
 
 CREATE TABLE notification_preferences (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id             bigint NOT NULL REFERENCES users(id),
+    owner_type          text NOT NULL,        -- 'Admin' | 'Employee'
+    owner_id            bigint NOT NULL,
     notification_type   text NOT NULL,
     in_app              boolean NOT NULL DEFAULT true,
     push                boolean NOT NULL DEFAULT true,
     email               boolean NOT NULL DEFAULT false,
-    UNIQUE (user_id, notification_type)
+    UNIQUE (owner_type, owner_id, notification_type)
 );
 
--- Seed: the single settings row
+-- Seed: single settings row + first admin
 -- INSERT INTO settings (id, company_name) VALUES (1, 'Best Pinnacle Care Ltd');
 ```
 
 ---
 
-## 7. Models — Phase 1 (ActiveRecord)
+## 9. Models — Phase 1 (ActiveRecord)
 
 ```ruby
 # app/models/concerns/append_only.rb
@@ -519,59 +560,62 @@ module AppendOnly
   end
 end
 
-# app/models/concerns/auditable.rb
-module Auditable
+# app/models/concerns/authenticatable.rb  — shared by Admin and Employee
+module Authenticatable
   extend ActiveSupport::Concern
-  # Domain services call Events::Record; this concern exposes a helper.
-  def record_event!(type, payload = {}, actor: Current.user, occurred_at: Time.current)
-    Events::Record.call(event_type: type, aggregate: self, actor:, payload:, occurred_at:)
+  included do
+    has_secure_password validations: false
+    has_many :devices,        as: :owner, dependent: :destroy
+    has_many :refresh_tokens, as: :owner, dependent: :destroy
+    has_many :notifications,  as: :recipient, dependent: :destroy
+    has_many :notification_preferences, as: :owner, dependent: :destroy
+    has_many :conversation_participants, as: :participant
+    scope :active, -> { where(active: true) }
   end
+  def full_name = "#{first_name} #{last_name}"
 end
 
 # app/models/setting.rb
 class Setting < ApplicationRecord
   def self.instance = first_or_create!(id: 1)
-  def geofence_for(location) # location overrides fall back to settings
+  def geofence_for(location)
     { mode:   location&.geofence_mode   || geofence_mode,
       radius: location&.geofence_radius_m || geofence_radius_m }
   end
 end
 
-# app/models/user.rb
-class User < ApplicationRecord
-  has_secure_password validations: false
-  enum :role, { registered_manager: 0, manager: 1, coordinator: 2,
-                carer: 3, finance: 4, auditor: 5 }
+# app/models/admin.rb
+class Admin < ApplicationRecord
+  include Authenticatable
+  enum :role, { registered_manager: 0, manager: 1, coordinator: 2, finance: 3, auditor: 4 }
 
-  has_many :devices, dependent: :destroy
-  has_many :refresh_tokens, dependent: :destroy
-  has_many :shift_assignments, foreign_key: :user_id
+  has_many :published_shifts, class_name: "Shift", foreign_key: :published_by_admin_id
+  has_many :assigned_shift_assignments, class_name: "ShiftAssignment", foreign_key: :assigned_by_admin_id
+  has_many :approved_periods, class_name: "TimesheetPeriod", foreign_key: :approved_by_admin_id
+  has_many :acknowledged_alerts, class_name: "Alert", foreign_key: :acknowledged_by_admin_id
+end
+
+# app/models/employee.rb
+class Employee < ApplicationRecord
+  include Authenticatable
+  enum :role, { carer: 0, senior_carer: 1 }
+
+  has_many :shift_assignments, dependent: :restrict_with_error
   has_many :shifts, through: :shift_assignments
-  has_many :clock_events, through: :shift_assignments
   has_many :timesheet_lines
-  has_many :conversation_participants
-  has_many :conversations, through: :conversation_participants
-  has_many :sent_messages, class_name: "Message", foreign_key: :sender_id
-  has_many :notifications, dependent: :destroy
-  has_many :notification_preferences, dependent: :destroy
-
-  scope :office, -> { where(role: %i[registered_manager manager coordinator finance auditor]) }
-  scope :carers, -> { where(role: :carer) }
-  def office? = !carer?
-  def full_name = "#{first_name} #{last_name}"
+  has_many :raised_disputes, class_name: "TimesheetDispute", foreign_key: :raised_by_employee_id
 end
 
 # app/models/device.rb
 class Device < ApplicationRecord
-  belongs_to :user
+  belongs_to :owner, polymorphic: true   # Admin | Employee
   has_many   :refresh_tokens
   scope :active, -> { where(revoked_at: nil) }
-  def revoked? = revoked_at.present?
 end
 
 # app/models/refresh_token.rb
 class RefreshToken < ApplicationRecord
-  belongs_to :user
+  belongs_to :owner, polymorphic: true
   belongs_to :device, optional: true
   scope :active, -> { where(revoked_at: nil).where("expires_at > ?", Time.current) }
 end
@@ -580,7 +624,7 @@ end
 class Event < ApplicationRecord
   include AppendOnly
   belongs_to :aggregate, polymorphic: true
-  belongs_to :actor, polymorphic: true, optional: true
+  belongs_to :actor, polymorphic: true, optional: true   # Admin | Employee | (System = nil)
 end
 
 # app/models/location.rb
@@ -595,29 +639,26 @@ class ShiftTemplate < ApplicationRecord
   belongs_to :location, optional: true
   has_many   :shifts
   scope :active, -> { where(active: true) }
-  # Overnight when end_time < start_time (crosses midnight).
 end
 
 # app/models/shift.rb
 class Shift < ApplicationRecord
-  include Auditable
   belongs_to :shift_template, optional: true
   belongs_to :location, optional: true
+  belongs_to :published_by, class_name: "Admin", foreign_key: :published_by_admin_id, optional: true
   has_many   :shift_assignments, dependent: :destroy
-  has_many   :users, through: :shift_assignments
+  has_many   :employees, through: :shift_assignments
 
   enum :status, { draft: 0, published: 1, cancelled: 2 }
   scope :published, -> { where(status: :published) }
-  scope :in_window, ->(from, to) { where(scheduled_start: from..to) }
   validates :scheduled_end, comparison: { greater_than: :scheduled_start }
 end
 
 # app/models/shift_assignment.rb
 class ShiftAssignment < ApplicationRecord
-  include Auditable
   belongs_to :shift
-  belongs_to :user
-  belongs_to :assigned_by, class_name: "User", foreign_key: :assigned_by_user_id, optional: true
+  belongs_to :employee
+  belongs_to :assigned_by, class_name: "Admin", foreign_key: :assigned_by_admin_id, optional: true
   has_many   :clock_events, dependent: :restrict_with_error
   has_many   :alerts, as: :subject
   has_many   :timesheet_lines
@@ -638,14 +679,12 @@ end
 class ClockEvent < ApplicationRecord
   include AppendOnly
   belongs_to :shift_assignment
-  belongs_to :created_by, class_name: "User", foreign_key: :created_by_user_id, optional: true
+  belongs_to :created_by, polymorphic: true, optional: true   # Admin (correction) | Employee (own clock)
   belongs_to :corrects, class_name: "ClockEvent", optional: true
   has_one    :corrected_by, class_name: "ClockEvent", foreign_key: :corrects_id
 
   enum :kind, { clock_in: 0, clock_out: 1 }
   enum :geofence_result, { pass: 0, fail: 1, no_fix: 2, not_checked: 3 }, prefix: :geo
-
-  # rows nobody has superseded
   scope :effective, -> { where.not(id: ClockEvent.where.not(corrects_id: nil).select(:corrects_id)) }
   validates :reason, presence: true, if: -> { method == "manual_admin" }
 end
@@ -653,7 +692,7 @@ end
 # app/models/alert.rb
 class Alert < ApplicationRecord
   belongs_to :subject, polymorphic: true
-  belongs_to :acknowledged_by, class_name: "User", optional: true
+  belongs_to :acknowledged_by, class_name: "Admin", foreign_key: :acknowledged_by_admin_id, optional: true
   has_many   :notifications
   enum :state, { open: 0, acknowledged: 1, resolved: 2 }
   scope :open_for, ->(s) { where(subject: s, state: :open) }
@@ -662,14 +701,14 @@ end
 # app/models/timesheet_period.rb
 class TimesheetPeriod < ApplicationRecord
   has_many   :timesheet_lines, dependent: :destroy
-  belongs_to :approved_by, class_name: "User", optional: true
+  belongs_to :approved_by, class_name: "Admin", foreign_key: :approved_by_admin_id, optional: true
   enum :status, { open: "open", approved: "approved", locked: "locked" }, default: "open"
 end
 
 # app/models/timesheet_line.rb
 class TimesheetLine < ApplicationRecord
   belongs_to :timesheet_period
-  belongs_to :user
+  belongs_to :employee
   belongs_to :shift_assignment
   has_many   :timesheet_disputes
 end
@@ -677,36 +716,36 @@ end
 # app/models/timesheet_dispute.rb
 class TimesheetDispute < ApplicationRecord
   belongs_to :timesheet_line
-  belongs_to :raised_by, class_name: "User"
-  belongs_to :resolved_by, class_name: "User", optional: true
+  belongs_to :raised_by, class_name: "Employee", foreign_key: :raised_by_employee_id
+  belongs_to :resolved_by, class_name: "Admin", foreign_key: :resolved_by_admin_id, optional: true
 end
 
 # app/models/conversation.rb
 class Conversation < ApplicationRecord
-  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :created_by, polymorphic: true, optional: true
   has_many   :conversation_participants, dependent: :destroy
-  has_many   :users, through: :conversation_participants
   has_many   :messages, dependent: :destroy
   has_one    :last_message, -> { order(created_at: :desc) }, class_name: "Message"
   enum :kind, { direct: 0, group: 1 }
-  def self.direct_key_for(a, b) = [a, b].sort.join(":")
+  # direct_key: sorted "Type:id" pair, e.g. "Admin:3:Employee:12" → one thread per pair
+  def self.direct_key_for(a, b) = [ "#{a.class}:#{a.id}", "#{b.class}:#{b.id}" ].sort.join("|")
 end
 
 # app/models/conversation_participant.rb
 class ConversationParticipant < ApplicationRecord
   belongs_to :conversation
-  belongs_to :user
+  belongs_to :participant, polymorphic: true   # Admin | Employee
   scope :active, -> { where(left_at: nil) }
   def unread_count
     conversation.messages.where("id > ?", last_read_message_id || 0)
-                .where.not(sender_id: user_id).count
+                .where.not(sender_type: participant_type, sender_id: participant_id).count
   end
 end
 
 # app/models/message.rb
 class Message < ApplicationRecord
   belongs_to :conversation, touch: :last_message_at
-  belongs_to :sender, class_name: "User", foreign_key: :sender_id
+  belongs_to :sender, polymorphic: true   # Admin | Employee
   has_many   :message_attachments, dependent: :destroy
   has_many   :message_receipts, dependent: :destroy
   scope :visible, -> { where(deleted_at: nil) }
@@ -720,46 +759,41 @@ end
 # app/models/message_receipt.rb
 class MessageReceipt < ApplicationRecord
   belongs_to :message
-  belongs_to :user
+  belongs_to :recipient, polymorphic: true   # Admin | Employee
 end
 
 # app/models/notification.rb
 class Notification < ApplicationRecord
-  belongs_to :user
+  belongs_to :recipient, polymorphic: true   # Admin | Employee
   belongs_to :alert, optional: true
   belongs_to :subject, polymorphic: true, optional: true
 end
 
 # app/models/notification_preference.rb
 class NotificationPreference < ApplicationRecord
-  belongs_to :user
+  belongs_to :owner, polymorphic: true   # Admin | Employee
 end
 ```
 
 ---
 
-## 8. Project structure — Phase 1 only
+## 10. Project structure — Phase 1 only
 
 ```
 bestpinnacle/
 ├── backend/                          # Rails 8 API-only
 │   ├── app/
-│   │   ├── models/                   # all §7 models + concerns/
+│   │   ├── models/                   # all §9 models + concerns/{append_only,authenticatable}.rb
 │   │   ├── controllers/
 │   │   │   ├── application_controller.rb
-│   │   │   ├── concerns/
-│   │   │   │   ├── authentication.rb          # JWT verify, Current.user
-│   │   │   │   ├── authorisation.rb           # Pundit
-│   │   │   │   ├── idempotency.rb             # client_event_id replay
-│   │   │   │   └── error_handling.rb
+│   │   │   ├── concerns/{authentication,authorisation,idempotency,error_handling}.rb
 │   │   │   └── api/v1/
-│   │   │       ├── base_controller.rb
 │   │   │       ├── sessions_controller.rb     # shared: refresh, logout
-│   │   │       ├── me_controller.rb
 │   │   │       ├── health_controller.rb
 │   │   │       ├── admin/
-│   │   │       │   ├── base_controller.rb     # authorises office roles
-│   │   │       │   ├── auth_controller.rb     # POST login — rejects carers (403)
+│   │   │       │   ├── base_controller.rb      # authenticates Admin, checks role
+│   │   │       │   ├── auth_controller.rb      # POST login → admins table only
+│   │   │       │   ├── dashboard_controller.rb
 │   │   │       │   ├── rota_controller.rb
 │   │   │       │   ├── shift_templates_controller.rb
 │   │   │       │   ├── shifts_controller.rb
@@ -774,152 +808,90 @@ bestpinnacle/
 │   │   │       │   ├── timesheet_lines_controller.rb
 │   │   │       │   ├── timesheet_exports_controller.rb
 │   │   │       │   ├── timesheet_disputes_controller.rb
-│   │   │       │   ├── users_controller.rb
+│   │   │       │   ├── employees_controller.rb  # invite/manage carers
+│   │   │       │   ├── admins_controller.rb     # invite/manage office users
 │   │   │       │   ├── locations_controller.rb
 │   │   │       │   └── settings_controller.rb
 │   │   │       ├── staff/
-│   │   │       │   ├── base_controller.rb     # scopes to Current.user
-│   │   │       │   ├── auth_controller.rb     # POST login — rejects office roles (403)
+│   │   │       │   ├── base_controller.rb       # authenticates Employee, scopes to self
+│   │   │       │   ├── auth_controller.rb       # POST login → employees table only
 │   │   │       │   ├── shifts_controller.rb
 │   │   │       │   ├── clock_controller.rb
 │   │   │       │   ├── timesheet_controller.rb
 │   │   │       │   ├── disputes_controller.rb
 │   │   │       │   └── sync_controller.rb
-│   │   │       └── shared/
+│   │   │       └── shared/                       # both audiences (polymorphic)
 │   │   │           ├── conversations_controller.rb
 │   │   │           ├── messages_controller.rb
 │   │   │           ├── message_receipts_controller.rb
 │   │   │           ├── notifications_controller.rb
 │   │   │           └── notification_preferences_controller.rb
 │   │   ├── services/
-│   │   │   ├── application_service.rb         # .call → Result
-│   │   │   ├── result.rb
-│   │   │   ├── events/record.rb               # THE only writer to events
+│   │   │   ├── application_service.rb   result.rb
+│   │   │   ├── events/record.rb                  # only writer; actor = Admin|Employee|System
 │   │   │   ├── authentication/
-│   │   │   │   ├── authenticate.rb            # (email, password, audience:) — 403 on role mismatch
-│   │   │   │   ├── issue_tokens.rb
-│   │   │   │   ├── rotate_refresh_token.rb
-│   │   │   │   ├── revoke_device.rb
-│   │   │   │   ├── invite_user.rb
-│   │   │   │   ├── accept_invitation.rb
+│   │   │   │   ├── authenticate.rb               # (email, password, scope: Admin|Employee)
+│   │   │   │   ├── issue_tokens.rb   rotate_refresh_token.rb   revoke_device.rb
+│   │   │   │   ├── invite_admin.rb   invite_employee.rb   accept_invitation.rb
 │   │   │   │   └── mfa/{enrol,verify}.rb
 │   │   │   ├── settings/{read,update}.rb
 │   │   │   ├── shifts/
-│   │   │   │   ├── generate_from_templates.rb # nightly, idempotent
-│   │   │   │   ├── create_ad_hoc.rb
-│   │   │   │   ├── update_shift.rb
-│   │   │   │   ├── cancel_shift.rb
-│   │   │   │   ├── publish_rota.rb
-│   │   │   │   ├── copy_week.rb
-│   │   │   │   ├── assign_staff.rb
-│   │   │   │   ├── unassign_staff.rb
-│   │   │   │   ├── coverage_summary.rb
-│   │   │   │   └── validators/
-│   │   │   │       ├── base_validator.rb
-│   │   │   │       ├── overlap_validator.rb
-│   │   │   │       ├── rest_period_validator.rb     # WTD 11h
-│   │   │   │       ├── weekly_hours_validator.rb    # WTD 48h
-│   │   │   │       └── availability_validator.rb
+│   │   │   │   ├── generate_from_templates.rb  create_ad_hoc.rb  update_shift.rb
+│   │   │   │   ├── cancel_shift.rb  publish_rota.rb  copy_week.rb
+│   │   │   │   ├── assign_staff.rb  unassign_staff.rb  coverage_summary.rb
+│   │   │   │   └── validators/{base,overlap,rest_period,weekly_hours,availability}_validator.rb
 │   │   │   ├── clocking/
-│   │   │   │   ├── record_clock_event.rb      # idempotent core endpoint
-│   │   │   │   ├── evaluate_geofence.rb       # server-side pass/fail/no_fix
-│   │   │   │   ├── detect_time_anomaly.rb
-│   │   │   │   ├── apply_correction.rb        # manager correction, reason required
-│   │   │   │   ├── resolve_effective_times.rb
-│   │   │   │   └── recalculate_assignment.rb
-│   │   │   ├── lifecycle/
-│   │   │   │   ├── state_machine.rb
-│   │   │   │   ├── evaluate_assignment.rb
-│   │   │   │   ├── evaluate_all.rb
-│   │   │   │   └── auto_close_overdue.rb
+│   │   │   │   ├── record_clock_event.rb  evaluate_geofence.rb  detect_time_anomaly.rb
+│   │   │   │   ├── apply_correction.rb  resolve_effective_times.rb  recalculate_assignment.rb
+│   │   │   ├── lifecycle/{state_machine,evaluate_assignment,evaluate_all,auto_close_overdue}.rb
 │   │   │   ├── alerts/
-│   │   │   │   ├── raise.rb
-│   │   │   │   ├── suppress.rb
-│   │   │   │   ├── acknowledge.rb
-│   │   │   │   ├── resolve.rb
+│   │   │   │   ├── raise.rb  suppress.rb  acknowledge.rb  resolve.rb
 │   │   │   │   └── scanners/{missed_shift,late_start,no_clock_out}_scanner.rb
 │   │   │   ├── notifications/
-│   │   │   │   ├── deliver.rb
-│   │   │   │   ├── resolve_recipients.rb
+│   │   │   │   ├── deliver.rb  resolve_recipients.rb        # returns Admins and/or Employees
 │   │   │   │   └── channels/{in_app,push,email}_channel.rb
 │   │   │   ├── messaging/
-│   │   │   │   ├── create_conversation.rb     # 1-to-1 dedupes on direct_key
-│   │   │   │   ├── add_participants.rb
-│   │   │   │   ├── send_message.rb            # idempotent on client_message_id
-│   │   │   │   ├── mark_read.rb
-│   │   │   │   └── unread_counts.rb
+│   │   │   │   ├── create_conversation.rb        # dedupes 1-to-1 on direct_key
+│   │   │   │   ├── add_participants.rb  send_message.rb  mark_read.rb  unread_counts.rb
 │   │   │   ├── timesheets/
-│   │   │   │   ├── build_period.rb
-│   │   │   │   ├── recalculate_line.rb
-│   │   │   │   ├── approve_period.rb
-│   │   │   │   ├── lock_period.rb
-│   │   │   │   ├── raise_dispute.rb
-│   │   │   │   └── exporters/{csv,xlsx}_exporter.rb
+│   │   │   │   ├── build_period.rb  recalculate_line.rb  approve_period.rb  lock_period.rb
+│   │   │   │   ├── raise_dispute.rb  and exporters/{csv,xlsx}_exporter.rb
 │   │   │   └── sync/{ingest_batch,build_changeset,cursor}.rb
 │   │   ├── jobs/
-│   │   │   ├── application_job.rb
-│   │   │   ├── shifts/generate_upcoming_job.rb        # nightly
-│   │   │   ├── lifecycle/evaluate_states_job.rb       # every 1 minute
-│   │   │   ├── alerts/scan_shifts_job.rb              # every 1 minute
+│   │   │   ├── shifts/generate_upcoming_job.rb          # nightly
+│   │   │   ├── lifecycle/evaluate_states_job.rb         # every 1 minute
+│   │   │   ├── alerts/scan_shifts_job.rb                # every 1 minute
 │   │   │   ├── notifications/{deliver_job,retry_failed_job}.rb
 │   │   │   ├── messaging/notify_unread_job.rb
 │   │   │   └── timesheets/{recalculate_job,open_next_period_job}.rb
 │   │   ├── channels/
-│   │   │   ├── application_cable/{connection,channel}.rb
-│   │   │   ├── live_board_channel.rb
-│   │   │   ├── conversation_channel.rb
-│   │   │   ├── presence_channel.rb
-│   │   │   └── notifications_channel.rb
-│   │   ├── mailers/
-│   │   │   ├── application_mailer.rb
-│   │   │   ├── user_mailer.rb                 # invite, reset, MFA
-│   │   │   ├── rota_mailer.rb                 # rota published, shift changed
-│   │   │   ├── alert_mailer.rb
-│   │   │   ├── timesheet_mailer.rb
-│   │   │   └── message_mailer.rb              # unread chat digest
-│   │   ├── serializers/
-│   │   │   ├── application_serializer.rb
-│   │   │   ├── {setting,user,shift,shift_assignment,clock_event}_serializer.rb
-│   │   │   ├── {alert,timesheet_line}_serializer.rb
-│   │   │   └── {conversation,message,notification}_serializer.rb
-│   │   ├── policies/
-│   │   │   ├── application_policy.rb
-│   │   │   ├── {shift,shift_assignment,clock_event}_policy.rb
-│   │   │   ├── timesheet_period_policy.rb
-│   │   │   ├── {conversation,message}_policy.rb
-│   │   │   └── setting_policy.rb
-│   │   ├── queries/
-│   │   │   ├── {rota_week,live_board,exceptions}_query.rb
-│   │   │   ├── coverage_gaps_query.rb
-│   │   │   ├── timesheet_summary_query.rb
-│   │   │   └── inbox_query.rb
-│   │   └── lib_support/
-│   │       ├── recurrence/rrule_expander.rb
-│   │       ├── time/working_time.rb          # DST-safe, overnight shifts
-│   │       └── geo/haversine.rb
+│   │   │   ├── application_cable/{connection,channel}.rb  # connection identifies Admin|Employee
+│   │   │   ├── live_board_channel.rb   conversation_channel.rb
+│   │   │   ├── presence_channel.rb     notifications_channel.rb
+│   │   ├── mailers/{application,admin,employee,rota,alert,timesheet,message}_mailer.rb
+│   │   ├── serializers/               # admin_, employee_, shift_, clock_event_, alert_,
+│   │   │                              # timesheet_, conversation_, message_, notification_
+│   │   ├── policies/                  # AdminPolicy, EmployeePolicy, ShiftPolicy, etc.
+│   │   ├── queries/{rota_week,live_board,exceptions,coverage_gaps,timesheet_summary,inbox}_query.rb
+│   │   └── lib_support/{recurrence/rrule_expander,time/working_time,geo/haversine}.rb
 │   ├── config/
-│   │   ├── application.rb                     # config.api_only = true
-│   │   ├── routes.rb
-│   │   ├── database.yml   cable.yml   queue.yml
-│   │   ├── recurring.yml                      # SolidQueue cron
-│   │   ├── deploy.yml                         # Kamal → Virtualmin
+│   │   ├── application.rb  routes.rb  database.yml  cable.yml  queue.yml  recurring.yml  deploy.yml
 │   │   └── initializers/{current_attributes,jwt,cors,rack_attack,web_push,pundit}.rb
 │   ├── db/
-│   │   ├── migrate/                           # 001..011 (see §6 ordering)
+│   │   ├── migrate/                   # 001 settings, 002 admins, 003 employees, 004 devices+tokens,
+│   │   │                              # 005 events, 006 locations, 007 shift_templates+shifts,
+│   │   │                              # 008 shift_assignments, 009 clock_events, 010 alerts,
+│   │   │                              # 011 timesheets, 012 conversations+messages, 013 notifications
 │   │   ├── schema.rb
-│   │   └── seeds/{settings,roles}.rb
+│   │   └── seeds/{settings,first_admin}.rb
 │   ├── spec/
-│   │   ├── services/
-│   │   │   ├── clocking/{record_clock_event,apply_correction,detect_time_anomaly,evaluate_geofence}_spec.rb
-│   │   │   ├── lifecycle/state_machine_spec.rb
-│   │   │   ├── shifts/generate_from_templates_spec.rb
-│   │   │   ├── messaging/send_message_spec.rb
-│   │   │   ├── timesheets/dst_boundary_spec.rb
-│   │   │   └── alerts/suppression_spec.rb
+│   │   ├── services/clocking/{record_clock_event,apply_correction,detect_time_anomaly,evaluate_geofence}_spec.rb
+│   │   ├── services/lifecycle/state_machine_spec.rb
+│   │   ├── services/messaging/send_message_spec.rb    # polymorphic sender + direct_key dedupe
+│   │   ├── services/timesheets/dst_boundary_spec.rb
 │   │   ├── requests/api/v1/
 │   │   └── support/{auth_helpers,time_helpers,factories}/
-│   ├── Dockerfile
-│   └── Gemfile
+│   ├── Dockerfile   Gemfile
 │
 └── frontend/                         # React 19 + TS + Vite
     ├── src/
@@ -927,128 +899,121 @@ bestpinnacle/
     │   ├── routes/
     │   │   ├── index.tsx   ProtectedRoute.tsx
     │   │   ├── auth/
-    │   │   │   ├── AdminLoginPage.tsx         # office login (desktop)
-    │   │   │   ├── CarerLoginPage.tsx         # carer login (mobile/PWA)
-    │   │   │   ├── AcceptInvitePage.tsx
-    │   │   │   ├── ForgotPasswordPage.tsx
-    │   │   │   └── MfaPage.tsx                # admin roles only
+    │   │   │   ├── AdminLoginPage.tsx         # → /admin/auth/login
+    │   │   │   ├── CarerLoginPage.tsx         # → /staff/auth/login
+    │   │   │   ├── AcceptInvitePage.tsx  ForgotPasswordPage.tsx  MfaPage.tsx
     │   │   ├── admin/
-    │   │   │   ├── DashboardPage.tsx
-    │   │   │   ├── RotaPage.tsx
-    │   │   │   ├── ShiftTemplatesPage.tsx
-    │   │   │   ├── LiveBoardPage.tsx
-    │   │   │   ├── ExceptionsPage.tsx
-    │   │   │   ├── TimesheetsPage.tsx
-    │   │   │   ├── MessagesPage.tsx
-    │   │   │   ├── StaffPage.tsx
-    │   │   │   └── SettingsPage.tsx
+    │   │   │   ├── DashboardPage.tsx  RotaPage.tsx  ShiftTemplatesPage.tsx
+    │   │   │   ├── LiveBoardPage.tsx  ExceptionsPage.tsx  TimesheetsPage.tsx
+    │   │   │   ├── MessagesPage.tsx   EmployeesPage.tsx  AdminsPage.tsx  SettingsPage.tsx
     │   │   └── staff/
-    │   │       ├── MyShiftsPage.tsx
-    │   │       ├── ShiftDetailPage.tsx        # clock in/out
-    │   │       ├── MyTimesheetPage.tsx
-    │   │       └── MessagesPage.tsx
+    │   │       ├── MyShiftsPage.tsx  ShiftDetailPage.tsx  MyTimesheetPage.tsx  MessagesPage.tsx
     │   ├── features/
     │   │   ├── auth/
     │   │   ├── rota/components/{WeekGrid,ShiftCell,AssignDrawer,ValidationWarnings,CoverageBar,PublishBanner,CopyWeekDialog}.tsx
     │   │   ├── clocking/{components/{ClockButton,GeoStatus,OfflineBadge},useClock.ts,api.ts}
     │   │   ├── liveBoard/{components/{StaffRow,StatusPill,CountsHeader},useLiveBoard.ts}
-    │   │   ├── exceptions/components/{ExceptionList,CorrectionDialog}.tsx
-    │   │   ├── timesheets/components/{PeriodTable,LineDrilldown,ExportMenu,DisputeDialog}.tsx
-    │   │   ├── messaging/{components/{ConversationList,MessageThread,MessageComposer,NewConversationDialog,UnreadBadge},useConversation.ts,useUnreadCount.ts,api.ts}
+    │   │   ├── exceptions/  timesheets/
+    │   │   ├── messaging/{components/{ConversationList,MessageThread,MessageComposer,NewConversationDialog,UnreadBadge},useConversation.ts,api.ts}
     │   │   ├── notifications/{components/{NotificationBell,NotificationList},usePushSubscription.ts,useNotifications.ts}
     │   │   └── settings/
     │   ├── offline/{db,outbox,sync,useOnlineStatus,cacheStrategy,serviceWorker}.ts
     │   ├── lib/{apiClient,auth,queryClient,cable,geo,time,permissions,settings,format}.ts
     │   ├── types/{api,models,enums}.ts
-    │   ├── components/{ui,layout/{ManageLayout,StaffLayout,AuthLayout},feedback}.tsx
+    │   ├── components/{ui,layout/{AdminLayout,StaffLayout,AuthLayout},feedback}.tsx
     │   └── styles/index.css
     ├── public/{manifest.webmanifest,icons/}
-    ├── vite.config.ts   tsconfig.json   tailwind.config.ts   package.json
+    ├── vite.config.ts  tsconfig.json  tailwind.config.ts  package.json
     └── tests/e2e/{rota,clock-in-out,offline-queue,messaging}.spec.ts
 ```
 
 ---
 
-## 9. Key API endpoints — Phase 1
+## 11. Key API endpoints — Phase 1
 
 ```
-POST   /api/v1/admin/auth/login           → { access, refresh, user }
-       # Office login. Rejects role = carer with 403.
-POST   /api/v1/staff/auth/login           → { access, refresh, user }
-       # Carer login. Rejects office roles with 403.
+# Auth — separate per identity
+POST   /api/v1/admin/auth/login           → { access, refresh, admin }     # admins table; rejects employees
+POST   /api/v1/staff/auth/login           → { access, refresh, employee }  # employees table; rejects admins
 POST   /api/v1/auth/refresh
 DELETE /api/v1/auth/logout
-GET    /api/v1/me
+GET    /api/v1/admin/me     |    GET /api/v1/staff/me
 
-# Office (manager+)
+# Admin (office)
 GET    /api/v1/admin/rota?from=&to=
 POST   /api/v1/admin/shift_templates
 POST   /api/v1/admin/shifts
-POST   /api/v1/admin/shifts/:id/publish        # publish_rota
-POST   /api/v1/admin/rota_copies               # copy_week
-POST   /api/v1/admin/shift_assignments         # returns validation warnings
+POST   /api/v1/admin/shifts/:id/publish
+POST   /api/v1/admin/rota_copies                 # copy_week
+POST   /api/v1/admin/shift_assignments           # returns validation warnings
 DELETE /api/v1/admin/shift_assignments/:id
 GET    /api/v1/admin/live_board
 GET    /api/v1/admin/exceptions
-POST   /api/v1/admin/clock_corrections         # manual_admin, reason required
+POST   /api/v1/admin/clock_corrections           # manual_admin, reason required
 POST   /api/v1/admin/alerts/:id/acknowledge
 GET    /api/v1/admin/timesheet_periods/:id
 POST   /api/v1/admin/timesheet_periods/:id/approve
-GET    /api/v1/admin/timesheet_exports/:id     # CSV/XLSX
-POST   /api/v1/admin/users                     # invite staff
-GET    /api/v1/admin/settings
-PATCH  /api/v1/admin/settings
+GET    /api/v1/admin/timesheet_exports/:id       # CSV/XLSX
+POST   /api/v1/admin/employees                   # invite carer
+POST   /api/v1/admin/admins                      # invite office user
+GET/PATCH /api/v1/admin/settings
 
 # Carer (PWA)
 GET    /api/v1/staff/shifts?from=&to=
 POST   /api/v1/staff/shift_assignments/:id/clock
        { kind, client_event_id, occurred_at, lat, lng, accuracy_m, device_fingerprint }
        → 201 { server_time, lifecycle_state, geofence: pass|fail|no_fix }
-       → 200 identical body on replay of same client_event_id
+       → 200 identical on replay of same client_event_id
        → 422 { error: "too_far", distance_m } when geofence blocks
 GET    /api/v1/staff/timesheet?period=
 POST   /api/v1/staff/disputes
-POST   /api/v1/staff/sync/events                # batch outbound
-GET    /api/v1/staff/sync/changes?since=cursor  # pull
+POST   /api/v1/staff/sync/events                 # batch outbound
+GET    /api/v1/staff/sync/changes?since=cursor
 
-# Shared (chat + notifications)
+# Shared (chat + notifications) — caller may be Admin or Employee
 GET    /api/v1/conversations
-POST   /api/v1/conversations                    # 1-to-1 dedupes on direct_key
+POST   /api/v1/conversations                     # 1-to-1 dedupes on direct_key
 GET    /api/v1/conversations/:id/messages?before=
-POST   /api/v1/conversations/:id/messages       { body, client_message_id }
-POST   /api/v1/messages/:id/receipts            # mark read
+POST   /api/v1/conversations/:id/messages        { body, client_message_id }
+POST   /api/v1/messages/:id/receipts             # mark read
 GET    /api/v1/notifications
 POST   /api/v1/notifications/:id/seen
-GET    /api/v1/notification_preferences
-PATCH  /api/v1/notification_preferences
+GET/PATCH /api/v1/notification_preferences
 ```
 
 ---
 
-## 10. Build order (week 1)
+## 12. Build order (week 1)
 
 | Day | Deliver |
 |-----|---------|
-| 1 | Rails API skeleton, CI, Kamal to UK host; settings, users, devices, auth (JWT+MFA), events table + `Events::Record` |
+| 1 | Rails API skeleton, CI, Kamal to UK host; settings; **admins + employees tables**; auth (JWT+MFA) with two login services; events table + `Events::Record` |
 | 2 | Locations; shift_templates; `Shifts::GenerateFromTemplates`; publish flow |
-| 3 | Assignments + validators; rota controller/queries; React rota grid + publish |
+| 3 | Assignments (employee_id) + validators; rota controller/queries; React rota grid + publish |
 | 4 | Clock endpoint (idempotency, geofence block/no_fix, skew); staff PWA clock in/out + offline outbox |
-| 5 | Lifecycle FSM + 1-min evaluator; alert scanners; live board (cable); exceptions + corrections; chat (conversations/messages/receipts) both apps |
-| 6 | Timesheets: build/recalculate/approve/lock + CSV/XLSX export; disputes; notifications + push |
-| 7 | Test pass (idempotent replay, correction chains, DST, FSM transitions); UAT on real phones; go-live |
+| 5 | Lifecycle FSM + 1-min evaluator; alert scanners; live board (cable); exceptions + corrections; chat (polymorphic participants) both apps |
+| 6 | Timesheets: build/recalculate/approve/lock + CSV/XLSX; disputes; notifications + push |
+| 7 | Test pass; UAT on real phones; go-live |
 
-## 11. Tests that must pass
+## 13. Tests that must pass
 
 1. **Idempotent replay** — same `client_event_id` twice → one clock event, identical response.
-2. **Correction chain** — original → correction → correction-of-correction resolves to the last; superseded rows still visible; `effective_clock_events` correct.
-3. **DST** — a 23:00–07:00 shift is 7h on the March transition, 9h in October; `worked_minutes` reflects reality; hours attributed to the shift's start date.
-4. **FSM** — every transition in §5, including grace-expiry → missed and auto-close.
+2. **Correction chain** — original → correction → correction resolves to the last; superseded still visible; `effective_clock_events` correct.
+3. **DST** — a 23:00–07:00 shift is 7h in March, 9h in October; hours attributed to shift start date.
+4. **FSM** — every transition in §6, including grace-expiry → missed and auto-close.
 5. **Geofence** — pass within radius; fail (blocked, no event) outside; no_fix allowed + alerted.
-6. **Clock skew** — device 30 min fast → `time_anomaly` flag, routed to pending_review, not rejected.
+6. **Clock skew** — device 30 min fast → `time_anomaly`, routed to pending_review, not rejected.
 7. **Offline** — queue 3 events offline, reconnect, all land in order with correct `occurred_at`.
-8. **Chat** — 1-to-1 create is idempotent on `direct_key` (no duplicate thread for same pair); message send idempotent on `client_message_id`; unread count correct.
+8. **Chat polymorphic** — an Admin and an Employee in one thread; 1-to-1 dedupes on `direct_key` across the two types; message send idempotent on `client_message_id`; unread count correct for both participant types.
+9. **Login isolation** — an employee's credentials are rejected at `/admin/auth/login`, and vice-versa.
 
-## 12. Things deliberately NOT in Phase 1
+## 14. Things deliberately NOT in Phase 1
 
-service_users, visits/EVV, care plans, assessments, eMAR, carers/HR, invoicing, pay/NMW, incidents, audits, reports, daycare, navigation/maps, family portal, AI note composition. All arrive in Phase 2 (weeks 2–4) and attach to this foundation without reshaping it.
+care plans, assessments, eMAR, employee HR detail (DBS/training/supervision), invoicing, pay/NMW, incidents, audits, reports, daycare, navigation/maps, family portal, AI note composition. All arrive in Phase 2 and attach to this foundation. (**Service users & visits moved INTO Phase 1** — see §1a.)
+
+---
+
+## Note on the two-identity design
+
+Admin and Employee are separate tables with separate logins, as specified. The cost, so the LLM handles it correctly: (1) any "who did this / who receives this" reference that can be either kind is **polymorphic** (`*_type` + `*_id`) — devices, refresh_tokens, events.actor, clock_events.created_by, all chat tables, notifications; (2) email uniqueness is enforced **within** each table but not across both, so the same email could exist as an Admin and an Employee — acceptable if a person can genuinely hold both roles, otherwise add an app-level cross-check on invite; (3) `Authenticatable` concern shares the auth plumbing so the two models don't duplicate it.
 ```
