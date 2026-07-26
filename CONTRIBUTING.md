@@ -1,23 +1,26 @@
 # Contributing — Best Pinnacle Care (9Sonic)
 
-This monorepo is the only place product work for the 15-day Best Pinnacle Care build is tracked and merged. GitHub is the source of truth. WhatsApp is for check-ins every 3–4 days and real blockers — not for status that belongs on the board.
+This monorepo is the only place product code for the 15-day Best Pinnacle Care build is merged. **GitHub** owns code; **Linear** owns day-to-day status; **Notion** owns durable knowledge. WhatsApp is for check-ins every 3–4 days and real blockers — not for status that belongs on the board.
 
 **GitHub board:** [Best Pinnacle](https://github.com/orgs/9-sonic/projects/1)  
+**Linear team:** [Best Pinnacle](https://linear.app/best-pinnacle/team/BES) (issue key **BES**, not BPC)  
 **Repo:** https://github.com/9-sonic/9sonic-bestpinnaclecare  
+**Dual-board map:** [docs/dual-board.md](./docs/dual-board.md)  
 **Builder environment:** [docs/builder-environment.md](./docs/builder-environment.md) · Claude rails in [`.claude/`](./.claude/)  
 
 ---
 
-## Dual boards (GitHub + Linear)
+## Dual boards (GitHub + Linear + Notion)
 
-**Write once, link, keep both in sync** — redundancy if one tool fails.
+**Write once, link, keep both execution boards in sync** — redundancy if one tool fails.
 
 | Board | Role |
 |-------|------|
-| GitHub Issues + Project | Live now; code-adjacent |
-| Linear `BPC-xxx` | Team task board when connected |
+| GitHub Issues + Project | Code-adjacent tracking; merge truth |
+| Linear `BES-xxx` | Status, epics, Ready queue |
+| Notion Engineering Hub | Specs, ADRs, env log — not a task board |
 
-Rules: do not open the same work twice without a link; every PR includes **`BPC-xxx` and/or `Closes #n`**; if sync breaks, the **GitHub PR** is merge truth. Full detail: `.claude/skills/dual-review-and-boards.md`.
+Rules: do not open the same work twice without a link; every PR includes **`BES-xxx` and/or `Closes #n`**; if sync breaks, the **GitHub PR** is merge truth. Full map: [docs/dual-board.md](./docs/dual-board.md). Skill: `.claude/skills/dual-review-and-boards.md`.
 
 ---
 
