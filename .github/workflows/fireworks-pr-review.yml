@@ -164,7 +164,9 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const issue_number = context.issue.number;
+            const pull_number = context.payload.pull_request.number;
 
+            // 1) Sticky Conversation comment (easy to find, updates in place)
             const { data: comments } = await github.rest.issues.listComments({
               owner,
               repo,
@@ -193,6 +195,26 @@ jobs:
                 body,
               });
               core.info('Posted Fireworks review comment.');
+            }
+
+            // 2) Formal PR review so the Reviews tab is not empty when Copilot is quota-blocked.
+            // Developers often open "Reviews" and think nothing ran if only Conversation has the bot comment.
+            try {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number,
+                event: 'COMMENT',
+                body:
+                  body +
+                  '\n\n_Also posted as a sticky comment on the Conversation tab._',
+              });
+              core.info('Posted Fireworks review under PR Reviews tab.');
+            } catch (err) {
+              core.warning(
+                'Could not create formal PR review (comment still on Conversation): ' +
+                  err.message
+              );
             }
 
       - name: Skip empty diff
