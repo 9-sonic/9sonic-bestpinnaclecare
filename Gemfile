@@ -59,6 +59,10 @@ gem "image_processing", "~> 1.2"
 gem "rack-cors"
 
 group :development, :test do
+  # Loads .env into ENV for local dev/test (absent in production — the server
+  # sets env via systemd EnvironmentFile). Loaded early so config/initializers see it.
+  gem "dotenv-rails"
+
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 
