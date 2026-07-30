@@ -83,7 +83,8 @@ module Clocking
     end
 
     def advance_lifecycle(anomaly:)
-      if @kind == "clock_in"
+      case @kind
+      when "clock_in"
         state = if anomaly
           :pending_review
         elsif @occurred_at > @va.visit.scheduled_start
@@ -92,11 +93,11 @@ module Clocking
           :in_progress
         end
         @va.update!(actual_start: @occurred_at, lifecycle_state: state)
-      else
-        worked = worked_minutes
-        @va.update!(actual_end: @occurred_at, worked_minutes: worked,
+      when "clock_out"
+        @va.update!(actual_end: @occurred_at, worked_minutes: worked_minutes,
                     lifecycle_state: anomaly ? :pending_review : :completed)
       end
+      # break_start / break_end record the event but don't change the lifecycle.
     end
 
     def worked_minutes
@@ -108,6 +109,7 @@ module Clocking
     end
 
     def raise_geo_alert(result)
+      return unless %w[clock_in clock_out].include?(@kind)
       return unless %w[no_fix fail].include?(result)
 
       Alerts::Raise.call(subject: @va, alert_type: "geo_anomaly")

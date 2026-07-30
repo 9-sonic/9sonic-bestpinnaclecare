@@ -7,7 +7,7 @@ class ClockEvent < ApplicationRecord
   belongs_to :corrects, class_name: "ClockEvent", optional: true
   has_one    :corrected_by, class_name: "ClockEvent", foreign_key: :corrects_id
 
-  enum :kind, { clock_in: "clock_in", clock_out: "clock_out" }
+  enum :kind, { clock_in: "clock_in", clock_out: "clock_out", break_start: "break_start", break_end: "break_end" }
   enum :geofence_result, { pass: "pass", fail: "fail", no_fix: "no_fix", not_checked: "not_checked" }, prefix: :geo
 
   scope :effective, -> { where.not(id: ClockEvent.where.not(corrects_id: nil).select(:corrects_id)) }

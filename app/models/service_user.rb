@@ -6,6 +6,7 @@ class ServiceUser < ApplicationRecord
 
   has_many :care_package_slots, dependent: :restrict_with_error
   has_many :visits,             dependent: :restrict_with_error
+  has_many :care_plan_items,    dependent: :destroy
 
   scope :active, -> { where(active: true) }
 

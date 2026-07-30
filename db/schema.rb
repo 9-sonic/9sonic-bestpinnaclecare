@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_100005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -20,7 +20,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
   # Note that some types may not work with other database engines. Be careful if changing database.
   create_enum "admin_role", ["registered_manager", "manager", "coordinator", "finance", "auditor"]
   create_enum "alert_state", ["open", "acknowledged", "resolved"]
-  create_enum "clock_kind", ["clock_in", "clock_out"]
+  create_enum "availability_slot", ["morning", "afternoon", "evening", "night"]
+  create_enum "clock_kind", ["clock_in", "clock_out", "break_start", "break_end"]
   create_enum "conversation_kind", ["direct", "group"]
   create_enum "employee_role", ["carer", "senior_carer"]
   create_enum "geofence_result", ["pass", "fail", "no_fix", "not_checked"]
@@ -88,6 +89,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.check_constraint "staff_required > 0 AND break_minutes >= 0", name: "shift_templates_positive"
   end
 
+  create_table "care_plan_items", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.text "category", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.text "detail"
+    t.text "label", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "service_user_id", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["service_user_id", "position"], name: "index_care_plan_items_on_service_user_id_and_position"
+  end
+
   create_table "clock_events", force: :cascade do |t|
     t.integer "accuracy_m"
     t.uuid "client_event_id", null: false
@@ -152,15 +165,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.index ["owner_type", "owner_id"], name: "idx_devices_owner"
   end
 
+  create_table "employee_availabilities", force: :cascade do |t|
+    t.boolean "available", default: true, null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.date "effective_from"
+    t.date "effective_to"
+    t.bigint "employee_id", null: false
+    t.enum "slot", null: false, enum_type: "availability_slot"
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.integer "weekday", null: false
+    t.index ["employee_id", "weekday", "slot"], name: "idx_employee_availability_unique", unique: true
+    t.check_constraint "weekday >= 0 AND weekday <= 6", name: "employee_availability_weekday_range"
+  end
+
   create_table "employees", force: :cascade do |t|
     t.timestamptz "accepted_invite_at"
     t.boolean "active", default: true, null: false
+    t.decimal "contracted_hours_per_week", precision: 5, scale: 2
     t.timestamptz "created_at", default: -> { "now()" }, null: false
     t.citext "email", null: false
+    t.text "emergency_contact_name"
+    t.text "emergency_contact_phone"
     t.text "employee_reference"
     t.text "encrypted_password", default: "", null: false
     t.integer "failed_attempts", default: 0, null: false
     t.text "first_name", null: false
+    t.integer "hourly_rate_pence"
     t.timestamptz "invited_at"
     t.text "last_name", null: false
     t.timestamptz "last_sign_in_at"
@@ -169,6 +199,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.timestamptz "mfa_confirmed_at"
     t.boolean "mfa_enabled", default: false, null: false
     t.text "mfa_secret"
+    t.integer "mileage_rate_pence"
     t.text "phone"
     t.timestamptz "reset_password_sent_at"
     t.string "reset_password_token"
@@ -180,6 +211,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.index ["email"], name: "index_employees_on_email", unique: true
     t.index ["reset_password_token"], name: "index_employees_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_employees_on_unlock_token", unique: true
+    t.check_constraint "hourly_rate_pence IS NULL OR hourly_rate_pence >= 0", name: "employees_hourly_rate_non_negative"
+    t.check_constraint "mileage_rate_pence IS NULL OR mileage_rate_pence >= 0", name: "employees_mileage_rate_non_negative"
   end
 
   create_table "events", force: :cascade do |t|
@@ -235,6 +268,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.text "sender_type", null: false
     t.index ["client_message_id"], name: "index_messages_on_client_message_id", unique: true
     t.index ["conversation_id", "created_at"], name: "idx_messages_conversation", order: { created_at: :desc }
+  end
+
+  create_table "mileage_claims", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "employee_id", null: false
+    t.text "from_label"
+    t.decimal "miles", precision: 6, scale: 2, null: false
+    t.text "source", default: "carer", null: false
+    t.text "state", default: "claimed", null: false
+    t.text "to_label"
+    t.date "travel_date", null: false
+    t.bigint "visit_assignment_id"
+    t.index ["employee_id", "travel_date"], name: "index_mileage_claims_on_employee_id_and_travel_date"
+    t.index ["visit_assignment_id"], name: "index_mileage_claims_on_visit_assignment_id"
+    t.check_constraint "miles >= 0::numeric", name: "mileage_non_negative"
   end
 
   create_table "notification_preferences", force: :cascade do |t|
@@ -385,6 +433,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
     t.index ["visit_id", "employee_id"], name: "idx_assignments_unique", unique: true, where: "(assignment_status = 'assigned'::text)"
   end
 
+  create_table "visit_notes", force: :cascade do |t|
+    t.bigint "author_id", null: false
+    t.string "author_type", null: false
+    t.text "body", null: false
+    t.uuid "client_note_id", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "supersedes_id"
+    t.bigint "visit_assignment_id", null: false
+    t.index ["author_type", "author_id"], name: "index_visit_notes_on_author"
+    t.index ["client_note_id"], name: "index_visit_notes_on_client_note_id", unique: true
+    t.index ["visit_assignment_id", "created_at"], name: "index_visit_notes_on_visit_assignment_id_and_created_at"
+  end
+
+  create_table "visit_tasks", force: :cascade do |t|
+    t.bigint "care_plan_item_id"
+    t.timestamptz "completed_at"
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.boolean "done", default: false, null: false
+    t.text "label", null: false
+    t.bigint "visit_assignment_id", null: false
+    t.index ["care_plan_item_id"], name: "index_visit_tasks_on_care_plan_item_id"
+    t.index ["visit_assignment_id"], name: "index_visit_tasks_on_visit_assignment_id"
+  end
+
   create_table "visits", force: :cascade do |t|
     t.integer "break_minutes", default: 0, null: false
     t.text "cancellation_reason"
@@ -422,12 +494,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
 
   add_foreign_key "alerts", "admins", column: "acknowledged_by_admin_id"
   add_foreign_key "care_package_slots", "service_users"
+  add_foreign_key "care_plan_items", "service_users"
   add_foreign_key "clock_events", "clock_events", column: "corrects_id"
   add_foreign_key "clock_events", "visit_assignments"
   add_foreign_key "conversation_participants", "conversations"
+  add_foreign_key "employee_availabilities", "employees"
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_receipts", "messages"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "mileage_claims", "employees"
+  add_foreign_key "mileage_claims", "visit_assignments"
   add_foreign_key "notifications", "alerts"
   add_foreign_key "refresh_tokens", "devices"
   add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
@@ -440,6 +516,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120018) do
   add_foreign_key "visit_assignments", "admins", column: "assigned_by_admin_id"
   add_foreign_key "visit_assignments", "employees"
   add_foreign_key "visit_assignments", "visits"
+  add_foreign_key "visit_notes", "visit_assignments"
+  add_foreign_key "visit_notes", "visit_notes", column: "supersedes_id"
+  add_foreign_key "visit_tasks", "care_plan_items"
+  add_foreign_key "visit_tasks", "visit_assignments"
   add_foreign_key "visits", "admins", column: "published_by_admin_id"
   add_foreign_key "visits", "care_package_slots"
   add_foreign_key "visits", "service_users"
