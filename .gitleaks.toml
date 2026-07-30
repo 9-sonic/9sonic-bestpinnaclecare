@@ -1,0 +1,18 @@
+title = "Best Pinnacle Care — gitleaks config"
+
+# Start from gitleaks' built-in ruleset.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Devise install-generator's default `config.secret_key`. It is commented out and
+unused: Devise falls back to `secret_key_base`, and our JWT signing key comes
+from DEVISE_JWT_SECRET_KEY / secret_key_base (see config/initializers/devise.rb).
+The value has been removed from HEAD; this allowlists the inert historical copy
+already merged to main (commits 7468d63, 24a7282) so it doesn't fail the scan.
+"""
+regexTarget = "line"
+regexes = [
+  '''config\.secret_key\s*=\s*['"][0-9a-f]{100,}['"]'''
+]
