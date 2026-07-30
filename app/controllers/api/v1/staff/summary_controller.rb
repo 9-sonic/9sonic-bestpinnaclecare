@@ -4,8 +4,8 @@ module Api
       # GET /api/v1/staff/summary?from=&to= — headline numbers for Home/Overview.
       class SummaryController < BaseController
         def show
-          from = params[:from].present? ? Date.parse(params[:from]) : Date.current.beginning_of_week
-          to   = params[:to].present?   ? Date.parse(params[:to])   : from + 6
+          from = parse_date(params[:from]) || Date.current.beginning_of_week
+          to   = parse_date(params[:to]) || (from + 6)
 
           vas = current_employee.visit_assignments.assigned.joins(:visit)
                                 .where(visits: { scheduled_start: from.beginning_of_day..to.end_of_day })
@@ -29,6 +29,12 @@ module Api
         private
 
         def weekday(date) = (date.wday.zero? ? 6 : date.wday - 1) # Mon=0 .. Sun=6
+
+        def parse_date(str)
+          Date.parse(str) if str.present?
+        rescue ArgumentError, TypeError
+          nil
+        end
       end
     end
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_27_100005) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -454,6 +454,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100005) do
     t.text "label", null: false
     t.bigint "visit_assignment_id", null: false
     t.index ["care_plan_item_id"], name: "index_visit_tasks_on_care_plan_item_id"
+    t.index ["visit_assignment_id", "care_plan_item_id"], name: "idx_visit_tasks_unique_care_plan", unique: true, where: "(care_plan_item_id IS NOT NULL)"
     t.index ["visit_assignment_id"], name: "index_visit_tasks_on_visit_assignment_id"
   end
 

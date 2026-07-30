@@ -39,11 +39,15 @@ module Api
         end
 
         # Seed the checklist from the service user's active care plan on first view.
+        # The unique (visit_assignment_id, care_plan_item_id) index + rescue make
+        # this safe under concurrent first-views.
         def ensure_tasks!
           return if @va.visit_tasks.exists?
 
-          @va.visit.service_user.care_plan_items.active.each do |cpi|
+          @va.visit.service_user.care_plan_items.active.find_each do |cpi|
             @va.visit_tasks.create!(care_plan_item: cpi, label: cpi.label)
+          rescue ActiveRecord::RecordNotUnique
+            # seeded concurrently by another request
           end
         end
 

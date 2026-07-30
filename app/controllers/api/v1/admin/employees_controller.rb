@@ -2,7 +2,8 @@ module Api
   module V1
     module Admin
       class EmployeesController < BaseController
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create update]
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) },          only: :create
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator, :finance) }, only: :update
 
         def index
           render json: Employee.order(:last_name, :first_name).map { |e| serialize(e) }
@@ -38,9 +39,14 @@ module Api
         end
 
         def employee_params
-          params.permit(:email, :first_name, :last_name, :phone, :role, :employee_reference, :active,
-                        :hourly_rate_pence, :mileage_rate_pence, :contracted_hours_per_week)
+          permitted = params.permit(:email, :first_name, :last_name, :phone, :role, :employee_reference, :active,
+                                    :hourly_rate_pence, :mileage_rate_pence, :contracted_hours_per_week)
+          # Only finance / registered manager may set pay rates.
+          permitted = permitted.except(:hourly_rate_pence, :mileage_rate_pence) unless pay_editor?
+          permitted
         end
+
+        def pay_editor? = current_admin.registered_manager? || current_admin.finance?
       end
     end
   end

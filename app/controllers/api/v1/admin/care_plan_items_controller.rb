@@ -3,6 +3,8 @@ module Api
     module Admin
       # Care plan for a service user (nested under /admin/service_users/:id).
       class CarePlanItemsController < BaseController
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create update destroy]
+
         def index
           render json: service_user.care_plan_items.map { |c| CarePlanItemSerializer.call(c) }
         end
@@ -13,13 +15,13 @@ module Api
         end
 
         def update
-          item = CarePlanItem.find(params[:id])
+          item = service_user.care_plan_items.find(params[:id])
           item.update!(item_params)
           render json: CarePlanItemSerializer.call(item)
         end
 
         def destroy
-          CarePlanItem.find(params[:id]).update!(active: false) # soft delete
+          service_user.care_plan_items.find(params[:id]).update!(active: false) # soft delete
           head :no_content
         end
 

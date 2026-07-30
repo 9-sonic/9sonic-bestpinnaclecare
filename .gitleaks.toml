@@ -4,15 +4,16 @@ title = "Best Pinnacle Care — gitleaks config"
 [extend]
 useDefault = true
 
+# Allowlist ONLY the two historical commits that carry the Devise install
+# generator's commented, unused `config.secret_key`. It is inert — Devise uses
+# `secret_key_base` and our JWT signing key comes from DEVISE_JWT_SECRET_KEY /
+# secret_key_base — and it has been removed from HEAD.
+#
+# Scoping to these exact commits (rather than a file/line regex) means a real
+# secret introduced in any NEW commit, anywhere in the tree, is still caught.
 [allowlist]
-description = """
-Devise install-generator's default `config.secret_key`. It is commented out and
-unused: Devise falls back to `secret_key_base`, and our JWT signing key comes
-from DEVISE_JWT_SECRET_KEY / secret_key_base (see config/initializers/devise.rb).
-The value has been removed from HEAD; this allowlists the inert historical copy
-already merged to main (commits 7468d63, 24a7282) so it doesn't fail the scan.
-"""
-regexTarget = "line"
-regexes = [
-  '''config\.secret_key\s*=\s*['"][0-9a-f]{100,}['"]'''
+description = "Inert Devise generator default config.secret_key — removed from HEAD; historical copies only."
+commits = [
+  "24a72823a095eddb51bfd457e2cf377d445c0868", # Feat/service user visits (#46)
+  "7468d63aff2c4dd5e1f967d6517c6a855ca8c49c"  # original auth commit (pre-squash)
 ]
