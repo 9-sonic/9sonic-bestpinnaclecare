@@ -12,7 +12,9 @@ module Api
 
           res = Clocking::RecordClockEvent.call(
             visit_assignment: va, actor: current_employee, on_block: :flag, kind: kind,
-            client_event_id: params[:client_event_id].presence || SecureRandom.uuid,
+            # Required, like clock-in/out: it's the offline dedup key. Fabricating
+            # one server-side would let a retry create a duplicate break event.
+            client_event_id: params.require(:client_event_id),
             occurred_at: params[:occurred_at].presence || Time.current.iso8601,
             lat: params[:lat], lng: params[:lng], accuracy_m: params[:accuracy_m]
           )
