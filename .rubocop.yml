@@ -1,4 +1,6 @@
 # Omakase Ruby styling for Rails
+# Run by the "backend (Rails)" job in .github/workflows/ci.yml, and locally
+# with `bin/rubocop`.
 inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 
 # Overwrite or add rules to create your own house style
