@@ -305,3 +305,41 @@ jobs:
             exit 1
           fi
           echo "CI summary: OK"
+
+      # Trunk is broken — tell #bpc-alerts. PR failures are the author's
+      # business and stay out of Slack. `secrets` is not available in `if:`,
+      # so the webhook check lives inside the step.
+      - name: Notify Slack that main is broken
+        if: failure() && github.event_name == 'push'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "No Slack webhook configured — skipping (see docs/slack-setup.md)."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg commit "$COMMIT_URL" \
+            --arg run "$RUN_URL" \
+            --arg sha "${SHA:0:7}" \
+            --arg actor "$ACTOR" \
+            '{
+              text: "🚨 CI failed on main",
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: "🚨 CI failed on main", emoji: true } },
+                { type: "section",
+                  text: { type: "mrkdwn",
+                          text: ("*Commit:* <" + $commit + "|" + $sha + "> by " + $actor
+                                 + "\n*Run:* <" + $run + "|CI details>") } }
+              ]
+            }')
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-type: application/json' \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"
