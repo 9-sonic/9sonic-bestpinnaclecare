@@ -104,7 +104,7 @@ Use these templates to keep work visible, traceable, and reviewable. Fill in the
 ### Branch naming convention
 
 ```
-feature/BES-123-carer-clock-in
+feat/BES-123-carer-clock-in
 fix/BES-456-offline-sync-duplicate
 chore/BES-789-update-dependencies
 docs/BES-012-readme-setup
@@ -131,7 +131,7 @@ Closes BES-xxx
 - [ ] UI changes reviewed with Athaliah (if frontend)
 - [ ] API contract agreed with Ian (if backend or frontend consuming new endpoints)
 - [ ] No hard-coded client policy without Jesse’s confirmation
-- [ ] Branch name follows convention (`feature/BES-xxx-short-desc`)
+- [ ] Branch name follows convention (`feat/BES-xxx-short-desc`)
 
 ## How to test
 

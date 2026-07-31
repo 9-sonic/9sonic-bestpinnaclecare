@@ -23,16 +23,19 @@ jobs:
         with:
           script: |
             const commitMessage = context.payload.head_commit?.message || '';
+            const subject = commitMessage.split('\n')[0] || '';
+
+            // Merge-commit strategy: "Merge pull request #12 from ..."
             const isMerge =
               commitMessage.startsWith('Merge pull request') ||
-              commitMessage.startsWith('Merge branch') ||
-              (context.payload.commits || []).length > 1 &&
-                commitMessage.toLowerCase().includes('merge');
+              commitMessage.startsWith('Merge branch');
 
-            // GitHub merge button usually creates a merge commit or squash with PR ref
-            const hasPrRef = /#\d+/.test(commitMessage) && /merge/i.test(commitMessage);
+            // Squash strategy: GitHub appends " (#12)" to the subject line. This
+            // is the repo's usual shape — matching only /merge/i missed every
+            // squash merge and flagged legitimate ones as direct pushes.
+            const isSquashMerge = /\(#\d+\)\s*$/.test(subject);
 
-            if (isMerge || hasPrRef) {
+            if (isMerge || isSquashMerge) {
               core.info('Push looks like a PR merge — OK.');
               return;
             }

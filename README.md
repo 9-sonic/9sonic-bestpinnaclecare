@@ -86,8 +86,12 @@ Operating detail: [docs/project-management.md](./docs/project-management.md).
 
 | Automation | Role |
 |------------|------|
-| **CI** | Layout hygiene; package checks when code appears |
-| **Secret scan** | Blocks obvious committed secrets |
+| **CI — repo hygiene** | Enforces the layout: no stray top-level app dirs, no committed build output or `.env` |
+| **CI — backend (Rails)** | RuboCop, Brakeman and RSpec against Postgres; bundler-audit advisory |
+| **CI — client** | Lint, typecheck, build and test in `client/pwa` and `client/admin-web` |
+| **CI — contracts** | Parses every document under `/contracts` |
+| **Secret scan** | Blocks obvious committed secrets (`.gitleaks.toml`) |
+| **Slack** | Contract changes, urgent issues and a broken `main` reach `#bpc-alerts` |
 | **Request Copilot review** | Requests Copilot (may hit plan/quota limits) |
 | **Template gate** | Fails if issue link / scope incomplete |
 | **Path labels** | Adds `scope:*` from changed folders |
