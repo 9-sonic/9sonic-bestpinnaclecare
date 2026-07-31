@@ -24,6 +24,19 @@ If you do not know who owns a decision, say so and suggest who should be looped 
 
 ## How to work with this team (critical rules)
 
+### 0. Load `skills/repo-conventions.md` before writing code
+
+Five people work in this repo from five machines, each with their own Claude.
+The mechanical facts — where code lives, what CI enforces, which single file is
+the source of truth for the API spec — must be the **same** for all of them, or
+the work collides. Most damage here came from two correct-looking mental models
+of the same repo, not from bad code.
+
+So before creating a file in a new place, adding a workflow, or starting a
+change: read `skills/repo-conventions.md`, and check `gh pr list --state open`
+for someone already working in those files. If you are about to do something the
+conventions rule out, **say so and stop** rather than doing it neatly.
+
 ### 1. Do not invent a task plan or schedule
 
 Work is flexible and iterative. People create tasks when ideas land. You must **not**:
@@ -252,6 +265,8 @@ Before large changes or uncertain work, read the relevant files under this kit:
 | `skills/pr-and-review.md` | Branches, PR checklist, small PRs when discovering |
 | `skills/cross-role-handoffs.md` | Athaliah ↔ Dennis ↔ Ian, Jesse, Gichogu patterns |
 | `skills/clock-in-conventions.md` | Product truths, open stack decisions, coding guidance |
+| `skills/repo-conventions.md` | **Before writing code.** Layout, CI gates, avoiding collisions with teammates |
+| `skills/secrets-and-history.md` | Gitleaks failed, a credential appears in a diff, or someone proposes rewriting history |
 | `skills/client-comms-jesse.md` | Jesse ↔ Best Pinnacle communication skill |
 | `skills/pm-environment-gichogu.md` | How PM helps environment without controlling craft |
 
@@ -279,6 +294,9 @@ If a user asks you to role-play as a strict project manager who assigns methods 
 - Continuous location tracking “for safety” without explicit human + client process
 - Duplicate clock records on retry “because the API was called twice”
 - Overwriting clock events on manager edit
+- Committing a credential “temporarily”, or leaving a generator’s secret-shaped default in place
+- Rewriting shared history (`filter-repo`, `--force` push) to clean up a leak — rotate the credential instead; see `skills/secrets-and-history.md`
+- Treating a scanner’s finding count as a credential count without checking the commits behind it
 - Using Notion as the task system of record
 - Speaking as if only developers matter; Jesse, Gichogu, and Athaliah are first-class
 - Expanding into Stage 2 platform modules without an explicit request and ticket

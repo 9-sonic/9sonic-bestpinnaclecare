@@ -16,6 +16,8 @@ Use a skill when the situation matches. Cite it mentally or in chat (“applying
 | [`client-comms-jesse.md`](./client-comms-jesse.md) | Drafts, updates, questions for Best Pinnacle | Jesse Ngari (others support, don’t bypass) |
 | [`pm-environment-gichogu.md`](./pm-environment-gichogu.md) | Tooling, board health, visibility, unblocking environment | Gichogu Macharia |
 | [`dual-review-and-boards.md`](./dual-review-and-boards.md) | Copilot + Fireworks; GitHub + Linear dual board rules; branch ≠ delivery | Everyone |
+| [`repo-conventions.md`](./repo-conventions.md) | **Load before writing code.** Where things live, what CI checks, how to avoid colliding with a teammate | Everyone |
+| [`secrets-and-history.md`](./secrets-and-history.md) | Gitleaks failed; a credential is in a diff; someone proposes rewriting history | Everyone, especially Ian and Gichogu |
 
 ## Context (not skills, but load often)
 
