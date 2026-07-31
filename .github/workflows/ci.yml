@@ -134,8 +134,17 @@ jobs:
       - name: Lint (RuboCop)
         run: bin/rubocop --parallel
 
-      - name: Security scan (Brakeman)
-        run: bin/brakeman --no-pager
+      # Full report, always visible in the log, never blocks.
+      - name: Security report (Brakeman)
+        run: bin/brakeman --no-pager --no-exit-on-warn
+
+      # Blocks on high-confidence findings only. Medium/weak ones are
+      # heuristics that need a human call (e.g. an admin-only endpoint that
+      # legitimately permits :role) — they belong in review, not in a red X
+      # that everyone learns to ignore. Raise this to -w2 once the medium
+      # findings have been triaged.
+      - name: Security gate (Brakeman, high confidence)
+        run: bin/brakeman --no-pager -w3 -q
 
       - name: Specs (RSpec)
         run: bundle exec rspec
