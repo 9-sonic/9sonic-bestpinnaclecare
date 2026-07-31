@@ -1,17 +1,18 @@
 # Path → label mapping for actions/labeler
 # Labels must already exist on the repository.
+#
+# Layout: Rails 8 API at the repository root, frontends under client/.
+# Keep in sync with .github/workflows/ci.yml and .github/workflows/deploy.yml.
 
 scope:pwa:
   - changed-files:
       - any-glob-to-any-file:
           - "client/pwa/**"
-          - "pwa/**"
 
 scope:admin-web:
   - changed-files:
       - any-glob-to-any-file:
           - "client/admin-web/**"
-          - "admin-web/**"
 
 scope:backend:
   - changed-files:
@@ -19,10 +20,13 @@ scope:backend:
           - "app/**"
           - "config/**"
           - "db/**"
+          - "lib/**"
           - "spec/**"
+          - "swagger/**"
           - "Gemfile"
           - "Gemfile.lock"
-          - "backend/**"
+          - "Rakefile"
+          - "config.ru"
           - "deploy/**"
 
 scope:contracts:

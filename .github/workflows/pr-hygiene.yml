@@ -38,9 +38,7 @@ jobs:
             const touchesUi = paths.some(
               (p) =>
                 p.startsWith('client/pwa/') ||
-                p.startsWith('client/admin-web/') ||
-                p.startsWith('pwa/') ||
-                p.startsWith('admin-web/')
+                p.startsWith('client/admin-web/')
             );
             const onlyProcessPaths = paths.every(
               (p) =>
@@ -54,7 +52,7 @@ jobs:
 
             const hasIssueLink = /(Closes|Fixes|Resolves)\s+#\d+/i.test(body);
             const hasScope =
-              /\/pwa|\/admin-web|\/backend|\/contracts|\/docs|client\/pwa|client\/admin-web|Rails|\/app\//i.test(
+              /client\/pwa|client\/admin-web|\/contracts|\/docs|Rails|\/app\//i.test(
                 body
               );
             const hasScreenshot =
@@ -76,7 +74,7 @@ jobs:
             }
             if (touchesUi && !hasScreenshot) {
               missing.push(
-                'UI paths (`pwa/` or `admin-web/`) changed — attach a screenshot (markdown image or GitHub attachment).'
+                'UI paths (`client/pwa/` or `client/admin-web/`) changed — attach a screenshot (markdown image or GitHub attachment).'
               );
             }
 
