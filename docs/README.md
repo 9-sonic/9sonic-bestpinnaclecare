@@ -19,6 +19,8 @@ Start here based on what you need. Root **[CONTRIBUTING.md](../CONTRIBUTING.md)*
 |------|---------|
 | [join-and-go.md](./join-and-go.md) | Day-one checklist when access lands |
 | [mcp-setup.md](./mcp-setup.md) | Self-serve Linear / Notion / GitHub MCP (not installed by clone) |
+| [slack-setup.md](./slack-setup.md) | Slack workspace, channels, webhooks and secrets |
+| [slack-integration.md](./slack-integration.md) | Which event reaches which channel, and who delivers it |
 | [local-dev.md](./local-dev.md) | Boot Rails + clients locally |
 | [dual-board.md](./dual-board.md) | BES ↔ GitHub map, Must path, write-once rules |
 | [builder-environment.md](./builder-environment.md) | Live rails (Actions, Claude, dual board) |

@@ -1,5 +1,9 @@
 name: CI
 
+# Layout is load-bearing: Rails 8 API lives at the repository root, frontends
+# live under client/. Any new top-level directory must be reflected here, in
+# .github/labeler.yml, and in .github/workflows/deploy.yml — see CONTRIBUTING.md.
+
 on:
   pull_request:
     branches: [main]
@@ -27,18 +31,22 @@ jobs:
           filters: |
             pwa:
               - 'client/pwa/**'
-              - 'pwa/**'
             admin_web:
               - 'client/admin-web/**'
-              - 'admin-web/**'
             backend:
               - 'app/**'
               - 'config/**'
               - 'db/**'
+              - 'lib/**'
               - 'spec/**'
+              - 'swagger/**'
               - 'Gemfile'
               - 'Gemfile.lock'
-              - 'backend/**'
+              - 'Rakefile'
+              - 'config.ru'
+              - '.ruby-version'
+              - '.rubocop.yml'
+              - '.rspec'
             contracts:
               - 'contracts/**'
 
@@ -56,6 +64,28 @@ jobs:
           done
           test -f Gemfile || { echo "Missing Gemfile (Rails API root)"; exit 1; }
           echo "Monorepo layout OK"
+      - name: Block stray top-level app directories
+        run: |
+          set -euo pipefail
+          # The pre-Rails sketch had backend/, pwa/ and admin-web/ at the root.
+          # Both shapes coexisting is what broke CI — keep exactly one.
+          fail=0
+          for d in backend pwa admin-web frontend; do
+            if git ls-files --error-unmatch "$d" >/dev/null 2>&1; then
+              echo "Top-level ${d}/ is not the layout: Rails lives at the root, frontends under client/"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+          echo "No stray top-level app directories"
+      - name: Block committed build output
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(dist|dev-dist|build|node_modules)/'; then
+            echo "Build output must not be committed — add it to .gitignore"
+            exit 1
+          fi
+          echo "No committed build output"
       - name: Block committed env files
         run: |
           set -euo pipefail
@@ -65,161 +95,174 @@ jobs:
           fi
           echo "No committed .env files"
 
-  package-pwa:
-    name: pwa
+  backend:
+    name: backend (Rails)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bestpinnacle_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/bestpinnacle_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pg build headers
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpq-dev
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          # Version comes from .ruby-version
+          bundler-cache: true
+
+      - name: Prepare test database
+        run: bin/rails db:test:prepare
+
+      - name: Lint (RuboCop)
+        run: bin/rubocop --parallel
+
+      # Full report, always visible in the log, never blocks.
+      - name: Security report (Brakeman)
+        run: bin/brakeman --no-pager --no-exit-on-warn
+
+      # Blocks on high-confidence findings only. Medium/weak ones are
+      # heuristics that need a human call (e.g. an admin-only endpoint that
+      # legitimately permits :role) — they belong in review, not in a red X
+      # that everyone learns to ignore. Raise this to -w2 once the medium
+      # findings have been triaged.
+      - name: Security gate (Brakeman, high confidence)
+        run: bin/brakeman --no-pager -w3 -q
+
+      - name: Specs (RSpec)
+        run: bundle exec rspec
+
+      # Advisory only: a newly published CVE should surface, not block an
+      # unrelated PR. Promote to blocking once someone owns triage.
+      - name: Dependency audit (bundler-audit)
+        continue-on-error: true
+        run: bin/bundler-audit check --update
+
+  client-pwa:
+    name: client/pwa
     needs: detect-changes
     if: needs.detect-changes.outputs.pwa == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: pwa
+        working-directory: client/pwa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Scaffold or install & verify
+      - name: Install & verify
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
-            echo "No package.json in pwa yet — scaffold pass"
+            echo "No package.json in client/pwa yet — scaffold pass"
             exit 0
           fi
           if [ -f pnpm-lock.yaml ]; then
             corepack enable && corepack prepare pnpm@latest --activate
             pnpm install --frozen-lockfile
-            pnpm run lint --if-present || true
-            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
-            pnpm run test --if-present || true
+            pnpm run lint --if-present
+            pnpm run typecheck --if-present
+            pnpm run build --if-present
+            pnpm run test --if-present
           elif [ -f yarn.lock ]; then
             corepack enable && corepack prepare yarn@stable --activate
             yarn install --frozen-lockfile
-            yarn run lint || true
-            (yarn run typecheck || yarn run build || true)
-            yarn run test || true
+            yarn run lint
+            yarn run typecheck
+            yarn run build
+            yarn run test
           else
             if [ -f package-lock.json ]; then npm ci; else npm install; fi
             npm run lint --if-present
-            npm run typecheck --if-present || npm run build --if-present || true
+            npm run typecheck --if-present
+            npm run build --if-present
             npm run test --if-present
           fi
 
-  package-admin-web:
-    name: admin-web
+  client-admin-web:
+    name: client/admin-web
     needs: detect-changes
     if: needs.detect-changes.outputs.admin_web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: admin-web
+        working-directory: client/admin-web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Scaffold or install & verify
+      - name: Install & verify
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
-            echo "No package.json in admin-web yet — scaffold pass"
+            echo "No package.json in client/admin-web yet — scaffold pass"
             exit 0
           fi
           if [ -f pnpm-lock.yaml ]; then
             corepack enable && corepack prepare pnpm@latest --activate
             pnpm install --frozen-lockfile
-            pnpm run lint --if-present || true
-            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
-            pnpm run test --if-present || true
+            pnpm run lint --if-present
+            pnpm run typecheck --if-present
+            pnpm run build --if-present
+            pnpm run test --if-present
           elif [ -f yarn.lock ]; then
             corepack enable && corepack prepare yarn@stable --activate
             yarn install --frozen-lockfile
-            yarn run lint || true
-            (yarn run typecheck || yarn run build || true)
-            yarn run test || true
+            yarn run lint
+            yarn run typecheck
+            yarn run build
+            yarn run test
           else
             if [ -f package-lock.json ]; then npm ci; else npm install; fi
             npm run lint --if-present
-            npm run typecheck --if-present || npm run build --if-present || true
+            npm run typecheck --if-present
+            npm run build --if-present
             npm run test --if-present
           fi
 
-  package-backend:
-    name: backend
-    needs: detect-changes
-    if: needs.detect-changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Scaffold or install & verify
-        run: |
-          set -euo pipefail
-          if [ ! -f package.json ]; then
-            echo "No package.json in backend yet — scaffold pass"
-            exit 0
-          fi
-          if [ -f pnpm-lock.yaml ]; then
-            corepack enable && corepack prepare pnpm@latest --activate
-            pnpm install --frozen-lockfile
-            pnpm run lint --if-present || true
-            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
-            pnpm run test --if-present || true
-          elif [ -f yarn.lock ]; then
-            corepack enable && corepack prepare yarn@stable --activate
-            yarn install --frozen-lockfile
-            yarn run lint || true
-            (yarn run typecheck || yarn run build || true)
-            yarn run test || true
-          else
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
-            npm run lint --if-present
-            npm run typecheck --if-present || npm run build --if-present || true
-            npm run test --if-present
-          fi
-
-  package-contracts:
+  contracts:
     name: contracts
     needs: detect-changes
     if: needs.detect-changes.outputs.contracts == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: contracts
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Scaffold or install & verify
+      - name: Validate contract documents
         run: |
           set -euo pipefail
-          if [ ! -f package.json ]; then
-            echo "No package.json in contracts yet — scaffold pass"
-            exit 0
+          shopt -s nullglob globstar
+          found=0
+          for f in contracts/**/*.yml contracts/**/*.yaml contracts/**/*.json; do
+            found=1
+            echo "Checking $f"
+            case "$f" in
+              *.json) python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" ;;
+              *)      python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f" ;;
+            esac
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No contract documents yet — nothing to validate"
           fi
-          if [ -f pnpm-lock.yaml ]; then
-            corepack enable && corepack prepare pnpm@latest --activate
-            pnpm install --frozen-lockfile
-            pnpm run lint --if-present || true
-            (pnpm run typecheck --if-present || pnpm run build --if-present || true)
-            pnpm run test --if-present || true
-          elif [ -f yarn.lock ]; then
-            corepack enable && corepack prepare yarn@stable --activate
-            yarn install --frozen-lockfile
-            yarn run lint || true
-            (yarn run typecheck || yarn run build || true)
-            yarn run test || true
-          else
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
-            npm run lint --if-present
-            npm run typecheck --if-present || npm run build --if-present || true
-            npm run test --if-present
-          fi
+          echo "Contracts OK"
 
   ci-summary:
     name: CI summary
@@ -227,23 +270,25 @@ jobs:
     needs:
       - detect-changes
       - repo-hygiene
-      - package-pwa
-      - package-admin-web
-      - package-backend
-      - package-contracts
+      - backend
+      - client-pwa
+      - client-admin-web
+      - contracts
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate results
         run: |
           set -euo pipefail
-          echo "detect-changes: ${{ needs.detect-changes.result }}"
-          echo "repo-hygiene: ${{ needs.repo-hygiene.result }}"
-          echo "package-pwa: ${{ needs.package-pwa.result }}"
-          echo "package-admin-web: ${{ needs.package-admin-web.result }}"
-          echo "package-backend: ${{ needs.package-backend.result }}"
-          echo "package-contracts: ${{ needs.package-contracts.result }}"
+          echo "detect-changes:   ${{ needs.detect-changes.result }}"
+          echo "repo-hygiene:     ${{ needs.repo-hygiene.result }}"
+          echo "backend:          ${{ needs.backend.result }}"
+          echo "client-pwa:       ${{ needs.client-pwa.result }}"
+          echo "client-admin-web: ${{ needs.client-admin-web.result }}"
+          echo "contracts:        ${{ needs.contracts.result }}"
 
           fail=0
+
+          # Always-on jobs must succeed outright.
           for r in \
             "${{ needs.detect-changes.result }}" \
             "${{ needs.repo-hygiene.result }}"
@@ -251,14 +296,17 @@ jobs:
             if [ "$r" != "success" ]; then fail=1; fi
           done
 
-          # Path jobs: success, skipped, or neutral are OK; failure/cancelled are not
+          # Path-scoped jobs: success or skipped are both fine; anything else is not.
           for r in \
-            "${{ needs.package-pwa.result }}" \
-            "${{ needs.package-admin-web.result }}" \
-            "${{ needs.package-backend.result }}" \
-            "${{ needs.package-contracts.result }}"
+            "${{ needs.backend.result }}" \
+            "${{ needs.client-pwa.result }}" \
+            "${{ needs.client-admin-web.result }}" \
+            "${{ needs.contracts.result }}"
           do
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then fail=1; fi
+            case "$r" in
+              success|skipped) ;;
+              *) fail=1 ;;
+            esac
           done
 
           if [ "$fail" -ne 0 ]; then
@@ -266,3 +314,41 @@ jobs:
             exit 1
           fi
           echo "CI summary: OK"
+
+      # Trunk is broken — tell #bpc-alerts. PR failures are the author's
+      # business and stay out of Slack. `secrets` is not available in `if:`,
+      # so the webhook check lives inside the step.
+      - name: Notify Slack that main is broken
+        if: failure() && github.event_name == 'push'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "No Slack webhook configured — skipping (see docs/slack-setup.md)."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg commit "$COMMIT_URL" \
+            --arg run "$RUN_URL" \
+            --arg sha "${SHA:0:7}" \
+            --arg actor "$ACTOR" \
+            '{
+              text: "🚨 CI failed on main",
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: "🚨 CI failed on main", emoji: true } },
+                { type: "section",
+                  text: { type: "mrkdwn",
+                          text: ("*Commit:* <" + $commit + "|" + $sha + "> by " + $actor
+                                 + "\n*Run:* <" + $run + "|CI details>") } }
+              ]
+            }')
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-type: application/json' \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"

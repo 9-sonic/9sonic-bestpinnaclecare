@@ -1,0 +1,63 @@
+name: Slack critical issue notifications
+
+# Escalates urgent / blocked issues to Slack. See docs/slack-integration.md.
+# Label filtering happens in `if:` (the `github` context is allowed there);
+# the webhook check happens inside the step (`secrets` is not allowed in `if:`).
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.issue.labels.*.name, 'priority:critical') ||
+      contains(github.event.issue.labels.*.name, 'priority:high') ||
+      contains(github.event.issue.labels.*.name, 'status:blocked')
+    steps:
+      - name: Post to Slack
+        env:
+          # Prefer the #bpc-alerts webhook; fall back to the general one.
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "No Slack webhook configured — skipping (see docs/slack-setup.md)."
+            exit 0
+          fi
+
+          headline="🚨 Urgent issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+
+          payload=$(jq -n \
+            --arg headline "$headline" \
+            --arg author "$ISSUE_AUTHOR" \
+            --arg url "$ISSUE_URL" \
+            --arg num "$ISSUE_NUMBER" \
+            '{
+              text: $headline,
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: $headline, emoji: true } },
+                { type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: ("*Raised by:*\n" + $author) }
+                  ] },
+                { type: "section",
+                  text: { type: "mrkdwn", text: ("*Link:* <" + $url + "|#" + $num + ">") } }
+              ]
+            }')
+
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-type: application/json' \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"
