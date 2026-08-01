@@ -21,8 +21,12 @@ Environment=PATH=/home/qqwqvwsb/.rbenv/shims:/home/qqwqvwsb/.rbenv/bin:/usr/loca
 Environment=RAILS_ENV=production
 # Run the Solid Queue supervisor inside Puma (single-server deploy — no separate job process).
 Environment=SOLID_QUEUE_IN_PUMA=1
-# App secrets (DATABASE_URL, RAILS_MASTER_KEY, PORT, etc.) live here, out of git.
+# App secrets (DATABASE_URL, RAILS_MASTER_KEY, etc.) live here, out of git.
 EnvironmentFile=/home/qqwqvwsb/api/.env
+
+# Puma listens on this port; the api.bestpinnaclecare.co.uk vhost reverse-proxies
+# to 127.0.0.1:3001. Pinned after the env file so it stays authoritative.
+Environment=PORT=3001
 
 ExecStart=/home/qqwqvwsb/.rbenv/shims/bundle exec puma -C config/puma.rb
 Restart=on-failure

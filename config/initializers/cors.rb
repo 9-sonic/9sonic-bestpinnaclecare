@@ -5,7 +5,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
     origins(*(ENV["CORS_ORIGINS"].to_s.split(",").map(&:strip).reject(&:empty?).presence || %w[
       https://admin.bestpinnaclecare.co.uk
-      https://carer.bestpinnaclecare.co.uk
+      https://staff.bestpinnaclecare.co.uk
       http://localhost:5173
       http://localhost:5174
     ]))
