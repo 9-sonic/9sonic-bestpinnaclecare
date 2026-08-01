@@ -4,15 +4,36 @@ Primary automated review when Copilot quota fails.
 
 | Role | Default model | Override var |
 |------|---------------|--------------|
-| **Primary** (quality) | `accounts/fireworks/models/kimi-k2p7-code` | `FIREWORKS_MODEL` |
-| **Fallback** (if primary times out / 5xx / empty) | `accounts/fireworks/models/qwen3p7-plus` | `FIREWORKS_FALLBACK_MODEL` |
+| **Primary** | `accounts/fireworks/models/qwen3p7-plus` | `FIREWORKS_MODEL` |
+| **Fallback** (primary times out / 5xx / empty / off-format) | `accounts/fireworks/models/kimi-k2p7-code` | `FIREWORKS_FALLBACK_MODEL` |
 
 Each model is tried up to **2 times** with backoff. Explicit connect timeout (~55s).
+Token budget: `FIREWORKS_MAX_TOKENS` (default **8000**).
 
 | Outcome | Check result |
 |---------|----------------|
-| Transient failures only (timeout / 5xx / network) after all models | Skip notice + **soft-fail** (green — does not block merge) |
+| Transient failures only (timeout / 5xx / network / off-format) after all models | Skip notice + **soft-fail** (green — does not block merge) |
 | Config failures only (400 / 401 / 403 / 404) | Skip notice + **hard-fail** (red — fix key or model id) |
+
+### Why this order
+
+`kimi-k2p7-code` reasons *inline* — its scratchpad and its answer share one token
+budget. On PR #51 it spent all 3,500 tokens planning and posted 16,000 characters
+of thinking to the PR without ever reaching the review format. `qwen3p7-plus` has
+been producing the usable reviews, so it leads; kimi stays in the chain and can be
+promoted again via `FIREWORKS_MODEL` if it behaves with the larger budget.
+
+### Publish a review, or publish nothing
+
+A completion is only posted if it contains `### Goal understanding`,
+`### Blocking` and `### Verdict for PM`. Anything else — a thinking transcript, a
+half-finished answer cut off by the token limit — counts as a **failed attempt**,
+exactly like a timeout: it retries, then falls through to the other model, and if
+everything fails the check soft-fails with a skip notice. A reviewer should never
+have to guess whether the comment they are reading is a review.
+
+`<think>…</think>` blocks are stripped before that check, so a model that wraps
+its reasoning and *then* answers is fine.
 
 ## Goal
 
