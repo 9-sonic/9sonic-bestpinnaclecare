@@ -11,7 +11,7 @@ To prevent notification spam while keeping team members informed during 15-day s
 | Channel Name | Visibility | Primary Purpose | Integrated Tools |
 |---|---|---|---|
 | `#bpc-announcements` | Public | High-level project updates, cycle goals, client releases | Linear (Cycle events), Manual |
-| `#bpc-prs` | Public | PR review requests, approvals, `scope:contracts` warnings | GitHub for Slack |
+| `#bpc-prs` | Public | PR review requests, approvals | GitHub for Slack |
 | `#bpc-linear-updates` | Public | Task movements (`In Progress` -> `In Review` -> `Done`), blocker alerts | Linear for Slack |
 | `#bpc-alerts` | Public | Production/P1 bugs, CI build failures, security alerts | GitHub Actions / Webhooks |
 | `#bpc-spec-updates` | Public | Notion ADR decisions, spec changes, handbook updates | Notion for Slack |
@@ -88,7 +88,7 @@ For automated workflow notifications (e.g. GitHub Action pipeline failures):
 
 | Secret | Bound to | Used by |
 |--------|----------|---------|
-| `SLACK_ALERTS_WEBHOOK_URL` | `#bpc-alerts` | CI failure on `main`, urgent/blocked issues, `scope:contracts` PRs |
+| `SLACK_ALERTS_WEBHOOK_URL` | `#bpc-alerts` | CI failure on `main`, urgent/blocked issues |
 | `SLACK_WEBHOOK_URL` | `#bpc-prs` | Ordinary PR opened / merged notices |
 
 Both are optional. **A workflow with no webhook configured logs a skip and stays
@@ -101,7 +101,6 @@ Step 2 above subscribes `#bpc-prs` to PR traffic through the **GitHub for Slack*
 app, and `slack-pr-notify.yml` posts PR notices too. Pick one:
 
 - **Recommended:** keep `/github subscribe` for ambient PR and commit traffic and
-  leave `SLACK_WEBHOOK_URL` **unset**. The workflow then stays quiet on ordinary
-  PRs but still escalates `scope:contracts` PRs to `#bpc-alerts`.
+  leave `SLACK_WEBHOOK_URL` **unset**. The PR workflow then stays quiet.
 - Or skip `/github subscribe` for `pulls` and set `SLACK_WEBHOOK_URL` so the
   workflow owns PR notices (richer formatting, contract-aware).

@@ -80,7 +80,6 @@ jobs:
             --exclude='.github' \
             --exclude='client' \
             --exclude='docs' \
-            --exclude='contracts' \
             --exclude='spec' \
             --exclude='node_modules' \
             --exclude='tmp' \

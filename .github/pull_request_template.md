@@ -8,7 +8,6 @@ Closes #
 - [ ] `client/pwa` (carer)
 - [ ] `client/admin-web` (manager)
 - [ ] Rails API (repo root: `app/`, `config/`, …)
-- [ ] `/contracts`
 - [ ] `/docs` / `.github` / process
 
 ## What Best Pinnacle Care outcome does this change?
@@ -24,7 +23,7 @@ Example: "Carer can now clock in while offline; the record syncs automatically w
 - [ ] Acceptance criteria on the linked issue are met
 - [ ] Happy path + error/empty states handled
 - [ ] Offline state handled (if clocking/maps)
-- [ ] I have updated `/contracts` if the API shape changed
+- [ ] I have regenerated the OpenAPI/Swagger doc if the API shape changed (`rake rswag:specs:swaggerize`)
 - [ ] I have tested the offline clock-in flow (if applicable)
 - [ ] I have tested the manager alert flow (if applicable)
 - [ ] I have removed all `console.log` / debug code
@@ -37,4 +36,4 @@ Example: "Carer can now clock in while offline; the record syncs automatically w
 ## Review notes
 - Copilot flagged anything critical? (paste link to comment)
 - Any breaking changes to timesheet or alert logic?
-- If `scope:contracts`: which consumer PR completes the handshake?
+- If the API shape changed: which consumer (PWA / admin-web) PR completes the handshake?

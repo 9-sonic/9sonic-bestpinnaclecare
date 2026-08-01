@@ -3,6 +3,8 @@ name: CI
 # Layout is load-bearing: Rails 8 API lives at the repository root, frontends
 # live under client/. Any new top-level directory must be reflected here, in
 # .github/labeler.yml, and in .github/workflows/deploy.yml — see CONTRIBUTING.md.
+# The API contract is the OpenAPI/Swagger doc (swagger/, served at /api-docs) —
+# there is no separate contracts/ directory.
 
 on:
   pull_request:
@@ -22,7 +24,6 @@ jobs:
       pwa: ${{ steps.filter.outputs.pwa }}
       admin_web: ${{ steps.filter.outputs.admin_web }}
       backend: ${{ steps.filter.outputs.backend }}
-      contracts: ${{ steps.filter.outputs.contracts }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -47,8 +48,6 @@ jobs:
               - '.ruby-version'
               - '.rubocop.yml'
               - '.rspec'
-            contracts:
-              - 'contracts/**'
 
   repo-hygiene:
     name: Repo hygiene
@@ -59,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           # Rails at repo root; frontends under client/
-          for d in client/pwa client/admin-web contracts docs .github app config; do
+          for d in client/pwa client/admin-web docs .github app config; do
             test -d "$d" || { echo "Missing required directory: $d"; exit 1; }
           done
           test -f Gemfile || { echo "Missing Gemfile (Rails API root)"; exit 1; }
@@ -239,31 +238,6 @@ jobs:
             npm run test --if-present
           fi
 
-  contracts:
-    name: contracts
-    needs: detect-changes
-    if: needs.detect-changes.outputs.contracts == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate contract documents
-        run: |
-          set -euo pipefail
-          shopt -s nullglob globstar
-          found=0
-          for f in contracts/**/*.yml contracts/**/*.yaml contracts/**/*.json; do
-            found=1
-            echo "Checking $f"
-            case "$f" in
-              *.json) python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" ;;
-              *)      python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f" ;;
-            esac
-          done
-          if [ "$found" -eq 0 ]; then
-            echo "No contract documents yet — nothing to validate"
-          fi
-          echo "Contracts OK"
-
   ci-summary:
     name: CI summary
     if: always()
@@ -273,7 +247,6 @@ jobs:
       - backend
       - client-pwa
       - client-admin-web
-      - contracts
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate results
@@ -284,7 +257,6 @@ jobs:
           echo "backend:          ${{ needs.backend.result }}"
           echo "client-pwa:       ${{ needs.client-pwa.result }}"
           echo "client-admin-web: ${{ needs.client-admin-web.result }}"
-          echo "contracts:        ${{ needs.contracts.result }}"
 
           fail=0
 
@@ -300,8 +272,7 @@ jobs:
           for r in \
             "${{ needs.backend.result }}" \
             "${{ needs.client-pwa.result }}" \
-            "${{ needs.client-admin-web.result }}" \
-            "${{ needs.contracts.result }}"
+            "${{ needs.client-admin-web.result }}"
           do
             case "$r" in
               success|skipped) ;;

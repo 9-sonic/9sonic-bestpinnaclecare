@@ -15,11 +15,11 @@ Create the repository `9sonic-bestpinnaclecare` and initialize it with a `README
 ├── /pwa                 # Carer mobile PWA: offline-first clock-in/out, GPS capture, shift dashboard
 ├── /admin-web           # Manager website: live board, late/missed alerts, timesheet approval, CSV export
 ├── /backend             # API and automation: shift scheduling, alert engine, timesheet calculation, SMS escalation
-├── /contracts           # Shared TypeScript interfaces and API schemas between PWA, admin-web, and backend
+├── /swagger             # Generated OpenAPI — the API contract between PWA, admin-web, and backend (served at /api-docs)
 └── /docs                # UI/UX screenshots, CQC audit notes, operational runbooks, and this setup guide
 ```
 
-**Why this matters to you:** `/contracts` is your non-coder superpower. It is the handshake between the carer app and the manager dashboard. If a pull request changes `/contracts` but does not change `/pwa` or `/backend`, that is a red flag. The frontend and backend are no longer in agreement on what a “shift” or a “clock-out” looks like. You do not need to read the TypeScript to catch this; you only need to read the file list in the PR.
+**Why this matters to you:** the API contract is your non-coder superpower. It is the generated OpenAPI document under `/swagger` (served at `/api-docs`) — the handshake between the carer app and the manager dashboard. If a pull request changes `/swagger` but does not change `/pwa` or `/backend`, that is a red flag. The frontend and backend are no longer in agreement on what a “shift” or a “clock-out” looks like. You do not need to read the code to catch this; you only need to read the file list in the PR.
 
 ---
 
@@ -111,7 +111,6 @@ Create these exact labels in your repository. Navigate to the repository main pa
 | `scope:pwa` | `#0052CC` | Carer mobile app changes (offline clock-in, GPS, PIN tablet). |
 | `scope:admin-web` | `#0052CC` | Manager dashboard changes (live board, timesheet export). |
 | `scope:backend` | `#0052CC` | API and automation changes (alerts, shift logic, SMS). |
-| `scope:contracts` | `#FF0000` | Shared API schema changes. **Any PR with this label demands your immediate attention.** |
 | `scope:docs` | `#666666` | CQC notes, UI screenshots, runbooks. |
 | `priority:critical` | `#B60205` | Missed-visit alert logic, payroll export bugs, auth failures. |
 | `priority:high` | `#D93F0B` | Late-visit detection, live board crashes. |
@@ -127,7 +126,7 @@ Create these exact labels in your repository. Navigate to the repository main pa
 | `copilot:issues-found` | `#FF7619` | Copilot flagged a concern; human must resolve before merge. |
 | `needs:pm-approval` | `#F9D0C4` | Waiting for your final non-coder gate. |
 
-**Why `scope:contracts` is red:** If a freelancer changes the shape of a “shift” or “clock-out” object in `/contracts` but does not update the carer PWA or the manager dashboard, the two front-ends will disagree with the backend. You catch this by seeing a PR labeled only `scope:contracts`. You then ask: “Which front-end PR consumes this new contract?”
+**Watch for API-shape drift:** If a freelancer changes the shape of a “shift” or “clock-out” object in the API (the `/swagger` OpenAPI doc) but does not update the carer PWA or the manager dashboard, the two front-ends will disagree with the backend. You catch this by seeing a PR that touches `/swagger` (or the Rails API) with no matching `/pwa` or `/admin-web` change. You then ask: “Which front-end PR consumes this new contract?”
 
 ---
 
@@ -161,7 +160,7 @@ Example: "Managers need to see a late-visit alert on the live board within 2 min
 - `/backend/...`
 - `/pwa/...`
 - `/admin-web/...`
-- `/contracts/...`
+- `/swagger/...`
 
 ## Client Visibility
 Does this change the carer flow, the manager live board, or the CQC audit trail?
@@ -182,7 +181,6 @@ Fixes #
 - [ ] /pwa
 - [ ] /admin-web
 - [ ] /backend
-- [ ] /contracts
 - [ ] /docs
 
 ## What Best Pinnacle Care outcome does this change?
@@ -190,7 +188,7 @@ Describe the carer or manager experience, not the code.
 Example: "Carer can now clock in while offline; the record syncs automatically when signal returns."
 
 ## Checklist
-- [ ] I have updated `/contracts` if the API shape changed.
+- [ ] I have regenerated the OpenAPI/Swagger doc if the API shape changed.
 - [ ] I have tested the offline clock-in flow (if applicable).
 - [ ] I have tested the manager alert flow (if applicable).
 - [ ] I have removed all `console.log` / debug code.
@@ -242,7 +240,7 @@ If a developer opens a PR before the ruleset is active, or if Copilot somehow dr
 
 You are not reading code for syntax. You are reading Copilot’s comments as a **process, consistency, and risk gate**. Here is exactly what to hunt for:
 
-- **Contract drift:** If Copilot writes anything like “The new field in `/contracts/src/shift.ts` is not used in `/pwa` or `/admin-web`,” stop the merge. Ask the developer: “Which front-end PR consumes this contract change?” The API is the glue between the carer app and the manager dashboard; drift here breaks the whole Clock In / Clock Out flow.
+- **Contract drift:** If Copilot writes anything like “The new field in the API (`/swagger`) is not used in `/pwa` or `/admin-web`,” stop the merge. Ask the developer: “Which front-end PR consumes this contract change?” The API is the glue between the carer app and the manager dashboard; drift here breaks the whole Clock In / Clock Out flow.
 - **Security keywords:** Look for the words `hardcoded`, `token`, `password`, `API key`, `injection`, or `exposure`. Best Pinnacle Care handles carer location data and shift records. A hardcoded SMS gateway key or an exposed database string is a CQC data-security failure. Treat any security comment as a block.
 - **Error handling around offline logic:** The carer app must work in no-signal homes. If Copilot flags an `unhandled promise rejection`, `missing catch`, or `no fallback` on the clock-in sync path, block the merge. A crashed app in a carer’s pocket during a domiciliary visit is an operational blackout.
 - **Missing test coverage:** If Copilot notes that “No tests were added for the new late-visit alert logic,” check the PR size. On a 15-day build, you may accept light coverage if the feature is UI-only, but for `/backend` alert automations—especially the missed-visit escalation flow—demand that the developer explain how they verified it.
@@ -250,7 +248,7 @@ You are not reading code for syntax. You are reading Copilot’s comments as a *
 - **PR size warnings:** If Copilot says “This PR is large” or changes more than twelve files, be suspicious. On a compressed build, large PRs hide risk. Ask the developer to split it or justify every file in the PR template.
 - **Copilot’s top-level summary:** Read Copilot’s first comment. If it begins with “This PR looks good” or minor suggestions, proceed to your human checks. If it begins with “This PR introduces potential issues” or “I have concerns,” treat it as a red light until the developer replies to each concern.
 
-**Your rule:** If the PR has the label `scope:contracts` or `scope:backend`, and Copilot has not commented, you do not approve. The ruleset should auto-assign, but if it fails, manually assign `@copilot` and wait.
+**Your rule:** If the PR has the label `scope:backend` (or touches the API shape under `/swagger`), and Copilot has not commented, you do not approve. The ruleset should auto-assign, but if it fails, manually assign `@copilot` and wait.
 
 ---
 
@@ -259,7 +257,7 @@ You are not reading code for syntax. You are reading Copilot’s comments as a *
 When a developer drops a PR link in WhatsApp, do not just reply “LGTM.” Run this exact routine:
 
 1. **Open the PR.** Verify the description uses the template and links to an issue (`Fixes #123`). If the template is empty, reject it immediately with the comment: “Please fill out the PR template. I need the scope checkboxes and the screenshot.”
-2. **Check labels.** Ensure there is a `scope:` label and a `sprint:` label. If `scope:contracts` is present, verify that `/pwa` or `/backend` is also checked in the template.
+2. **Check labels.** Ensure there is a `scope:` label and a `sprint:` label. If the PR touches the API shape (`/swagger`), verify that `/pwa` or `/backend` is also checked in the template.
 3. **Verify Copilot is assigned.** Look in the **Reviewers** box. If Copilot is missing, assign `@copilot` and wait.
 4. **Read Copilot’s summary.** If it flags issues, click into each comment. Look for the keywords listed in Section 8. If Copilot found issues, apply the label `copilot:issues-found` and do not merge.
 5. **Check for screenshots on UI PRs.** If `/pwa` or `/admin-web` is checked and there is no screenshot, comment: “Please attach a screenshot of the carer/manager screen so I can compare against the wireframe in `/docs`.”
@@ -271,7 +269,7 @@ When a developer drops a PR link in WhatsApp, do not just reply “LGTM.” Run 
 
 Use this to verify your setup before the freelancers start pushing code:
 
-- [ ] Monorepo folders `/pwa`, `/admin-web`, `/backend`, `/contracts`, `/docs` exist in `main`.
+- [ ] Monorepo folders `/pwa`, `/admin-web`, `/backend`, `/docs` exist in `main`.
 - [ ] Branch protection rule on `main` created via **Settings → Branches → Add branch protection rule** with `Require a pull request before merging`, `Dismiss stale pull request approvals`, `Require conversation resolution`, and `Include administrators` all checked.
 - [ ] Ruleset **Auto-request Copilot review** created via **Settings → Rules → Rulesets → New branch ruleset** with `Request pull request review from Copilot` enabled.
 - [ ] GitHub Project board `9Sonic Build — Best Pinnacle Care` created with columns `Backlog`, `Ready`, `In Progress`, `In Review`, `Done`.

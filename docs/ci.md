@@ -20,7 +20,7 @@ Draft PRs skip most gates until marked ready.
 The **Template gate** job fails when:
 
 1. Body has no `Closes #N` / `Fixes #N` / `Resolves #N`, **and** body does not contain `Process-only: true`  
-2. Body has no monorepo scope mention (`/pwa`, `/admin-web`, `/backend`, `/contracts`, `/docs`)  
+2. Body has no monorepo scope mention (`/pwa`, `/admin-web`, `/backend`, `/docs`)  
 3. Diff touches `pwa/` or `admin-web/` and body has no screenshot (markdown image or GitHub attachment)
 
 Pure docs/workflow PRs may use:
@@ -54,7 +54,7 @@ On each non-draft PR open/push, posts or updates a sticky PR comment. Complement
 
 If the secret is missing, the job comments that it was skipped and does **not** fail the PR.
 
-## Package jobs (pwa / admin-web / backend / contracts)
+## Package jobs (pwa / admin-web / backend)
 
 - No `package.json` yet → pass with scaffold message.  
 - When a package exists → install + run `lint` / `typecheck` or `build` / `test` if those scripts exist.

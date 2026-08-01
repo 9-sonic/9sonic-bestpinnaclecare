@@ -13,7 +13,7 @@ Work is **done** only when all of the following are true.
 ## Engineering
 
 - [ ] Changes live in the correct monorepo path(s)
-- [ ] If the API shape changed, `/contracts` is updated **and** consumers (`/pwa`, `/admin-web`, and/or `/backend`) are updated in this PR or a linked PR
+- [ ] If the API shape changed, the OpenAPI doc under `swagger/` is regenerated **and** consumers (`/pwa`, `/admin-web`, and/or `/backend`) are updated in this PR or a linked PR
 - [ ] No secrets, tokens, passwords, or `.env` files committed
 - [ ] Debug noise removed (`console.log`, `debugger`, stray TODOs that block production)
 
@@ -22,7 +22,7 @@ Work is **done** only when all of the following are true.
 - [ ] PR template completed (scope, outcome, how to test, checklist)
 - [ ] Issue linked (`Closes #` / `Fixes #`)
 - [ ] **Copilot** has reviewed the PR; critical findings are resolved or explicitly accepted
-- [ ] Human / PM gate applied (especially for `scope:contracts`, `scope:backend`, auth, alerts, timesheets)
+- [ ] Human / PM gate applied (especially for `scope:backend`, auth, alerts, timesheets)
 - [ ] UI PRs include a screenshot of the carer/manager screen
 - [ ] **CI is green** (`CI summary` and secret scan)
 
