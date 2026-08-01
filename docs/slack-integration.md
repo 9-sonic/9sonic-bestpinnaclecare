@@ -28,7 +28,6 @@ This document details the event-driven architecture connecting **GitHub**, **Lin
 | Event Source | Trigger Event | Destination Slack Channel | Urgency / Action |
 |---|---|---|---|
 | **GitHub** | PR Opened / Requested Review | `#bpc-prs` | Medium — Reviewer assigned |
-| **GitHub** | `scope:contracts` PR Opened | `#bpc-prs` + `@channel` ping | **High** — Monorepo schema change |
 | **GitHub** | PR Merged to `main` | `#bpc-prs` | Info — Updates status |
 | **Linear** | Ticket status -> `In Review` | `#bpc-linear-updates` | Info — PR attached |
 | **Linear** | Ticket status -> `Done` | `#bpc-linear-updates` | Info — Feature landed |
@@ -42,7 +41,7 @@ This document details the event-driven architecture connecting **GitHub**, **Lin
 
 | Delivered by | Rows |
 |---|---|
-| **This repo's workflows** ([slack-pr-notify.yml](../.github/workflows/slack-pr-notify.yml), [slack-issue-notify.yml](../.github/workflows/slack-issue-notify.yml), the alert step in [ci.yml](../.github/workflows/ci.yml)) | `scope:contracts` PRs, PR opened/merged, urgent or blocked GitHub issues, CI failure on `main` |
+| **This repo's workflows** ([slack-pr-notify.yml](../.github/workflows/slack-pr-notify.yml), [slack-issue-notify.yml](../.github/workflows/slack-issue-notify.yml), the alert step in [ci.yml](../.github/workflows/ci.yml)) | PR opened/merged, urgent or blocked GitHub issues, CI failure on `main` |
 | **Linear for Slack** (configured in Linear, no repo code) | All Linear rows |
 | **Notion for Slack** (configured in Notion, no repo code) | The Notion row |
 

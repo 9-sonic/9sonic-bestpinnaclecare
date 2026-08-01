@@ -1,6 +1,6 @@
 # Shared login flow for the two identities. Verifies credentials (with Devise
 # lockable counting + the active gate). If MFA is active, returns a short-lived
-# challenge instead of a token; otherwise mints a devise-jwt access token.
+# challenge instead of a token; otherwise mints an access token + refresh token.
 module TokenAuthentication
   extend ActiveSupport::Concern
 
@@ -24,12 +24,17 @@ module TokenAuthentication
     end
   end
 
-  # Mints the JWT (also mirrored into the Authorization response header) and
-  # renders { access, <scope>: {...} } plus any extras.
+  # Mints access + refresh tokens and renders { access, access_expires_at,
+  # refresh_token, <scope>: {...} } plus any extras.
   def render_access(resource, scope_name, serializer, extra = {})
-    token, = Warden::JWTAuth::UserEncoder.new.call(resource, scope_name, nil)
-    response.set_header("Authorization", "Bearer #{token}")
-    render json: { access: token, scope_name => serializer.call(resource) }.merge(extra), status: :ok
+    tokens = Auth::RefreshTokens.issue(resource: resource, scope: scope_name)
+    response.set_header("Authorization", "Bearer #{tokens[:access]}")
+    render json: {
+      access:            tokens[:access],
+      access_expires_at: tokens[:access_expires_at],
+      refresh_token:     tokens[:refresh_token],
+      scope_name => serializer.call(resource)
+    }.merge(extra), status: :ok
   end
 
   def login_params

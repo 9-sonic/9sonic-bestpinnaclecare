@@ -12,11 +12,14 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       # Shared auth (caller may be Admin or Employee; token carries the scope).
-      delete "auth/logout", to: "sessions#logout"
-      post   "auth/mfa",    to: "mfa_sessions#create"   # two-step MFA: exchange challenge + code for a token
+      delete "auth/logout",  to: "sessions#logout"
+      post   "auth/mfa",     to: "mfa_sessions#create"   # two-step MFA: exchange challenge + code for a token
+      post   "auth/refresh", to: "refresh#create"        # rotate refresh -> new access
+      delete "auth/refresh", to: "refresh#destroy"       # revoke a refresh token
 
       # Shared notifications (recipient is Admin or Employee)
       get   "notifications",            to: "notifications#index"
+      post  "notifications/seen_all",   to: "notifications#seen_all"
       post  "notifications/:id/seen",   to: "notifications#seen"
       get   "notification_preferences", to: "notification_preferences#index"
       patch "notification_preferences", to: "notification_preferences#update"
@@ -37,7 +40,9 @@ Rails.application.routes.draw do
         get  "me",            to: "me#show"
 
         # Domain: service users, care packages, visits, assignments
-        resources :service_users,      only: %i[index show create update]
+        resources :service_users, only: %i[index show create update] do
+          resources :care_plan_items, only: %i[index create update destroy]
+        end
         resources :care_package_slots, only: %i[index create update]
         resources :visits, only: %i[index create] do
           member     { post :publish }
@@ -46,7 +51,9 @@ Rails.application.routes.draw do
         resources :visit_assignments, only: %i[create destroy]
 
         # User management (invitations)
-        resources :employees, only: %i[index show create update]
+        resources :employees, only: %i[index show create update] do
+          member { get :availability }
+        end
         resources :admins,    only: %i[index show create update]
 
         # Provider config, dashboard, rota copy
@@ -100,8 +107,31 @@ Rails.application.routes.draw do
         get  "sync/changes", to: "sync#changes"
 
         # Attendance
-        get  "timesheet", to: "timesheet#show"
-        post "disputes",  to: "disputes#create"
+        get  "timesheet",         to: "timesheet#show"
+        get  "timesheet_periods", to: "timesheet_periods#index"
+        post "disputes",          to: "disputes#create"
+
+        # Profile, availability, summary
+        patch "me",           to: "me#update"
+        get   "availability", to: "availability#show"
+        put   "availability", to: "availability#update"
+        get   "summary",      to: "summary#show"
+
+        # Visit detail (care plan + tasks + notes)
+        get   "visit_assignments/:id",       to: "visit_assignments#show"
+        patch "visit_assignments/:id/tasks", to: "visit_assignments#update_tasks"
+        post  "visit_assignments/:id/note",  to: "visit_assignments#create_note"
+        post  "visit_assignments/:visit_assignment_id/break", to: "breaks#create"
+
+        # Mileage
+        get  "mileage", to: "mileage#index"
+        post "mileage", to: "mileage#create"
+
+        # Devices (push) + passkey management
+        post   "devices", to: "devices#create"
+        delete "devices/:fingerprint", to: "devices#destroy"
+        get    "webauthn/credentials",     to: "webauthn_credentials#index"
+        delete "webauthn/credentials/:id", to: "webauthn_credentials#destroy"
       end
     end
   end

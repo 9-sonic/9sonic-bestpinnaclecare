@@ -46,15 +46,14 @@ The PM helps the **environment**, not craft. Specialists own implementation (see
 | `/` (root) | **Rails** API |
 | `client/pwa` | Carer mobile PWA |
 | `client/admin-web` | Manager website |
-| `/contracts` | Shared API shapes |
 | `/docs` | Process, backlog, delivery notes |
 | `.claude/` | Claude/Cursor project brain + skills |
 
 See [docs/tech-stack.md](./docs/tech-stack.md). **Do not open a second repository for this build.**
 
-### Contracts rule
+### API-shape rule
 
-If a PR changes `/contracts` without updating the consumers (`client/*` and/or Rails root), it is incomplete. State which PR completes the handshake.
+If a PR changes the API shape (the OpenAPI doc under `swagger/`) without updating the consumers (`client/*` and/or Rails root), it is incomplete. State which PR completes the handshake.
 
 ---
 
@@ -70,7 +69,7 @@ Backlog stories `[M1]`–`[M11]`, `[S12]`–`[S16]`, `[C17]`–`[C20]` already e
 
 ### Labels (minimum on every issue)
 
-- One **`scope:*`**: `scope:pwa` · `scope:admin-web` · `scope:backend` · `scope:contracts` · `scope:docs`  
+- One **`scope:*`**: `scope:pwa` · `scope:admin-web` · `scope:backend` · `scope:docs`  
 - One **`type:*`**: `type:feature` · `type:bug` · `type:debt`  
 - One **`priority:*`** when known: `priority:critical` · `priority:high` · `priority:low`  
 - **`sprint:build`** (or `sprint:test` in the test window)  
@@ -172,7 +171,7 @@ Draft PRs are fine while polishing; mark **Ready for review** when you want full
 2. Fireworks findings addressed or explained.  
 3. PM / human approval when required.  
 4. No secrets committed.  
-5. Contracts and consumers aligned.
+5. API contract and consumers aligned.
 
 ### 6. After merge
 
@@ -242,7 +241,7 @@ Should/Could only when Must pace allows.
 - Create a second GitHub Project for this build.  
 - Delete issues or rewrite history to tidy the board.  
 - Skip the PR template or Copilot review.  
-- Change `/contracts` without a consumer plan.
+- Change the API shape (`swagger/`) without a consumer plan.
 
 ### Why issue #26-style tests fail process
 

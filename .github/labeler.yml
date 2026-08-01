@@ -29,10 +29,6 @@ scope:backend:
           - "config.ru"
           - "deploy/**"
 
-scope:contracts:
-  - changed-files:
-      - any-glob-to-any-file: "contracts/**"
-
 scope:docs:
   - changed-files:
       - any-glob-to-any-file:

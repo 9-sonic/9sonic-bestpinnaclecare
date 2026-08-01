@@ -23,7 +23,6 @@ One sentence: what Best Pinnacle Care can do when this is done.
 - [ ] `client/pwa`
 - [ ] `client/admin-web`
 - [ ] Rails API (repo root)
-- [ ] `/contracts`
 - [ ] `/docs`
 
 ## Priority & size

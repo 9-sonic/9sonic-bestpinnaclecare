@@ -23,12 +23,13 @@ module Api
 
       private
 
+      # Subquery (not joins+where) so the eager-loaded participant list isn't
+      # filtered down to just the viewer's own row.
       def participating_scope
-        Conversation.joins(:conversation_participants).where(
-          conversation_participants: {
-            participant_type: current_identity.class.name, participant_id: current_identity.id, left_at: nil
-          }
-        )
+        mine = ConversationParticipant.where(
+          participant_type: current_identity.class.name, participant_id: current_identity.id, left_at: nil
+        ).select(:conversation_id)
+        Conversation.where(id: mine)
       end
 
       def resolve_person(p)

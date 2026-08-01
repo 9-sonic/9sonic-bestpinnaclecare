@@ -17,8 +17,7 @@ dependency or workflow, or when CI fails for a reason that is not your code.
 /                    Rails 8 API  — app/ config/ db/ lib/ spec/ Gemfile
 /client/pwa          carer mobile PWA
 /client/admin-web    manager website
-/contracts           shared API shapes
-/swagger/v1          generated OpenAPI — DO NOT hand-edit
+/swagger/v1          generated OpenAPI (the API contract) — DO NOT hand-edit
 /docs                process and delivery notes
 /.claude             this project brain
 ```
@@ -73,9 +72,9 @@ feat/BES-123-short-slug     fix/…     chore/…     docs/…
 | Task status | Linear `BES-xxx`, mirrored by the GitHub board | Status that only exists in WhatsApp |
 | Merge truth | The GitHub PR | A branch you pushed and assumed landed |
 
-**The contracts rule:** a PR that changes `/contracts` without a matching change
-in `/client` or the Rails root is incomplete. State which PR completes the
-handshake.
+**The API-shape rule:** a PR that changes the OpenAPI doc under `/swagger`
+without a matching change in `/client` or the Rails root is incomplete. State
+which PR completes the handshake.
 
 ---
 
@@ -86,7 +85,6 @@ handshake.
 | **Repo hygiene** | Stray top-level app dir · committed build output · committed `.env` · a required directory missing |
 | **backend (Rails)** | RuboCop, Brakeman (high confidence) or RSpec fails. Runs on `app/ config/ db/ lib/ spec/ swagger/ Gemfile*` |
 | **client/pwa**, **client/admin-web** | lint, typecheck, build or test fails in that folder |
-| **contracts** | a document under `/contracts` does not parse |
 | **Template gate** | no `Closes #N` (or `Process-only: true`), no scope ticked, UI change with no screenshot |
 | **Gitleaks** | a credential in **any** commit — history is scanned, not just your diff |
 

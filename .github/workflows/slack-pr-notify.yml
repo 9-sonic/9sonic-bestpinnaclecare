@@ -35,7 +35,6 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.ref }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           ACTION: ${{ github.event.action }}
-          IS_CONTRACTS: ${{ contains(github.event.pull_request.labels.*.name, 'scope:contracts') }}
         run: |
           set -euo pipefail
 
@@ -46,9 +45,6 @@ jobs:
           fi
 
           webhook="$SLACK_WEBHOOK_URL"
-          if [ "$IS_CONTRACTS" = "true" ] && [ -n "${SLACK_ALERTS_WEBHOOK_URL:-}" ]; then
-            webhook="$SLACK_ALERTS_WEBHOOK_URL"
-          fi
           if [ -z "${webhook:-}" ]; then
             echo "No Slack webhook configured — skipping (see docs/slack-setup.md)."
             exit 0
@@ -56,8 +52,6 @@ jobs:
 
           if [ "$ACTION" = "closed" ]; then
             headline="✅ Merged: #${PR_NUMBER} ${PR_TITLE}"
-          elif [ "$IS_CONTRACTS" = "true" ]; then
-            headline="🚨 CONTRACT CHANGE: #${PR_NUMBER} ${PR_TITLE}"
           else
             headline="Pull request ready: #${PR_NUMBER} ${PR_TITLE}"
           fi

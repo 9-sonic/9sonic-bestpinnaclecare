@@ -35,10 +35,13 @@ jobs:
             });
             const paths = files.map((f) => f.filename);
 
+            // A screenshot is only meaningful for actual UI changes — docs
+            // (README/markdown) under a client package are not UI changes.
             const touchesUi = paths.some(
               (p) =>
-                p.startsWith('client/pwa/') ||
-                p.startsWith('client/admin-web/')
+                (p.startsWith('client/pwa/') ||
+                  p.startsWith('client/admin-web/')) &&
+                !p.endsWith('.md')
             );
             const onlyProcessPaths = paths.every(
               (p) =>
@@ -52,7 +55,7 @@ jobs:
 
             const hasIssueLink = /(Closes|Fixes|Resolves)\s+#\d+/i.test(body);
             const hasScope =
-              /client\/pwa|client\/admin-web|\/contracts|\/docs|Rails|\/app\//i.test(
+              /client\/pwa|client\/admin-web|\/docs|Rails|\/app\//i.test(
                 body
               );
             const hasScreenshot =
@@ -69,7 +72,7 @@ jobs:
             }
             if (!hasScope) {
               missing.push(
-                'Tick monorepo **Scope** in the PR template (`client/pwa`, `client/admin-web`, Rails root, `/contracts`, and/or `/docs`).'
+                'Tick monorepo **Scope** in the PR template (`client/pwa`, `client/admin-web`, Rails root, and/or `/docs`).'
               );
             }
             if (touchesUi && !hasScreenshot) {

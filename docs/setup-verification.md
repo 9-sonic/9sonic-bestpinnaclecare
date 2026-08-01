@@ -14,7 +14,7 @@ Process and dual-board rails are live. Application code lands only through PRs i
 | `/` (root) | Active | **Rails 8 API** (`app/`, `Gemfile`, …) |
 | `client/pwa` | Active path | Carer PWA |
 | `client/admin-web` | Active path | Manager web |
-| `contracts/` | Expected | Shared API shapes when used |
+| `swagger/` | Active | Generated OpenAPI — the API contract |
 | `docs/` | Active | Process + product notes |
 | `.claude/` | Active | Claude/Cursor project rails |
 

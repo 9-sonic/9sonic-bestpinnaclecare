@@ -354,18 +354,50 @@ paths:
                 "$ref": "#/components/schemas/Error"
   "/api/v1/staff/me":
     get:
-      summary: Current carer
+      summary: Current carer (private fields + pay)
       tags:
-      - Auth — Staff
+      - Carer
       security:
       - bearerAuth: []
       responses:
         '200':
-          description: the signed-in carer
+          description: profile
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Employee"
+    patch:
+      summary: Edit own profile
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Name, phone and emergency contact. Email + employee_reference stay
+        office-controlled.
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                phone:
+                  type: string
+                emergency_contact_name:
+                  type: string
+                emergency_contact_phone:
+                  type: string
   "/api/v1/admin/mfa":
     post:
       summary: Begin TOTP enrolment
@@ -429,6 +461,519 @@ paths:
                   type: string
               required:
               - otp_code
+  "/api/v1/admin/service_users":
+    get:
+      summary: List service users
+      tags:
+      - Office — Service Users
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/ServiceUser"
+    post:
+      summary: Create a service user
+      tags:
+      - Office — Service Users
+      security:
+      - bearerAuth: []
+      description: Address is geocoded to lat/lng unless coordinates are supplied.
+      parameters: []
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ServiceUser"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                address_line1:
+                  type: string
+                city:
+                  type: string
+                postcode:
+                  type: string
+                lat:
+                  type: number
+                lng:
+                  type: number
+                geofence_radius_m:
+                  type: integer
+                access_notes:
+                  type: string
+              required:
+              - first_name
+              - last_name
+  "/api/v1/admin/service_users/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Show a service user
+      tags:
+      - Office — Service Users
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: service user
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ServiceUser"
+    patch:
+      summary: Update a service user
+      tags:
+      - Office — Service Users
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ServiceUser"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                access_notes:
+                  type: string
+  "/api/v1/admin/service_users/{service_user_id}/care_plan_items":
+    parameters:
+    - name: service_user_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: List care plan items
+      tags:
+      - Office — Care Plan
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: items
+    post:
+      summary: Add a care plan item
+      tags:
+      - Office — Care Plan
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: created
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                label:
+                  type: string
+                detail:
+                  type: string
+                position:
+                  type: integer
+              required:
+              - category
+              - label
+  "/api/v1/admin/care_package_slots":
+    post:
+      summary: Create a recurring call
+      tags:
+      - Office — Care Packages
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: created
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service_user_id:
+                  type: integer
+                name:
+                  type: string
+                start_time:
+                  type: string
+                end_time:
+                  type: string
+                recurrence:
+                  type: string
+                  description: daily, or day list e.g. mon,wed,fri
+                staff_required:
+                  type: integer
+                effective_from:
+                  type: string
+                  format: date
+              required:
+              - service_user_id
+              - name
+              - start_time
+              - end_time
+              - recurrence
+              - effective_from
+  "/api/v1/admin/visits":
+    get:
+      summary: Rota (visits in a window)
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: visits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Visit"
+    post:
+      summary: Create an ad-hoc visit
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Visit"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service_user_id:
+                  type: integer
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+              required:
+              - service_user_id
+              - scheduled_start
+              - scheduled_end
+  "/api/v1/admin/visits/generate":
+    post:
+      summary: Generate dated visits from care packages
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: visits created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date
+                to:
+                  type: string
+                  format: date
+              required:
+              - from
+              - to
+  "/api/v1/admin/visits/{id}/publish":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Publish a visit
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: published
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Visit"
+  "/api/v1/admin/visit_assignments":
+    post:
+      summary: Assign a carer to a visit
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: assigned
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/VisitAssignment"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_id:
+                  type: integer
+                employee_id:
+                  type: integer
+              required:
+              - visit_id
+              - employee_id
+  "/api/v1/admin/rota_copies":
+    post:
+      summary: Copy a week of visits to another week
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: copied count
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from_week_start:
+                  type: string
+                  format: date
+                to_week_start:
+                  type: string
+                  format: date
+              required:
+              - from_week_start
+              - to_week_start
+  "/api/v1/admin/dashboard":
+    get:
+      summary: Dashboard headline counts
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: counts
+  "/api/v1/admin/live_board":
+    get:
+      summary: Live board — today's visits + states
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: board
+  "/api/v1/admin/exceptions":
+    get:
+      summary: Exceptions queue (pending review + open alerts)
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: queue
+  "/api/v1/admin/alerts":
+    get:
+      summary: Open alerts
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: alerts
+  "/api/v1/admin/clock_corrections":
+    post:
+      summary: Manual clock correction (append-only, reason required)
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: recorded
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_assignment_id:
+                  type: integer
+                kind:
+                  type: string
+                occurred_at:
+                  type: string
+                reason:
+                  type: string
+                corrects_id:
+                  type: integer
+              required:
+              - visit_assignment_id
+              - kind
+              - occurred_at
+              - reason
+  "/api/v1/admin/timesheet_periods":
+    post:
+      summary: Build/refresh an attendance period
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: period + lines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                starts_on:
+                  type: string
+                  format: date
+              required:
+              - starts_on
+  "/api/v1/admin/employees":
+    post:
+      summary: Invite a carer
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: invited
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                  - carer
+                  - senior_carer
+              required:
+              - email
+              - first_name
+              - last_name
+  "/api/v1/admin/settings":
+    get:
+      summary: Read provider settings
+      tags:
+      - Office — Settings
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: settings
+    patch:
+      summary: Update provider settings
+      tags:
+      - Office — Settings
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                geofence_radius_m:
+                  type: integer
+                missed_threshold_minutes:
+                  type: integer
   "/api/v1/admin/auth/password":
     post:
       summary: Request a password reset
@@ -478,6 +1023,245 @@ paths:
               required:
               - token
               - password
+  "/api/v1/auth/refresh":
+    post:
+      summary: Rotate a refresh token
+      tags:
+      - Auth
+      description: Exchanges a refresh token for a fresh access token + a new refresh
+        token (the old one is revoked). Reusing a revoked token nukes the chain.
+      parameters: []
+      responses:
+        '200':
+          description: rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                  access_expires_at:
+                    type: string
+                  refresh_token:
+                    type: string
+                  employee:
+                    "$ref": "#/components/schemas/Employee"
+        '401':
+          description: invalid/expired
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required:
+              - refresh_token
+  "/api/v1/staff/availability":
+    get:
+      summary: Read availability
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: weekly pattern
+    put:
+      summary: Replace availability
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: saved
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      weekday:
+                        type: integer
+                      slot:
+                        type: string
+                        enum:
+                        - morning
+                        - afternoon
+                        - evening
+                        - night
+                      available:
+                        type: boolean
+  "/api/v1/staff/visit_assignments/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Visit detail (care plan + tasks + notes)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/VisitAssignment"
+                - type: object
+                  properties:
+                    care_plan:
+                      type: array
+                      items:
+                        type: object
+                    tasks:
+                      type: array
+                      items:
+                        type: object
+                    notes:
+                      type: array
+                      items:
+                        type: object
+  "/api/v1/staff/mileage":
+    post:
+      summary: Claim mileage
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: claimed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_assignment_id:
+                  type: integer
+                travel_date:
+                  type: string
+                  format: date
+                miles:
+                  type: number
+                from_label:
+                  type: string
+                to_label:
+                  type: string
+              required:
+              - travel_date
+              - miles
+  "/api/v1/staff/summary":
+    get:
+      summary: Home/Overview totals
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hours_worked_minutes:
+                    type: integer
+                  contracted_minutes:
+                    type: integer
+                  visits_count:
+                    type: integer
+                  clients_count:
+                    type: integer
+                  miles:
+                    type: number
+                  by_weekday:
+                    type: object
+  "/api/v1/staff/devices":
+    post:
+      summary: Register this device (web push)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: registered
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprint:
+                  type: string
+                  format: uuid
+                platform:
+                  type: string
+                app_version:
+                  type: string
+                push_subscription:
+                  type: object
+              required:
+              - fingerprint
+  "/api/v1/notifications/seen_all":
+    post:
+      summary: Mark all notifications read
+      tags:
+      - Notifications
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: count updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+  "/api/v1/conversations":
+    get:
+      summary: List conversations (names + unread + preview)
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: conversations
   "/api/v1/staff/visit_assignments/{visit_assignment_id}/clock":
     parameters:
     - name: visit_assignment_id
@@ -643,67 +1427,6 @@ paths:
                     type: array
                     items:
                       "$ref": "#/components/schemas/VisitAssignment"
-  "/api/v1/admin/visits/generate":
-    post:
-      summary: Generate dated visits from care packages
-      tags:
-      - Rota
-      security:
-      - bearerAuth: []
-      parameters: []
-      responses:
-        '201':
-          description: visits created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  created:
-                    type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                from:
-                  type: string
-                  format: date
-                to:
-                  type: string
-                  format: date
-              required:
-              - from
-              - to
-  "/api/v1/admin/visit_assignments":
-    post:
-      summary: Assign a carer to a visit
-      tags:
-      - Rota
-      security:
-      - bearerAuth: []
-      parameters: []
-      responses:
-        '201':
-          description: assigned
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/VisitAssignment"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                visit_id:
-                  type: integer
-                employee_id:
-                  type: integer
-              required:
-              - visit_id
-              - employee_id
   "/api/v1/staff/webauthn/registration/options":
     post:
       summary: Passkey registration options

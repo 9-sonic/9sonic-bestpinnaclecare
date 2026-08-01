@@ -53,7 +53,7 @@ docs/BES-123-short-slug
 
 - **Rails API** at repository root (`app/`, `config/`, …)  
 - **Frontends:** `client/pwa`, `client/admin-web`  
-- **Contracts / docs:** `contracts/`, `docs/`  
+- **Docs:** `docs/` (the API contract is the OpenAPI doc under `swagger/`)  
 - **Claude rails:** `.claude/` (this tree)
 
 When suggesting paths, prefer this layout over older monorepo sketches that only used top-level `/pwa` and `/backend`.

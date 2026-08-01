@@ -42,7 +42,6 @@ Apply label: `priority:critical` / `priority:high` / `priority:low`.
 - [ ] `/pwa`
 - [ ] `/admin-web`
 - [ ] `/backend`
-- [ ] `/contracts`
 
 ## Notes / screenshots
 - …

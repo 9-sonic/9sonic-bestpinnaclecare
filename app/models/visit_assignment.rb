@@ -7,6 +7,8 @@ class VisitAssignment < ApplicationRecord
   has_many   :clock_events, dependent: :restrict_with_error
   has_many   :alerts, as: :subject
   has_many   :timesheet_lines
+  has_many   :visit_tasks, dependent: :destroy
+  has_many   :visit_notes, dependent: :restrict_with_error
 
   enum :lifecycle_state, {
     scheduled: "scheduled", check_in_window: "check_in_window", grace_period: "grace_period",

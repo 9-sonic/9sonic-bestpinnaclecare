@@ -70,7 +70,7 @@ If the Roadmap tab is missing, add it once on the project: **+ New view** → **
 
 ### Filters when time is short
 
-`priority:critical` · `scope:contracts` · `status:blocked` · `moscow:must` · `copilot:issues-found` · `needs:pm-approval`
+`priority:critical` · `status:blocked` · `moscow:must` · `copilot:issues-found` · `needs:pm-approval`
 
 ---
 

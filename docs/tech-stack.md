@@ -9,7 +9,7 @@ What this monorepo assumes. Code lands only through pull requests into `main`.
 | `/` (repo root) | **Ruby on Rails** API — auth, shifts, clocking, timesheets, jobs | BE |
 | `client/pwa` | Carer progressive web app | FE |
 | `client/admin-web` | Manager web app (live board, timesheets, export) | FE |
-| `contracts/` | Shared API contracts (OpenAPI, schema, or shared types) | FE + BE |
+| `swagger/` | Generated OpenAPI — the API contract (served at `/api-docs`) | BE |
 | `docs/` | Process and product notes | PM + team |
 | `.claude/` | AI assistant project brain | Everyone using Claude/Cursor |
 
@@ -27,9 +27,9 @@ Legacy names `/pwa`, `/admin-web`, `/backend` in older notes map to `client/pwa`
 - Manager → `client/admin-web`.  
 - Framework and package manager details live with the app under each `client/*` folder.
 
-## Contracts
+## API contract
 
-`contracts/` (when present) is the handshake between PWA, admin-web, and Rails. Shape changes need consumer updates in the same change set or a clearly linked PR.
+The generated OpenAPI doc under `swagger/` (served at `/api-docs`) is the handshake between PWA, admin-web, and Rails. Shape changes need consumer updates in the same change set or a clearly linked PR.
 
 ## CI & review
 

@@ -47,9 +47,9 @@ npm run dev            # or the script named in package.json
 
 Point the client API base URL at your local Rails server (see app env sample / README under each client when present).
 
-## Contracts
+## API contract
 
-If you change API shapes under `contracts/`, update Rails and the affected client in the same PR (or a clearly linked pair of PRs).
+If you change the API shape (regenerate the OpenAPI doc under `swagger/`), update Rails and the affected client in the same PR (or a clearly linked pair of PRs).
 
 ## Shipping changes
 
