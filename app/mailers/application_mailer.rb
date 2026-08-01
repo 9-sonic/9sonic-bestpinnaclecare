@@ -9,7 +9,7 @@ class ApplicationMailer < ActionMailer::Base
   def frontend_base(scope)
     case scope.to_s
     when "admin" then ENV.fetch("ADMIN_URL", "http://localhost:5174")
-    else              ENV.fetch("CARER_URL", "http://localhost:5173")
+    else              ENV.fetch("STAFF_URL", "http://localhost:5173")
     end
   end
 end
