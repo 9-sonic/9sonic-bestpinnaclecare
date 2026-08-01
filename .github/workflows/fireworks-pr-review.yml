@@ -195,7 +195,25 @@ jobs:
             const maxChars = parseInt(process.env.MAX_DIFF_CHARS || '32000', 10);
             const timeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '55000', 10);
             const retriesPerModel = parseInt(process.env.RETRIES_PER_MODEL || '2', 10);
-            const maxTokens = parseInt(process.env.MAX_TOKENS || '8000', 10);
+            // A mistyped FIREWORKS_MAX_TOKENS repo var would otherwise send
+            // NaN in the request body and come back as a 400 — which this
+            // workflow classifies as a config error and hard-fails on. Clamp
+            // to the default instead of turning a typo into a red check.
+            const DEFAULT_MAX_TOKENS = 8000;
+            const parsedMaxTokens = parseInt(process.env.MAX_TOKENS || '', 10);
+            const maxTokens =
+              Number.isFinite(parsedMaxTokens) && parsedMaxTokens > 0
+                ? parsedMaxTokens
+                : DEFAULT_MAX_TOKENS;
+            if (process.env.MAX_TOKENS && maxTokens !== parsedMaxTokens) {
+              core.warning(
+                'FIREWORKS_MAX_TOKENS is not a positive integer ("' +
+                  process.env.MAX_TOKENS +
+                  '") — using ' +
+                  DEFAULT_MAX_TOKENS +
+                  '.'
+              );
+            }
 
             // ---- Goal context: PR + linked GitHub issues + BES ids ----
             const title = pr.title || '';
@@ -358,11 +376,16 @@ jobs:
             // retry.
             const FIRST_HEADING = /^### Goal understanding\s*$/gim;
 
+            // Leading blocks only. A review is allowed to *mention* these tags
+            // — this repo's own docs discuss them — and stripping every
+            // occurrence would silently eat that content.
+            const LEADING_REASONING = /^\s*<(think|reasoning)>[\s\S]*?<\/\1>\s*/i;
+
             function stripReasoning(text) {
-              const body = text
-                .replace(/<think>[\s\S]*?<\/think>/gi, '')
-                .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
-                .trim();
+              let body = text.trim();
+              while (LEADING_REASONING.test(body)) {
+                body = body.replace(LEADING_REASONING, '').trim();
+              }
 
               // Last match, not first: a model that sketches the format in its
               // plan and then writes the real thing should give us the latter.
