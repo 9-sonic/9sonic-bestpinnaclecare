@@ -25,8 +25,9 @@ Environment=SOLID_QUEUE_IN_PUMA=1
 EnvironmentFile=/home/qqwqvwsb/api/.env
 
 # Puma listens on this port; the api.bestpinnaclecare.co.uk vhost reverse-proxies
-# to 127.0.0.1:3001. Pinned after the env file so it stays authoritative.
-Environment=PORT=3001
+# to 127.0.0.1:3002 (3000/3001 are used by other apps on this box). Pinned after
+# the env file so it stays authoritative.
+Environment=PORT=3002
 
 ExecStart=/home/qqwqvwsb/.rbenv/shims/bundle exec puma -C config/puma.rb
 Restart=on-failure
