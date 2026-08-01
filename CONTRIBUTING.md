@@ -127,20 +127,27 @@ Issue (Ready) → claim → branch from main → implement → open PR → revie
 
 1. Comment on the issue: `Taking this`.  
 2. Set Status to **In Progress**.  
-3. Branch from latest `main` (both styles accepted):
+3. Branch from latest `main`:
 
 ```text
-feature/BES-123-short-slug    # preferred when Linear id exists
-feat/<short-name>
-fix/BES-123-short-slug
-fix/<short-name>
-docs/BES-123-short-slug
-docs/<short-name>
+feat/BES-123-short-slug     # new behaviour
+fix/BES-123-short-slug      # bug fix
+chore/BES-123-short-slug    # tooling, deps, cleanup
+docs/BES-123-short-slug     # documentation only
 ```
+
+Always carry the `BES-<n>` when a Linear ticket exists — that id is what links
+the PR back to the board. `feat/<short-name>` without an id is acceptable only
+for work that has no ticket yet.
 
 ### 3. Implement
 
 - Stay in the correct package path (Rails at root; frontends under `client/`).  
+- **The layout is load-bearing.** A new top-level directory is not a free choice:
+  CI path filters, `.github/labeler.yml` and `deploy.yml` all key off it. If you
+  genuinely need one, change those three files in the same PR. A second copy of
+  an existing area (`pwa/` next to `client/pwa/`) is what broke CI before — the
+  Repo hygiene job now rejects it.  
 - Meet [Definition of Done](./docs/definition_of_done.md).  
 - Prefer small PRs (open the PR within 24–48 hours of starting; do not sit on a long-lived branch with no PR).
 

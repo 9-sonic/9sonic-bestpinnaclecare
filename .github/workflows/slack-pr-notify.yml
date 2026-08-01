@@ -1,0 +1,90 @@
+name: Slack PR notifications
+
+# Posts PR activity to Slack. See docs/slack-setup.md for webhook setup and
+# docs/slack-integration.md for the channel routing matrix.
+#
+# Two rules this file exists to respect:
+#   1. `secrets` is NOT available in `if:` — guard inside the step instead.
+#   2. Never interpolate ${{ github.event... }} into a shell command. PR titles
+#      and branch names are attacker-controlled; they go in via env + jq.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, labeled, closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        env:
+          # #bpc-prs webhook; contract changes escalate to the alerts webhook
+          # when one is configured.
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_ALERTS_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          ACTION: ${{ github.event.action }}
+          IS_CONTRACTS: ${{ contains(github.event.pull_request.labels.*.name, 'scope:contracts') }}
+        run: |
+          set -euo pipefail
+
+          # A PR closed without merging is not news.
+          if [ "$ACTION" = "closed" ] && [ "$PR_MERGED" != "true" ]; then
+            echo "PR closed unmerged — nothing to announce."
+            exit 0
+          fi
+
+          webhook="$SLACK_WEBHOOK_URL"
+          if [ "$IS_CONTRACTS" = "true" ] && [ -n "${SLACK_ALERTS_WEBHOOK_URL:-}" ]; then
+            webhook="$SLACK_ALERTS_WEBHOOK_URL"
+          fi
+          if [ -z "${webhook:-}" ]; then
+            echo "No Slack webhook configured — skipping (see docs/slack-setup.md)."
+            exit 0
+          fi
+
+          if [ "$ACTION" = "closed" ]; then
+            headline="✅ Merged: #${PR_NUMBER} ${PR_TITLE}"
+          elif [ "$IS_CONTRACTS" = "true" ]; then
+            headline="🚨 CONTRACT CHANGE: #${PR_NUMBER} ${PR_TITLE}"
+          else
+            headline="Pull request ready: #${PR_NUMBER} ${PR_TITLE}"
+          fi
+
+          payload=$(jq -n \
+            --arg headline "$headline" \
+            --arg author "$PR_AUTHOR" \
+            --arg head "$PR_HEAD" \
+            --arg base "$PR_BASE" \
+            --arg url "$PR_URL" \
+            --arg num "$PR_NUMBER" \
+            '{
+              text: $headline,
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: $headline, emoji: true } },
+                { type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: ("*Author:*\n" + $author) },
+                    { type: "mrkdwn", text: ("*Branch:*\n`" + $head + "` → `" + $base + "`") }
+                  ] },
+                { type: "section",
+                  text: { type: "mrkdwn", text: ("*Link:* <" + $url + "|#" + $num + ">") } }
+              ]
+            }')
+
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-type: application/json' \
+            --data "$payload" \
+            "$webhook"

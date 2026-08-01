@@ -40,12 +40,12 @@ Product name **BPC** is fine in prose; Linear issue prefix is always **BES**.
 4. If sync breaks: **GitHub PR is source of truth for merge**; fix Linear next session.  
 5. Status moves via automation where possible (PR open → In Review; merge → Done) once Linear↔GitHub integration is on.
 
-### Branch names (both accepted)
+### Branch names
 
 ```text
-feature/BES-123-short-slug    # preferred when Linear id exists
-feat/short-slug               # still valid
+feat/BES-123-short-slug     # carry the BES id whenever a ticket exists
 fix/BES-123-short-slug
+chore/BES-123-short-slug
 docs/BES-123-short-slug
 ```
 

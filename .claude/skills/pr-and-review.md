@@ -10,22 +10,21 @@
 
 Canonical patterns:
 
-- `feature/BES-xxx-short-desc` — new behaviour
+- `feat/BES-xxx-short-desc` — new behaviour
 - `fix/BES-xxx-short-desc` — bug fix
 
-Other accepted prefixes (use when the work doesn’t fit feature/fix):
+Other accepted prefixes (use when the work doesn’t fit feat/fix):
 
 | Type | Use |
 | --- | --- |
-| `feat/` | Alias for `feature/` (prefer `feature/` for clarity) |
 | `chore/` | Tooling, deps, non-user-facing cleanup |
 | `docs/` | Documentation only |
 | `refactor/` | Behaviour-preserving structure change (still needs care on clock paths) |
 
 **Examples**
 
-- `feature/BES-118-offline-pending-indicator`  
-- `feature/BES-123-carer-clock-in`  
+- `feat/BES-118-offline-pending-indicator`  
+- `feat/BES-123-carer-clock-in`  
 - `fix/BES-141-duplicate-clock-in`  
 - `fix/BES-150-manager-correction-audit`  
 - `chore/BES-160-ci-placeholder`  
