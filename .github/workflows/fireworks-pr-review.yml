@@ -102,13 +102,20 @@ jobs:
         uses: actions/github-script@v7
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-          MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
-          # Fallback when primary times out / 5xx / empty — override via repo var
-          FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/qwen3p7-plus' }}
+          # Primary is the model that has actually been producing usable
+          # reviews here. kimi-k2p7-code reasons inline and, on PR #51, spent
+          # its whole budget thinking without ever emitting the format — set
+          # the FIREWORKS_MODEL repo var to try it again.
+          MODEL_NAME: ${{ vars.FIREWORKS_MODEL || 'accounts/fireworks/models/qwen3p7-plus' }}
+          # Fallback when primary times out / 5xx / empty / answers off-format
+          FALLBACK_MODEL: ${{ vars.FIREWORKS_FALLBACK_MODEL || 'accounts/fireworks/models/kimi-k2p7-code' }}
           FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
           MAX_DIFF_CHARS: ${{ vars.FIREWORKS_MAX_DIFF_CHARS || '32000' }}
           REQUEST_TIMEOUT_MS: '55000'
           RETRIES_PER_MODEL: '2'
+          # Reasoning models need room to think *and* answer. 3500 was not
+          # enough for either to finish.
+          MAX_TOKENS: ${{ vars.FIREWORKS_MAX_TOKENS || '8000' }}
         with:
           script: |
             const fs = require('fs');
@@ -185,6 +192,7 @@ jobs:
             const maxChars = parseInt(process.env.MAX_DIFF_CHARS || '32000', 10);
             const timeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '55000', 10);
             const retriesPerModel = parseInt(process.env.RETRIES_PER_MODEL || '2', 10);
+            const maxTokens = parseInt(process.env.MAX_TOKENS || '8000', 10);
 
             // ---- Goal context: PR + linked GitHub issues + BES ids ----
             const title = pr.title || '';
@@ -336,6 +344,47 @@ jobs:
               (m, i, arr) => m && arr.indexOf(m) === i
             );
 
+            // Reasoning models emit their scratchpad before the answer. Some
+            // wrap it in <think>…</think>; drop that when present.
+            function stripReasoning(text) {
+              return text
+                .replace(/<think>[\s\S]*?<\/think>/gi, '')
+                .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+                .trim();
+            }
+
+            // The gate: publish a review, or nothing. A model that spends its
+            // whole budget thinking and never emits the format produced a
+            // failed attempt — treat it like a timeout so the retry/fallback
+            // chain gets its turn instead of posting a thinking transcript
+            // to the PR.
+            const REQUIRED_HEADINGS = [
+              '### Goal understanding',
+              '### Blocking',
+              '### Verdict for PM',
+            ];
+
+            function assertLooksLikeReview(result) {
+              const text = result.text || '';
+              const missing = REQUIRED_HEADINGS.filter((h) => !text.includes(h));
+              if (missing.length) {
+                const err = new Error(
+                  'Completion is not a review — missing ' +
+                    missing.join(', ') +
+                    (result.finishReason === 'length'
+                      ? ' (finish_reason=length: ran out of tokens before answering)'
+                      : '')
+                );
+                err.retryable = true;
+                throw err;
+              }
+              if (result.finishReason === 'length') {
+                core.warning(
+                  'Review hit the token limit — the tail may be truncated.'
+                );
+              }
+            }
+
             async function callChatCompletions(modelName) {
               const controller = new AbortController();
               const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -350,7 +399,7 @@ jobs:
                   body: JSON.stringify({
                     model: modelName,
                     temperature: 0.15,
-                    max_tokens: 3500,
+                    max_tokens: maxTokens,
                     messages: [
                       { role: 'system', content: systemPrompt },
                       { role: 'user', content: userContent },
@@ -382,17 +431,17 @@ jobs:
                   err.status = response.status;
                   throw err;
                 }
-                const text =
-                  data.choices &&
-                  data.choices[0] &&
-                  data.choices[0].message &&
-                  data.choices[0].message.content;
+                const message =
+                  (data.choices && data.choices[0] && data.choices[0].message) || {};
+                const text = message.content;
                 if (!text || !String(text).trim()) {
                   const err = new Error('Empty completion content');
                   err.retryable = true;
                   throw err;
                 }
-                return String(text).trim();
+                const finish =
+                  (data.choices && data.choices[0] && data.choices[0].finish_reason) || '';
+                return { text: stripReasoning(String(text)), finishReason: finish };
               } finally {
                 clearTimeout(timer);
               }
@@ -436,7 +485,11 @@ jobs:
                     retriesPerModel
                 );
                 try {
-                  reviewText = await callChatCompletions(candidate);
+                  const result = await callChatCompletions(candidate);
+                  // A completion that is not actually a review is a failed
+                  // attempt, not something to publish. Throws retryable.
+                  assertLooksLikeReview(result);
+                  reviewText = result.text;
                   usedModel = candidate;
                   attemptLog.push(
                     candidate + ' attempt ' + attempt + ': ok'

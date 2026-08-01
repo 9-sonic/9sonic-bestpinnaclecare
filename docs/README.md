@@ -31,7 +31,7 @@ Start here based on what you need. Root **[CONTRIBUTING.md](../CONTRIBUTING.md)*
 
 | File | Purpose |
 |------|---------|
-| [fireworks-review.md](./fireworks-review.md) | Goal-aware Fireworks (kimi-k2p7-code) for PM gate |
+| [fireworks-review.md](./fireworks-review.md) | Goal-aware Fireworks review for the PM gate: models, retries, output contract |
 | [faq-pr-reviews.md](./faq-pr-reviews.md) | “I pushed but don’t see a PR/review” |
 | [ci.md](./ci.md) | How CI and Actions work |
 
