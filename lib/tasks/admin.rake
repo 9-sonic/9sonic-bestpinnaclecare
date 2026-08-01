@@ -32,7 +32,7 @@ namespace :admin do
     # 24 chars, cryptographically random, guaranteed to include each class so it
     # satisfies any downstream password policy.
     password = ENV["SEED_ADMIN_PASSWORD"].presence || begin
-      pools = [("a".."z").to_a, ("A".."Z").to_a, ("0".."9").to_a, %w[! @ # $ % ^ & * ? _ -]]
+      pools = [ ("a".."z").to_a, ("A".."Z").to_a, ("0".."9").to_a, %w[! @ # $ % ^ & * ? _ -] ]
       one_each = pools.map { |p| p[SecureRandom.random_number(p.size)] }
       all      = pools.flatten
       filler   = Array.new(20) { all[SecureRandom.random_number(all.size)] }
