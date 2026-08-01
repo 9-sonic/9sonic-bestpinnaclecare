@@ -35,10 +35,13 @@ jobs:
             });
             const paths = files.map((f) => f.filename);
 
+            // A screenshot is only meaningful for actual UI changes — docs
+            // (README/markdown) under a client package are not UI changes.
             const touchesUi = paths.some(
               (p) =>
-                p.startsWith('client/pwa/') ||
-                p.startsWith('client/admin-web/')
+                (p.startsWith('client/pwa/') ||
+                  p.startsWith('client/admin-web/')) &&
+                !p.endsWith('.md')
             );
             const onlyProcessPaths = paths.every(
               (p) =>
