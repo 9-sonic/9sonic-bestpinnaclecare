@@ -1,11 +1,14 @@
 name: Fireworks AI Code Review
 
 # Quality-first AI review via Fireworks.
-# Primary model: kimi-k2p7-code (quality). On timeout/API error: retry, then fallback model.
+# Primary model: qwen3p7-plus. On timeout / API error / off-format answer:
+# retry, then fall back to kimi-k2p7-code. Only a completion that actually
+# contains the review format is published — see docs/fireworks-review.md.
 # Complements Copilot; does not replace PM merge judgment or Template gate.
 #
 # Secret: FIREWORKS_API_KEY
-# Optional vars: FIREWORKS_MODEL, FIREWORKS_FALLBACK_MODEL, FIREWORKS_MAX_DIFF_CHARS
+# Optional vars: FIREWORKS_MODEL, FIREWORKS_FALLBACK_MODEL,
+#                FIREWORKS_MAX_DIFF_CHARS, FIREWORKS_MAX_TOKENS
 
 on:
   pull_request:
