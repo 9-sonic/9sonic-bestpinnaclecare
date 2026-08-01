@@ -345,12 +345,36 @@ jobs:
             );
 
             // Reasoning models emit their scratchpad before the answer. Some
-            // wrap it in <think>…</think>; drop that when present.
+            // wrap it in <think>…</think>; most just narrate in plain prose
+            // ("1. Analyze the diff… 2. Evaluate…") and only then write the
+            // review. Validating that a review exists is not enough — the
+            // reader still has to scroll past the thinking. So: drop the tags,
+            // then cut everything before the review's first heading.
+            // Case-insensitive throughout: "### Goal Understanding" is the
+            // same review, and drifting on capitalisation should not cost a
+            // retry.
+            const FIRST_HEADING = /^### Goal understanding\s*$/gim;
+
             function stripReasoning(text) {
-              return text
+              const body = text
                 .replace(/<think>[\s\S]*?<\/think>/gi, '')
                 .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
                 .trim();
+
+              // Last match, not first: a model that sketches the format in its
+              // plan and then writes the real thing should give us the latter.
+              let start = -1;
+              let m;
+              FIRST_HEADING.lastIndex = 0;
+              while ((m = FIRST_HEADING.exec(body)) !== null) {
+                start = m.index;
+              }
+              if (start > 0) {
+                core.info(
+                  'Trimmed ' + start + ' chars of preamble before the review.'
+                );
+              }
+              return start >= 0 ? body.slice(start).trim() : body;
             }
 
             // The gate: publish a review, or nothing. A model that spends its
@@ -365,8 +389,10 @@ jobs:
             ];
 
             function assertLooksLikeReview(result) {
-              const text = result.text || '';
-              const missing = REQUIRED_HEADINGS.filter((h) => !text.includes(h));
+              const text = (result.text || '').toLowerCase();
+              const missing = REQUIRED_HEADINGS.filter(
+                (h) => !text.includes(h.toLowerCase())
+              );
               if (missing.length) {
                 const err = new Error(
                   'Completion is not a review — missing ' +

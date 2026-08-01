@@ -25,15 +25,24 @@ promoted again via `FIREWORKS_MODEL` if it behaves with the larger budget.
 
 ### Publish a review, or publish nothing
 
-A completion is only posted if it contains `### Goal understanding`,
-`### Blocking` and `### Verdict for PM`. Anything else — a thinking transcript, a
-half-finished answer cut off by the token limit — counts as a **failed attempt**,
-exactly like a timeout: it retries, then falls through to the other model, and if
-everything fails the check soft-fails with a skip notice. A reviewer should never
-have to guess whether the comment they are reading is a review.
+Two steps, because validation alone was not enough:
 
-`<think>…</think>` blocks are stripped before that check, so a model that wraps
-its reasoning and *then* answers is fine.
+1. **Trim, then post.** `<think>…</think>` and `<reasoning>…</reasoning>` blocks
+   are removed, and everything before the review's first heading is cut. Most
+   models do not use tags — they simply narrate ("*1. Analyze the diff… 2.
+   Evaluate…*") and write the review afterwards. On PR #60 that preamble was
+   **7,714 of 9,991 characters**; the reader should not have to scroll past it.
+   The *last* `### Goal understanding` wins, so a model that sketches the format
+   in its plan and then writes the real thing gives us the real thing.
+2. **Then validate.** What remains must contain `### Goal understanding`,
+   `### Blocking` and `### Verdict for PM` (case-insensitively). Anything else —
+   a pure thinking transcript, an answer cut off by the token limit before the
+   verdict — counts as a **failed attempt**, exactly like a timeout: it retries,
+   falls through to the other model, and if everything fails the check soft-fails
+   with a skip notice.
+
+A reviewer should never have to guess whether the comment they are reading is a
+review.
 
 ## Goal
 
