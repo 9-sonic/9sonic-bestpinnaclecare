@@ -1,0 +1,20 @@
+{
+  "root": true,
+  "env": { "browser": true, "es2021": true },
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:react/jsx-runtime",
+    "plugin:react-hooks/recommended"
+  ],
+  "parserOptions": { "ecmaVersion": "latest", "sourceType": "module" },
+  "settings": { "react": { "version": "detect" } },
+  "plugins": ["react-refresh"],
+  "rules": {
+    "react-refresh/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    // Not using the prop-types package; component contracts are documented in
+    // comments and enforced at review time.
+    "react/prop-types": "off"
+  }
+}
