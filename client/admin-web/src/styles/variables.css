@@ -1,0 +1,199 @@
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Palette comes from the Best Pinnacle Care logo: teal butterfly wing, green
+   wordmark, purple flourish. The scale is compact because this is a phone-first
+   app used one-handed, often outdoors, often in a hurry.
+
+   Two deliberate constraints, both there to stop the interface looking
+   generated rather than designed:
+
+   1. Corners are modest. Pill-shaped everything reads as a template. Buttons
+      and inputs share one radius; only genuinely round things (avatars, the
+      clock button, status dots) are circular.
+   2. Colour is not used to create depth. Surfaces are separated by a hairline
+      border and a shadow you have to look for. Coloured glows around buttons
+      are the single clearest tell of a generated interface, so there are none.
+--------------------------------------------------------------------------- */
+:root {
+  /* Brand, teal (primary) */
+  --teal-800: #016675;
+  --teal-700: #00808f;
+  --teal-600: #00929f;
+  --teal-500: #0aa5b5;
+  --teal-400: #3fc6d6;
+  --teal-300: #86dde8;
+  --teal-100: #d3f1f6;
+  --teal-050: #eef9fb;
+
+  /* Brand, green (logo wordmark) */
+  --green-700: #487f26;
+  --green-600: #5a9e2f;
+  --green-500: #7ab648;
+  --green-100: #e6f3d9;
+
+  /* Brand, purple (logo flourish) */
+  --purple-700: #7e3273;
+  --purple-600: #9c3f8f;
+  --purple-500: #b8559f;
+  --purple-100: #f6e6f3;
+
+  /* Surfaces. A very slightly warm grey reads less clinical than pure neutral. */
+  --color-bg: #f2f5f7;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f4f7f9;
+  --color-surface-sunken: #eaeff2;
+  --color-border: #dde5ea;
+  --color-border-strong: #c6d2da;
+  --color-overlay: rgba(16, 28, 38, 0.42);
+
+  /* Text. Not pure black: it is harsh on a bright phone screen outdoors. */
+  --color-text: #17242e;
+  --color-text-muted: #5d707e;
+  --color-text-faint: #8a9aa6;
+
+  /* Roles */
+  --color-primary: var(--teal-600);
+  --color-primary-strong: var(--teal-700);
+  --color-primary-contrast: #ffffff;
+
+  --color-success: #2f9e63;
+  --color-success-bg: #e4f5ec;
+  --color-success-text: #1c6b43;
+
+  --color-danger: #cf3b3b;
+  --color-danger-bg: #fdecec;
+  --color-danger-text: #a72c2c;
+
+  --color-warn: #c9821a;
+  --color-warn-bg: #fdf3e2;
+  --color-warn-text: #8a5a10;
+
+  --color-info: #2f6fd0;
+  --color-info-bg: #e8f0fd;
+  --color-info-text: #23539c;
+
+  /* Spacing, 4px base */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* Type scale. Body sits at 14px so it stays readable for older carers and in
+     bright outdoor light; nothing a carer must read drops below 12px. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.9375rem;
+
+  /* Two families with distinct jobs. Sora carries headings, figures and the
+     shift timer: geometric, confident, even numerals. Manrope handles running
+     text and labels: humanist, open, holds up at 12px on a phone in daylight. */
+  --font-display: 'Sora Variable', 'Sora', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Manrope Variable', 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Optical tracking: tighten as type grows, open up as it shrinks. */
+  --track-display: -0.028em;
+  --track-title: -0.014em;
+  --track-body: 0;
+  --track-label: 0.055em;
+
+  /* Radii. One value does most of the work; the pill is reserved for badges
+     and other genuinely capsule-shaped things. */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* Elevation. Quiet, neutral, and always paired with a border so cards read
+     as edges rather than as floating blobs. */
+  --shadow-xs: 0 1px 2px rgba(23, 36, 46, 0.05);
+  --shadow-sm: 0 1px 3px rgba(23, 36, 46, 0.07), 0 1px 2px rgba(23, 36, 46, 0.04);
+  --shadow: 0 4px 12px rgba(23, 36, 46, 0.08);
+  --shadow-lg: 0 12px 28px rgba(23, 36, 46, 0.14);
+  --shadow-focus: 0 0 0 3px rgba(10, 165, 181, 0.28);
+
+  /* Layout */
+  --nav-height: 60px;
+  --header-height: 52px;
+  --app-max-width: 460px;
+  --sidebar-width: 236px;
+
+  /* Motion. Short and mostly ease-out, which is what makes a tap feel like it
+     landed rather than like it is being animated at you. */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --dur-fast: 0.12s;
+  --dur: 0.2s;
+  --dur-slow: 0.32s;
+
+  /* Scrollbars */
+  --scroll-thumb: #c3d0d9;
+  --scroll-thumb-hover: #a3b4c0;
+  --scroll-size: 10px;
+}
+
+/* Dark theme. Not an inversion: surfaces lift as they come forward, the way
+   they do on iOS and Android, and the brand teal is brightened so it still
+   carries against a dark background. */
+:root[data-theme='dark'] {
+  --color-bg: #0e161d;
+  --color-surface: #17222c;
+  --color-surface-alt: #1e2b36;
+  --color-surface-sunken: #111a22;
+  --color-border: #263542;
+  --color-border-strong: #344756;
+  --color-overlay: rgba(0, 0, 0, 0.62);
+
+  --color-text: #e8eff4;
+  --color-text-muted: #94a7b4;
+  --color-text-faint: #6f8290;
+
+  --color-primary: var(--teal-400);
+  --color-primary-strong: var(--teal-300);
+  --color-primary-contrast: #06222a;
+
+  --teal-100: #10333d;
+  --teal-050: #0d2831;
+
+  --color-success: #46b87a;
+  --color-success-bg: #12301f;
+  --color-success-text: #7ed4a3;
+
+  --color-danger: #e46464;
+  --color-danger-bg: #331617;
+  --color-danger-text: #f19a9a;
+
+  --color-warn: #e0a13f;
+  --color-warn-bg: #33260f;
+  --color-warn-text: #edc37c;
+
+  --color-info: #6098e8;
+  --color-info-bg: #14243c;
+  --color-info-text: #9cc0f2;
+
+  --green-100: #16301a;
+  --green-600: #86c25a;
+  --purple-100: #2b1c35;
+  --purple-600: #c07ab3;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.6);
+  --shadow-focus: 0 0 0 3px rgba(63, 198, 214, 0.32);
+
+  --scroll-thumb: #2f4150;
+  --scroll-thumb-hover: #405768;
+}
