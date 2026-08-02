@@ -59,3 +59,8 @@ pnpm-debug.log*
 # Ignore master key for decrypting credentials and more.
 /config/master.key
 /config/*.key
+
+# Per-machine Claude permissions — local to whoever ran it, and it records
+# absolute temp paths from that machine. The shared project brain (.claude/CLAUDE.md,
+# skills/) is tracked; this is not.
+**/.claude/settings.local.json

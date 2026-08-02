@@ -1,0 +1,22 @@
+# Line endings are normalised to LF in the repository.
+#
+# Every file under .github/ once showed up as fully rewritten in a diff because
+# one machine saved them with CRLF. The content was identical; the diff was not,
+# and a reviewer cannot see a real change inside a 2,000-line rewrite. Without
+# this file that recurs on the next Windows checkout.
+* text=auto eol=lf
+
+# Windows-only scripts genuinely need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never converted, never diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

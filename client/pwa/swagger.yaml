@@ -1,0 +1,838 @@
+---
+openapi: 3.0.1
+info:
+  title: Best Pinnacle Care API
+  version: v1
+  description: |
+    Phase 1 API. Two separate identities with separate logins:
+    **Admin** (office) and **Employee** (carer PWA).
+
+    Auth is JWT (bearer). Log in at the identity-specific endpoint to get an
+    `access` token, then send `Authorization: Bearer <token>`. Admins may have
+    TOTP MFA (two-step login); carers can log in with a passkey (WebAuthn).
+servers:
+- url: http://localhost:3000
+  description: Local development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: invalid_credentials
+        details:
+          type: object
+          nullable: true
+      required:
+      - error
+    Admin:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: boss@bestpinnacle.test
+        first_name:
+          type: string
+          example: Reg
+        last_name:
+          type: string
+          example: Manager
+        full_name:
+          type: string
+          example: Reg Manager
+        role:
+          type: string
+          enum:
+          - registered_manager
+          - manager
+          - coordinator
+          - finance
+          - auditor
+        active:
+          type: boolean
+          example: true
+        mfa_enabled:
+          type: boolean
+          example: true
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: carer@bestpinnacle.test
+        first_name:
+          type: string
+          example: Cara
+        last_name:
+          type: string
+          example: Erikson
+        full_name:
+          type: string
+          example: Cara Erikson
+        role:
+          type: string
+          enum:
+          - carer
+          - senior_carer
+        employee_reference:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          example: true
+        mfa_enabled:
+          type: boolean
+          example: false
+    ServiceUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        full_name:
+          type: string
+        reference:
+          type: string
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        geofence_radius_m:
+          type: integer
+        geofence_mode:
+          type: string
+          nullable: true
+        access_notes:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+    Visit:
+      type: object
+      properties:
+        id:
+          type: integer
+        service_user_id:
+          type: integer
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          - cancelled
+        staff_required:
+          type: integer
+        published_at:
+          type: string
+          nullable: true
+    VisitAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+        visit_id:
+          type: integer
+        employee_id:
+          type: integer
+        lifecycle_state:
+          type: string
+          enum:
+          - scheduled
+          - check_in_window
+          - grace_period
+          - late
+          - in_progress
+          - overdue
+          - pending_review
+          - completed
+          - missed
+          - cancelled
+        assignment_status:
+          type: string
+        worked_minutes:
+          type: integer
+          nullable: true
+        flags:
+          type: array
+          items:
+            type: string
+        visit:
+          "$ref": "#/components/schemas/Visit"
+paths:
+  "/api/v1/admin/auth/login":
+    post:
+      summary: Admin login
+      tags:
+      - Auth — Admin
+      description: Authenticates against the admins table only. Returns an access
+        token, or an MFA challenge (mfa_required + mfa_token) when the admin has MFA
+        enabled.
+      parameters: []
+      responses:
+        '200':
+          description: authenticated (or MFA challenge)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                    nullable: true
+                  admin:
+                    "$ref": "#/components/schemas/Admin"
+                  mfa_required:
+                    type: boolean
+                    nullable: true
+                  mfa_token:
+                    type: string
+                    nullable: true
+                  mfa_setup_required:
+                    type: boolean
+                    nullable: true
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: boss@bestpinnacle.test
+                password:
+                  type: string
+                  example: secret12
+              required:
+              - email
+              - password
+  "/api/v1/staff/auth/login":
+    post:
+      summary: Carer login
+      tags:
+      - Auth — Staff
+      description: Authenticates against the employees table only.
+      parameters: []
+      responses:
+        '200':
+          description: authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                  employee:
+                    "$ref": "#/components/schemas/Employee"
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+              - email
+              - password
+  "/api/v1/auth/mfa":
+    post:
+      summary: Complete MFA (two-step login)
+      tags:
+      - Auth
+      description: Exchanges the mfa_token from login + a TOTP or backup code for
+        an access token.
+      parameters: []
+      responses:
+        '200':
+          description: authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                  admin:
+                    "$ref": "#/components/schemas/Admin"
+        '401':
+          description: invalid or expired code
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mfa_token:
+                  type: string
+                otp_code:
+                  type: string
+                  example: '123456'
+              required:
+              - mfa_token
+              - otp_code
+  "/api/v1/auth/logout":
+    delete:
+      summary: Log out (revoke token)
+      tags:
+      - Auth
+      security:
+      - bearerAuth: []
+      description: Denylists the presented bearer token.
+      responses:
+        '204':
+          description: logged out
+  "/api/v1/admin/me":
+    get:
+      summary: Current admin
+      tags:
+      - Auth — Admin
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: the signed-in admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Admin"
+        '401':
+          description: missing/invalid token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+  "/api/v1/staff/me":
+    get:
+      summary: Current carer
+      tags:
+      - Auth — Staff
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: the signed-in carer
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+  "/api/v1/admin/mfa":
+    post:
+      summary: Begin TOTP enrolment
+      tags:
+      - MFA
+      security:
+      - bearerAuth: []
+      description: Generates a TOTP secret and returns the otpauth:// URI + a QR (inline
+        SVG). Not active until confirmed.
+      responses:
+        '200':
+          description: enrolment data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otpauth_uri:
+                    type: string
+                    example: otpauth://totp/Best%20Pinnacle%20Care:boss@bpc.test?secret=...
+                  qr_svg:
+                    type: string
+                    description: Inline SVG of the QR code
+  "/api/v1/admin/mfa/confirm":
+    post:
+      summary: Confirm TOTP enrolment
+      tags:
+      - MFA
+      security:
+      - bearerAuth: []
+      description: Verifies the first code, activates MFA, and returns one-time backup
+        codes (shown once).
+      parameters: []
+      responses:
+        '200':
+          description: MFA activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mfa_enabled:
+                    type: boolean
+                  backup_codes:
+                    type: array
+                    items:
+                      type: string
+        '422':
+          description: invalid code
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp_code:
+                  type: string
+              required:
+              - otp_code
+  "/api/v1/admin/auth/password":
+    post:
+      summary: Request a password reset
+      tags:
+      - Auth — Admin
+      description: Always returns 202 (no account enumeration). Emails a tokened reset
+        link if the account exists. The same endpoints exist under /api/v1/staff/auth/password.
+      parameters: []
+      responses:
+        '202':
+          description: reset requested
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+              - email
+    put:
+      summary: Set a new password
+      tags:
+      - Auth — Admin
+      description: Applies a new password using the token from the reset email.
+      parameters: []
+      responses:
+        '204':
+          description: password changed
+        '422':
+          description: invalid or expired token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+              required:
+              - token
+              - password
+  "/api/v1/staff/visit_assignments/{visit_assignment_id}/clock":
+    parameters:
+    - name: visit_assignment_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Clock in/out of a visit (geofenced)
+      tags:
+      - Clocking
+      security:
+      - bearerAuth: []
+      description: Live clock-in/out at the service user's home. Within 150 m -> pass;
+        outside -> 422 too_far; no GPS -> allowed + flagged. Idempotent on client_event_id.
+      parameters: []
+      responses:
+        '201':
+          description: clocked in (geofence pass)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                  lifecycle_state:
+                    type: string
+                  geofence:
+                    type: string
+                  distance_m:
+                    type: integer
+                    nullable: true
+        '422':
+          description: too far from the home
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  distance_m:
+                    type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - clock_in
+                  - clock_out
+                client_event_id:
+                  type: string
+                  format: uuid
+                occurred_at:
+                  type: string
+                  format: date-time
+                lat:
+                  type: number
+                  nullable: true
+                lng:
+                  type: number
+                  nullable: true
+                accuracy_m:
+                  type: integer
+                  nullable: true
+                device_fingerprint:
+                  type: string
+                  format: uuid
+                  nullable: true
+              required:
+              - kind
+              - client_event_id
+              - occurred_at
+  "/api/v1/staff/sync/events":
+    post:
+      summary: Sync offline clock events (batch, idempotent)
+      tags:
+      - Sync
+      security:
+      - bearerAuth: []
+      description: Uploads the PWA outbox. Each event is idempotent on client_event_id;
+        out-of-range offline clock-ins are recorded + flagged, never dropped.
+      parameters: []
+      responses:
+        '200':
+          description: ingest results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        client_event_id:
+                          type: string
+                        status:
+                          type: string
+                        geofence:
+                          type: string
+                          nullable: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      visit_assignment_id:
+                        type: integer
+                      kind:
+                        type: string
+                      client_event_id:
+                        type: string
+                      occurred_at:
+                        type: string
+                      lat:
+                        type: number
+                        nullable: true
+                      lng:
+                        type: number
+                        nullable: true
+  "/api/v1/staff/sync/changes":
+    get:
+      summary: Download visits to cache offline
+      tags:
+      - Sync
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: since
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      description: The carer's non-terminal assigned visits + service-user home coords
+        for the offline geofence.
+      responses:
+        '200':
+          description: changeset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                  cursor:
+                    type: string
+                  visits:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/VisitAssignment"
+  "/api/v1/admin/visits/generate":
+    post:
+      summary: Generate dated visits from care packages
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: visits created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date
+                to:
+                  type: string
+                  format: date
+              required:
+              - from
+              - to
+  "/api/v1/admin/visit_assignments":
+    post:
+      summary: Assign a carer to a visit
+      tags:
+      - Rota
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: assigned
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/VisitAssignment"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_id:
+                  type: integer
+                employee_id:
+                  type: integer
+              required:
+              - visit_id
+              - employee_id
+  "/api/v1/staff/webauthn/registration/options":
+    post:
+      summary: Passkey registration options
+      tags:
+      - WebAuthn
+      security:
+      - bearerAuth: []
+      description: Returns WebAuthn PublicKeyCredentialCreationOptions plus a signed
+        challenge_token to echo back.
+      responses:
+        '200':
+          description: creation options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge_token:
+                    type: string
+                  options:
+                    type: object
+                    description: PublicKeyCredentialCreationOptions (base64url fields)
+                      for navigator.credentials.create()
+  "/api/v1/staff/webauthn/registration":
+    post:
+      summary: Register a passkey
+      tags:
+      - WebAuthn
+      security:
+      - bearerAuth: []
+      description: Verifies the attestation from navigator.credentials.create() and
+        stores the public-key credential.
+      parameters: []
+      responses:
+        '201':
+          description: passkey stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  nickname:
+                    type: string
+                    nullable: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                challenge_token:
+                  type: string
+                credential:
+                  type: object
+                  description: PublicKeyCredential from navigator.credentials.create()
+                nickname:
+                  type: string
+              required:
+              - challenge_token
+              - credential
+  "/api/v1/staff/webauthn/authentication/options":
+    post:
+      summary: Passkey authentication options
+      tags:
+      - WebAuthn
+      description: Returns PublicKeyCredentialRequestOptions for a passwordless (biometric)
+        login.
+      parameters: []
+      responses:
+        '200':
+          description: request options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge_token:
+                    type: string
+                  options:
+                    type: object
+                    description: PublicKeyCredentialRequestOptions for navigator.credentials.get()
+        '404':
+          description: no passkey enrolled
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+              - email
+  "/api/v1/staff/webauthn/authentication":
+    post:
+      summary: Log in with a passkey (biometric)
+      tags:
+      - WebAuthn
+      description: Verifies the assertion from navigator.credentials.get() and issues
+        an access token.
+      parameters: []
+      responses:
+        '200':
+          description: authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                  employee:
+                    "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                challenge_token:
+                  type: string
+                credential:
+                  type: object
+              required:
+              - challenge_token
+              - credential

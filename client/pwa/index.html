@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0"
+    />
+    <meta name="theme-color" content="#10b3c6" />
+    <meta name="description" content="Clock in and out, view shifts and message your team." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Pinnacle Care" />
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <!-- iOS ignores the manifest for the home screen icon and uses this. It was
+         pointing at the full landscape logo, which iOS then squashed. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <title>Best Pinnacle Care — Carer</title>
+    <script>
+      // Apply the saved theme before first paint so a dark-mode user never sees
+      // a white flash on launch. Falls back to the OS preference.
+      (function () {
+        try {
+          var saved = localStorage.getItem('bpc.theme');
+          var dark =
+            saved === 'dark' ||
+            (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', dark ? '#0f171e' : '#10b3c6');
+          // Larger text preference, applied before paint to avoid a reflow.
+          document.documentElement.dataset.textSize =
+            localStorage.getItem('bpc.textSize') === 'large' ? 'large' : 'normal';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+    <style>
+      /* Paint the brand immediately, before any JS or CSS bundle arrives, so a
+         cold PWA launch never flashes a blank screen. */
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        z-index: 200;
+        transition: opacity 0.3s ease;
+      }
+      :root[data-theme='dark'] #boot {
+        background: #0f171e;
+      }
+      /* The logo is dark-line artwork, so lift it on a dark background. */
+      :root[data-theme='dark'] #boot img {
+        filter: brightness(1.9) saturate(1.15);
+      }
+      #boot img {
+        width: min(58vw, 220px);
+      }
+      #boot.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot"><img src="/logo.png" alt="Best Pinnacle Care" /></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Remove the boot cover once React has mounted something.
+      window.addEventListener('DOMContentLoaded', () => {
+        const boot = document.getElementById('boot');
+        const root = document.getElementById('root');
+        const done = () => {
+          boot.classList.add('is-hidden');
+          setTimeout(() => boot.remove(), 320);
+        };
+        if (root.childElementCount) return done();
+        new MutationObserver((_, obs) => {
+          if (root.childElementCount) {
+            obs.disconnect();
+            done();
+          }
+        }).observe(root, { childList: true });
+      });
+    </script>
+  </body>
+</html>
