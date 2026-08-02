@@ -190,6 +190,14 @@ jobs:
             yarn run test
           else
             if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            # The PWA's `test` script is Playwright, and a runner has no
+            # browsers on it. Without this the suite fails on a missing
+            # executable, which reads like a broken test and is not one.
+            # Chromium only: both projects here (Pixel 7, Desktop Chrome) are
+            # Chromium, so pulling Firefox and WebKit would be a slow no-op.
+            if [ -f playwright.config.js ]; then
+              npx playwright install --with-deps chromium
+            fi
             npm run lint --if-present
             npm run typecheck --if-present
             npm run build --if-present

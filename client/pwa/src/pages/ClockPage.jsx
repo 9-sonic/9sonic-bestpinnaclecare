@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
 import { getCurrentLocation } from '../utils/geolocation.js';
-import { formatTime, formatElapsed } from '../utils/format.js';
+import { formatElapsed } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Dial from '../components/clock/Dial.jsx';

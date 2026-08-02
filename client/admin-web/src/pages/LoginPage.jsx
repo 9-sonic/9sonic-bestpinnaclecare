@@ -69,7 +69,7 @@ export default function LoginPage() {
         </div>
 
         <p className="auth__blurb">
-          The live board, the rota and the week's hours. Sign in with your office account.
+          The live board, the rota and the week&apos;s hours. Sign in with your office account.
         </p>
 
         <ul className="auth__points">

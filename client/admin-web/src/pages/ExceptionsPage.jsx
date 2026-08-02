@@ -118,7 +118,7 @@ function CorrectionDialog({ open, onClose, assignment, onDone }) {
       <div className="note">
         <Icon name="shield" size={16} />
         <span>
-          The carer's original record is not changed. This is added alongside it, recorded against
+          The carer&apos;s original record is not changed. This is added alongside it, recorded against
           your name, and both are kept in the audit history.
         </span>
       </div>

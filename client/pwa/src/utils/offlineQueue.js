@@ -71,7 +71,7 @@ export function peekQueue() {
 
 // Strips the local bookkeeping fields the API does not expect.
 export function toPayload(items = read()) {
-  // eslint-disable-next-line no-unused-vars
+   
   return items.map(({ _attempts, _queuedAt, ...event }) => event);
 }
 

@@ -6,7 +6,6 @@ import { getClockStatus } from '../api/clock.js';
 import { listShifts } from '../api/shifts.js';
 import { listNotifications, markAllRead } from '../api/notifications.js';
 import { useMenu } from '../components/layout/MenuContext.js';
-import Card from '../components/common/Card.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Avatar from '../components/common/Avatar.jsx';
 import Button from '../components/common/Button.jsx';
