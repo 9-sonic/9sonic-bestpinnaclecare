@@ -1,8 +1,9 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { toShift, toShifts } from './adapters.js';
+import { toShifts } from './adapters.js';
 import { newUuid, deviceFingerprint } from '../utils/ids.js';
+import { toggleBreak as toggleLocalBreak } from '../utils/breaks.js';
 
 // Clocking is keyed on the visit assignment, and every event carries a
 // client-generated UUID. The server treats that UUID as the identity of the
@@ -52,7 +53,12 @@ export async function getClockStatus() {
 
 // Breaks are not modelled in the API. The schema carries break_minutes on the
 // visit and the timesheet line, but nothing records a carer starting one, so
-// this is local only. See api_missing.md.
+// this stays on the device. See gap 3 in suggestedMissingEndpoints.md.
+//
+// Identical on both paths deliberately: the previous version went through the
+// mock API, which looked the visit up in its fixture table and threw a 404 for
+// any real visit id — so the Break button was broken the moment the app pointed
+// at a live API.
 export async function toggleBreak({ shiftId }) {
-  return toShift(await mock.toggleBreak({ shiftId }));
+  return toggleLocalBreak(shiftId);
 }

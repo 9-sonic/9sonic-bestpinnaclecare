@@ -1,5 +1,12 @@
 import env from '../config/env.js';
-import { getToken, clearToken } from '../utils/storage.js';
+import {
+  getToken,
+  setToken,
+  clearToken,
+  getRefreshToken,
+  setRefreshToken,
+  setTokenExpiry,
+} from '../utils/storage.js';
 
 // ---------------------------------------------------------------------------
 // HTTP client for the Best Pinnacle Care Rails API.
@@ -54,8 +61,77 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;
 }
 
-async function request(path, { method = 'GET', body, headers = {}, signal, auth = true } = {}) {
+// ---------------------------------------------------------------------------
+// Token refresh.
+//
+// A carer opens the app at 07:00 and works until 20:00, mostly with the screen
+// locked. If the access token expires mid-round, bouncing them to a sign-in
+// screen on someone's doorstep takes the outbox with it. So a 401 is treated as
+// "try once to get a new token", and only a failed refresh signs them out.
+//
+// Single-flight: a screen that fires four requests at once must not send four
+// refreshes. The first caller does the work and the rest await the same promise.
+// This matters more than usual here because the server rotates the token on
+// every use — a second refresh with the old token would look like a stolen
+// token and revoke the entire chain.
+//
+// The API does not return a refresh token from the staff login yet (see
+// suggestedMissingEndpoints.md), so in practice this stays dormant until it
+// does. Written now so it starts working the day login includes one, with no
+// further change here.
+// ---------------------------------------------------------------------------
+let refreshInFlight = null;
+
+async function refreshAccessToken() {
+  const refresh_token = getRefreshToken();
+  if (!refresh_token) return false;
+
+  refreshInFlight ??= (async () => {
+    try {
+      const res = await fetch(`${env.apiBaseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token }),
+      });
+      if (!res.ok) return false;
+
+      const data = await res.json().catch(() => null);
+      if (!data?.access) return false;
+
+      setToken(data.access);
+      // Rotated: store the new one or the next refresh presents a revoked token.
+      if (data.refresh_token) setRefreshToken(data.refresh_token);
+      if (data.access_expires_at) setTokenExpiry(data.access_expires_at);
+      return true;
+    } catch {
+      // Offline during a refresh is not an expired session. Report failure so
+      // the original request surfaces its own network error.
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+async function request(
+  path,
+  { method = 'GET', body, headers = {}, signal, auth = true, _retried = false } = {}
+) {
   const token = auth ? getToken() : null;
+
+  // No base URL and not in mock mode means every path below would be requested
+  // relative to the app's own origin. A static host answers an unknown path
+  // with index.html and a 200, so the response would parse as "no data" rather
+  // than as a failure, and the carer would get empty screens with no error —
+  // the app looking calm and knowing nothing. Fail here instead.
+  if (!env.apiBaseUrl) {
+    throw new ApiError('This app is not configured to reach the care system yet.', {
+      status: 0,
+      code: 'api_base_url_missing',
+    });
+  }
 
   const finalHeaders = {
     Accept: 'application/json',
@@ -85,10 +161,25 @@ async function request(path, { method = 'GET', body, headers = {}, signal, auth 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json().catch(() => null) : null;
 
+  // A successful response that is not JSON is not a successful response. This
+  // is what a misrouted request looks like: the web server returns the app's
+  // own index.html with a 200, and without this the screen would treat an HTML
+  // page as an empty result and show nothing at all.
+  if (response.ok && !isJson) {
+    throw new ApiError('The care system sent something unexpected. Please try again.', {
+      status: response.status,
+      code: 'unexpected_response',
+    });
+  }
+
   if (!response.ok) {
     const code = data?.error;
 
-    if (response.status === 401) {
+    if (response.status === 401 && auth) {
+      // One attempt at a new access token before giving up on the session.
+      if (!_retried && (await refreshAccessToken())) {
+        return request(path, { method, body, headers, signal, auth, _retried: true });
+      }
       clearToken();
       onUnauthorized?.();
     }

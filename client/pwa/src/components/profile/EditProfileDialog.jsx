@@ -10,11 +10,15 @@ import { updateProfile } from '../../api/auth.js';
 // are set by the office, so they are shown read only.
 export default function EditProfileDialog({ open, onClose, user, onSaved }) {
   const toast = useToast();
+  // Emergency contact is two fields because the API stores two
+  // (emergency_contact_name and emergency_contact_phone). One combined box
+  // would have to be split on save, and "Jane 07700 900000" has no reliable
+  // split — the number is the part that matters in an emergency.
   const [form, setForm] = useState({
     name: user?.name ?? '',
-    email: user?.email ?? '',
     phone: user?.phone ?? '',
-    emergencyContact: user?.emergencyContact ?? '',
+    emergencyContactName: user?.emergencyContactName ?? '',
+    emergencyContactPhone: user?.emergencyContactPhone ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -24,7 +28,6 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
   function validate() {
     const next = {};
     if (!form.name.trim()) next.name = 'Enter your name';
-    if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = 'Enter a valid email address';
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -81,17 +84,19 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
           {errors.name && <span className="field__error">{errors.name}</span>}
         </label>
 
+        {/* Email is the sign-in identifier and is office controlled: PATCH
+            /staff/me does not accept it. Shown, not editable — a box that
+            takes a change and discards it is worse than no box. */}
         <label className="field">
           <span className="field__label">Email address</span>
           <input
-            className={`field__input${errors.email ? ' field__input--error' : ''}`}
+            className="field__input"
             type="email"
-            value={form.email}
-            onChange={set('email')}
-            autoComplete="email"
-            inputMode="email"
+            value={user?.email ?? ''}
+            readOnly
+            tabIndex={-1}
+            aria-describedby="profile-readonly-note"
           />
-          {errors.email && <span className="field__error">{errors.email}</span>}
         </label>
 
         <label className="field">
@@ -108,20 +113,32 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
         </label>
 
         <label className="field">
-          <span className="field__label">Emergency contact</span>
+          <span className="field__label">Emergency contact name</span>
           <input
             className="field__input"
-            value={form.emergencyContact}
-            onChange={set('emergencyContact')}
-            placeholder="Name and number"
+            value={form.emergencyContactName}
+            onChange={set('emergencyContactName')}
+            placeholder="Who should we call"
           />
         </label>
 
-        <div className="readonly-note">
+        <label className="field">
+          <span className="field__label">Emergency contact number</span>
+          <input
+            className="field__input"
+            type="tel"
+            value={form.emergencyContactPhone}
+            onChange={set('emergencyContactPhone')}
+            inputMode="tel"
+            placeholder="07700 900000"
+          />
+        </label>
+
+        <div className="readonly-note" id="profile-readonly-note">
           <Icon name="info" size={15} />
           <span>
-            Staff ID {user?.staffId} and your role are managed by the office. Contact your manager
-            to change them.
+            Your email address, staff ID {user?.staffId} and role are managed by the office.
+            Contact your manager to change them.
           </span>
         </div>
       </form>

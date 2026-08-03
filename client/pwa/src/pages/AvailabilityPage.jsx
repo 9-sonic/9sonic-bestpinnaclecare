@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Card from '../components/common/Card.jsx';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
-import { useAuth } from '../hooks/useAuth.js';
 import { useToast } from '../context/ToastContext.jsx';
-import { updateAvailability } from '../api/auth.js';
+import { getAvailability, updateAvailability } from '../api/auth.js';
 
 const DAYS = [
   { key: 'mon', label: 'Monday' },
@@ -38,9 +37,27 @@ const DEFAULT = {
 export default function AvailabilityPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, setUser } = useAuth();
-  const [avail, setAvail] = useState(() => user?.availabilityDays ?? DEFAULT);
+  const [avail, setAvail] = useState(DEFAULT);
   const [saving, setSaving] = useState(false);
+
+  // What the office currently holds, not what this device last guessed. DEFAULT
+  // is only ever a starting shape for the grid: showing a carer a pattern they
+  // did not set, as though they had, is how a rota gets built around a lie.
+  useEffect(() => {
+    let active = true;
+    getAvailability()
+      .then((days) => {
+        if (active && days) setAvail(days);
+      })
+      .catch(() => {
+        if (active) toast.error('Could not load your saved availability');
+      });
+    return () => {
+      active = false;
+    };
+    // toast is stable for the life of the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = (day, slot) =>
     setAvail((a) => {
@@ -54,8 +71,7 @@ export default function AvailabilityPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      const updated = await updateAvailability(avail);
-      setUser(updated);
+      await updateAvailability(avail);
       toast.success('Availability sent to the office');
     } catch {
       toast.error('Could not save availability');

@@ -56,7 +56,13 @@ export default function PersonalDetailsPage() {
         <DetailRow icon="user" label="Full name" value={user?.name} />
         <DetailRow icon="chat" label="Email" value={user?.email} />
         <DetailRow icon="phone" label="Mobile" value={user?.phone} />
-        <DetailRow icon="alert" label="Emergency contact" value={user?.emergencyContact} />
+        <DetailRow
+          icon="alert"
+          label="Emergency contact"
+          value={[user?.emergencyContactName, user?.emergencyContactPhone]
+            .filter(Boolean)
+            .join(' · ')}
+        />
       </Card>
 
       <p className="list-group__label">Employment</p>

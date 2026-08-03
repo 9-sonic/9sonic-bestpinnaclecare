@@ -9,9 +9,15 @@ const env = {
   mapsApiKey: import.meta.env.VITE_MAPS_API_KEY ?? '',
   appName: import.meta.env.VITE_APP_NAME ?? 'Best Pinnacle Care',
   // When true, the app uses in-browser mock data instead of the Rails API.
-  // Flip to false (in .env) once the backend is ready. Defaults to true so
-  // the frontend runs standalone out of the box.
-  useMock: (import.meta.env.VITE_USE_MOCK ?? 'true') !== 'false',
+  //
+  // Defaults to FALSE: the app talks to the real API unless something asks it
+  // not to. The default used to be true, which meant any deployment that
+  // forgot to set this would serve invented shifts to a real carer — a screen
+  // full of confident, wrong information is worse than an error.
+  //
+  // The Playwright suite sets VITE_USE_MOCK=true explicitly, so it keeps
+  // running against fixtures with no backend.
+  useMock: (import.meta.env.VITE_USE_MOCK ?? 'false') === 'true',
   isDev: import.meta.env.DEV,
 };
 

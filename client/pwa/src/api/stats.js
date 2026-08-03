@@ -1,11 +1,12 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { toShifts, toTimesheet, summarise } from './adapters.js';
+import { toShifts, toTimesheet, summarise, toSummary } from './adapters.js';
 
-// There is no dashboard endpoint for carers, so the Home and Overview figures
-// are derived from the visit list and the timesheet. One /staff/summary
-// endpoint would save two round trips: see api_missing.md.
+// The Home and Overview figures come from GET /staff/summary in one call. They
+// used to be derived from the visit list plus the timesheet — two round trips
+// on a phone, every time the Home screen opened. That derivation is kept as a
+// fallback for the mock path and for an API that does not have the route yet.
 
 function weekRange(offsetWeeks = 0) {
   const now = new Date();
@@ -20,6 +21,22 @@ function weekRange(offsetWeeks = 0) {
 export async function getSummary() {
   const { from, to } = weekRange();
 
+  if (!env.useMock) {
+    try {
+      return toSummary(await api.get('/staff/summary', { from, to }));
+    } catch (error) {
+      // Anything other than a missing route is a real failure the screen should
+      // see. A 404 means this deployment predates the endpoint, so fall through
+      // to working the numbers out the old way.
+      if (error?.status !== 404) throw error;
+    }
+  }
+
+  return deriveSummary({ from, to });
+}
+
+// The original derivation: visit list + timesheet, totalled client side.
+async function deriveSummary({ from, to }) {
   const [visits, lines] = await Promise.all([
     env.useMock ? mock.listVisits({ from, to }) : api.get('/staff/visits', { from, to }),
     env.useMock ? mock.getTimesheet() : api.get('/staff/timesheet'),
@@ -43,7 +60,8 @@ export async function getSummary() {
     weekly: {
       hours: hours.map((h) => Math.round(h * 10) / 10),
       visits: visitsPerDay,
-      // Mileage is recorded nowhere in the API. See api_missing.md.
+      // Mileage cannot be derived from visits or timesheet lines. The live
+      // path gets it from /staff/summary; there is nothing to read here.
       miles: Array(7).fill(0),
     },
   };

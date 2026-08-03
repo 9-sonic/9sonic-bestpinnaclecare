@@ -1,10 +1,19 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { toUser } from './adapters.js';
+import { setRefreshToken, setTokenExpiry } from '../utils/storage.js';
+import { toUser, toAvailabilityDays, toAvailabilityEntries } from './adapters.js';
 
 // Carer authentication. The API keeps admins and employees in separate tables
 // with separate login endpoints, so this app only ever talks to /staff.
+
+// The staff login is documented as returning { access, employee } only. If it
+// ever also returns a refresh token, this picks it up with no further change —
+// see the refresh handling in client.js.
+function storeSessionExtras(res) {
+  if (res?.refresh_token) setRefreshToken(res.refresh_token);
+  if (res?.access_expires_at) setTokenExpiry(res.access_expires_at);
+}
 
 // Returns either { token, user } or { mfaRequired: true, mfaToken }.
 export async function login({ email, password }) {
@@ -15,6 +24,8 @@ export async function login({ email, password }) {
   if (res.mfa_required) {
     return { mfaRequired: true, mfaToken: res.mfa_token };
   }
+
+  storeSessionExtras(res);
   return { token: res.access, user: toUser(res.employee) };
 }
 
@@ -24,6 +35,7 @@ export async function completeMfa({ mfaToken, otpCode }) {
     ? await mock.completeMfa({ mfaToken, otpCode })
     : await api.post('/auth/mfa', { mfa_token: mfaToken, otp_code: otpCode }, { auth: false });
 
+  storeSessionExtras(res);
   return { token: res.access, user: toUser(res.employee ?? res.admin) };
 }
 
@@ -49,14 +61,63 @@ export function resetPassword({ token, password }) {
   return api.put('/staff/auth/password', { token, password }, { auth: false });
 }
 
-// No endpoint exists for a carer to edit their own profile or availability, so
-// these stay on local data even against the live API. See api_missing.md.
-export async function updateProfile(patch) {
-  const res = await mock.updateProfile(patch);
-  return toUser(res);
+// ---------------------------------------------------------------------------
+// Profile — PATCH /staff/me
+//
+// The endpoint takes first_name and last_name separately, so the single "Full
+// name" field is split on the last space. That is wrong for some names, which
+// is part of why the office can still correct it.
+//
+// Email is deliberately not sent: it is the login identifier and stays office
+// controlled, so the endpoint does not accept it.
+// ---------------------------------------------------------------------------
+function splitName(name = '') {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first_name: '', last_name: '' };
+  if (parts.length === 1) return { first_name: parts[0], last_name: '' };
+  return { first_name: parts.slice(0, -1).join(' '), last_name: parts.at(-1) };
 }
 
-export async function updateAvailability(availability) {
-  const res = await mock.updateAvailability(availability);
-  return toUser(res);
+export async function updateProfile(patch) {
+  if (env.useMock) return toUser(await mock.updateProfile(patch));
+
+  const body = {
+    ...splitName(patch.name),
+    phone: patch.phone ?? null,
+    emergency_contact_name: patch.emergencyContactName ?? null,
+    emergency_contact_phone: patch.emergencyContactPhone ?? null,
+  };
+
+  return toUser(await api.patch('/staff/me', body));
+}
+
+// ---------------------------------------------------------------------------
+// Availability — GET/PUT /staff/availability
+//
+// The screen thinks in days holding slots; the API stores one row per weekday
+// per slot. Saving reads first so the `night` slot — which the API models and
+// the screen does not render — is carried through instead of being cleared by
+// a replace the carer never saw.
+// ---------------------------------------------------------------------------
+export async function getAvailability() {
+  if (env.useMock) return toAvailabilityDays(await mock.getAvailability());
+  return toAvailabilityDays(await api.get('/staff/availability'));
+}
+
+export async function updateAvailability(days) {
+  if (env.useMock) {
+    await mock.updateAvailability(days);
+    return days;
+  }
+
+  let previous = null;
+  try {
+    previous = await api.get('/staff/availability');
+  } catch {
+    // A failed read must not block the save. Worst case the night slot resets,
+    // which the office can see, rather than the save failing silently.
+  }
+
+  await api.put('/staff/availability', { entries: toAvailabilityEntries(days, previous) });
+  return days;
 }
