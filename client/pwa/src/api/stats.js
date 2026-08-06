@@ -87,6 +87,69 @@ export async function listEvents() {
   return events.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 10);
 }
 
+// The full clock in/out history for the history screen, paired into visits so
+// each row can show how long the visit ran.
+//
+// Two things the API does not give us, both noted in api_missing.md:
+//
+//   There is no verification flag on a clock event. "Verified" here means the
+//   assignment reached a settled state; "Review" means the office has it
+//   flagged as pending_review. That is an honest reading of what we have, but
+//   it is not the same as the office having checked the location, and the UI
+//   should not be read as claiming that.
+//
+//   There is no endpoint for history beyond the current week, so this is the
+//   same week window as the rest of the screen. Paging needs a date range.
+export async function listClockHistory() {
+  const { from, to } = weekRange();
+  const res = env.useMock
+    ? await mock.listVisits({ from, to })
+    : await api.get('/staff/visits', { from, to });
+
+  const entries = [];
+  toShifts(res).forEach((s) => {
+    const state =
+      s.lifecycleState === 'pending_review'
+        ? 'review'
+        : s.lifecycleState === 'missed'
+          ? 'missing'
+          : 'verified';
+
+    // Minutes on site, when both ends exist.
+    const worked =
+      s.clockInAt && s.clockOutAt
+        ? Math.round((new Date(s.clockOutAt) - new Date(s.clockInAt)) / 60000)
+        : null;
+
+    if (s.clockOutAt) {
+      entries.push({
+        id: `${s.id}-out`,
+        kind: 'out',
+        client: s.client,
+        place: s.address,
+        at: s.clockOutAt,
+        state,
+        minutes: worked,
+      });
+    }
+    if (s.clockInAt) {
+      entries.push({
+        id: `${s.id}-in`,
+        kind: 'in',
+        client: s.client,
+        place: s.address,
+        at: s.clockInAt,
+        state,
+        // An open shift has no duration yet, which the row says rather than
+        // showing a running total that would be wrong the moment it renders.
+        minutes: s.clockOutAt ? null : 'open',
+      });
+    }
+  });
+
+  return entries.sort((a, b) => new Date(b.at) - new Date(a.at));
+}
+
 export async function getTimesheet() {
   const lines = env.useMock ? await mock.getTimesheet() : await api.get('/staff/timesheet');
   return toTimesheet(lines);

@@ -209,15 +209,11 @@ export default function ClockPage() {
           <h2 className="clockhead__name">{shift ? shift.client : 'No visit selected'}</h2>
           {shift && <p className="clockhead__addr">{shift.address.split(',')[0]}</p>}
         </div>
-        {/* The designs add a dedicated "Clock ins and outs" screen behind this
-            button. Until that screen exists it goes to Overview, which already
-            lists recent clock events. Pointing it at a route that is not
-            registered would just dead-end the carer. */}
         <Button
           variant="white"
           size="sm"
           className="btn--pill"
-          onClick={() => navigate('/overview')}
+          onClick={() => navigate('/clock/history')}
         >
           History
         </Button>

@@ -10962,3 +10962,253 @@ body:has(.drawer-backdrop) .app-content {
 .chart__bar { background: var(--chart-bar); }
 .chart__bar--weekend { background: var(--chart-bar-weekend); }
 .chart__bar--active { background: var(--grad-accent); }
+
+/* ===========================================================================
+   Clock ins and outs.
+
+   Built from the Penpot board "Clock History" rather than from a screenshot,
+   so the sizes and weights below are the design's actual values: the title is
+   20/800, the day heading 13.5/800, a row name 14/700, the sub line 11.5/500,
+   badges 10/700 in a 20px pill, and the direction tile 40x40 at radius 12.
+
+   Colours go through the existing tokens rather than the raw hexes from the
+   board, so this screen still follows the theme and stays legible in dark
+   mode. The board's greys map onto text / muted / faint, and its green and
+   amber chips onto the success and warning pairs.
+   =========================================================================== */
+
+.chist__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.chist__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.chist__count {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+/* -- filters -------------------------------------------------------------- */
+
+/* Scrolls sideways rather than wrapping: four chips do not fit a small phone,
+   and a wrapped second row pushes the first entry off the screen. */
+.chist__filters {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: 0 var(--space-4) var(--space-4);
+  scrollbar-width: none;
+}
+
+.chist__filters::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.chip:hover {
+  background: var(--brand-tint);
+}
+
+.chip--on {
+  background: var(--grad-brand);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* -- day groups ----------------------------------------------------------- */
+
+.chist__day {
+  margin-bottom: var(--space-4);
+}
+
+.chist__dayhead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.chist__dayname {
+  font-size: var(--text-md);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.chist__daydate {
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}
+
+/* Pushed to the right, and allowed to wrap under rather than squeeze the
+   heading, since "2 visits · 3h 41m" is longer than it looks. */
+.chist__daysum {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  text-align: right;
+}
+
+.chist__card {
+  margin: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+/* -- rows ----------------------------------------------------------------- */
+
+.chist__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 14px 16px;
+}
+
+.chist__row + .chist__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.chist__dir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+}
+
+.chist__dir--in {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.chist__dir--out {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.chist__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.chist__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.chist__name {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.chist__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chist__badge--verified {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.chist__badge--review {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.chist__badge--missing {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.chist__where {
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.chist__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chist__time {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chist__dur {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A shift still running. Coloured, because it is the one row on the screen
+   that is still changing. */
+.chist__open {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--brand-text);
+}
+
+.chist__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: var(--space-2) var(--space-4) var(--space-4);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.chist__note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
