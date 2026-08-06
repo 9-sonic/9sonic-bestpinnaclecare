@@ -14,37 +14,60 @@ import Skeleton from '../components/common/Skeleton.jsx';
 import { formatTime, formatTimeRange, formatDayLabel } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
 
-// The carer's landing screen.
-//
-// Structure follows the question a carer actually opens the app to answer:
-// "what am I doing next, and am I meant to be somewhere now?" So the running or
-// next visit is the largest thing on the page and everything else is support.
-// The week's figures sit underneath as a quiet strip, not four competing cards.
-
-function StatCard({ icon, tone, label, value, hint, loading, onClick }) {
+// The two gradient cards at the top of the design. Each carries a headline
+// figure and how it has moved, with a small trend chip in the corner.
+function HeroStat({ label, value, delta, loading, onClick }) {
+  const up = (delta ?? 0) >= 0;
   return (
-    <button type="button" className="stat-card" onClick={() => { tapFeedback(); onClick?.(); }}>
-      <span className={`stat-card__icon stat-card__icon--${tone}`}>
-        <Icon name={icon} size={16} />
+    <button type="button" className="hero" onClick={() => { tapFeedback(); onClick?.(); }}>
+      <span className="hero__top">
+        <span className="hero__label">{label}</span>
+        <span className="hero__chip">
+          <Icon name={up ? 'trend' : 'arrowDown'} size={13} />
+        </span>
       </span>
+
       {loading ? (
-        <Skeleton w="50%" h={20} />
+        <Skeleton w="60%" h={26} />
       ) : (
-        <span className="stat-card__value">{value}</span>
+        <span className="hero__value">{value}</span>
       )}
-      <span className="stat-card__label">{label}</span>
-      {hint && <span className="stat-card__hint">{hint}</span>}
+
+      <span className="hero__delta">
+        {delta == null ? '\u00a0' : `${up ? '+' : ''}${delta}%`}
+      </span>
     </button>
   );
 }
 
-// Shortcuts to the things that are not on the tab bar. Without these the page
-// ended below the week figures with a large empty area on a tall phone.
-const SHORTCUTS = [
-  { to: '/timesheet', icon: 'wallet', label: 'Timesheet', hint: 'Check your hours' },
-  { to: '/overview', icon: 'trend', label: 'Overview', hint: 'Your week in numbers' },
-  { to: '/profile/availability', icon: 'calendar', label: 'Availability', hint: 'Days you can work' },
-  { to: '/help', icon: 'help', label: 'Help', hint: 'Answers and contacts' },
+// The 2x2 grid underneath: a pastel icon tile, an uppercase label, then the
+// figure with its unit trailing in a lighter weight.
+function MetricCard({ icon, tint, label, value, unit, loading, onClick }) {
+  return (
+    <button type="button" className="metric" onClick={() => { tapFeedback(); onClick?.(); }}>
+      <span className={`tile-icon tile-icon--${tint}`}>
+        <Icon name={icon} size={17} />
+      </span>
+      <span className="metric__label">{label}</span>
+      {loading ? (
+        <Skeleton w="55%" h={22} />
+      ) : (
+        <span className="metric__figure">
+          <span className="metric__value">{value}</span>
+          {unit && <span className="metric__unit">{unit}</span>}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// The destinations that are not on the tab bar. Kept short deliberately: a
+// shortcut row that lists everything is just a second menu.
+const QUICK = [
+  { to: '/timesheet', icon: 'wallet', label: 'Timesheet', tint: 'green' },
+  { to: '/overview', icon: 'trend', label: 'Overview', tint: 'purple' },
+  { to: '/notifications', icon: 'bell', label: 'Alerts', tint: 'amber' },
+  { to: '/help', icon: 'help', label: 'Help', tint: 'blue' },
 ];
 
 export default function HomePage() {
@@ -76,7 +99,6 @@ export default function HomePage() {
   }, []);
 
   const week = summary?.week;
-  const pct = week?.hoursTarget ? Math.min(100, Math.round((week.hoursWorked / week.hoursTarget) * 100)) : 0;
   const unread = notifications.filter((n) => !n.read).length;
 
   const today = useMemo(() => {
@@ -97,6 +119,16 @@ export default function HomePage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const firstName = user?.name?.split(' ')[0];
+  const todayLabel = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  // Progress towards the contracted week, shown as a bar under the metrics.
+  const target = week?.hoursTarget ?? 40;
+  const worked = week?.hours ?? 0;
+  const pct = target > 0 ? Math.min(100, Math.round((worked / target) * 100)) : 0;
 
   async function handleReadAll() {
     tapFeedback();
@@ -105,262 +137,223 @@ export default function HomePage() {
   }
 
   return (
-    <div className="page--flush">
-      <header className="home-top">
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="Open menu"
-          onClick={() => { tapFeedback(); openMenu(); }}
-        >
-          <Icon name="menu" size={21} />
+    <div className="page--flush home2">
+      <header className="home2__bar">
+        <button type="button" className="icon-btn" aria-label="Open menu" onClick={() => { tapFeedback(); openMenu(); }}>
+          <Icon name="menu" size={22} />
         </button>
 
-        <span className="home-top__brand">
-          <img src="/logo.png" alt="" className="home-top__logo" />
-        </span>
+        <h1 className="home2__title">Home</h1>
 
-        <div className="home-top__actions">
+        <div className="home2__actions">
           <button
             type="button"
-            className="icon-btn home-top__bell"
+            className="icon-btn home2__bell"
             aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
             onClick={() => { tapFeedback(); setBellOpen(true); }}
           >
-            <Icon name="bell" size={20} />
-            {unread > 0 && <span className="home-top__bell-count">{unread > 9 ? '9+' : unread}</span>}
+            <Icon name="dots" size={20} />
+            {unread > 0 && <span className="home2__dot" />}
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Your profile"
-            onClick={() => navigate('/profile')}
-          >
-            <Avatar name={user?.name ?? ''} src={user?.avatar} size={28} />
+          <button type="button" className="home2__avatar" aria-label="Your profile" onClick={() => navigate('/profile')}>
+            <Avatar name={user?.name ?? ''} src={user?.avatar} size={36} />
           </button>
         </div>
       </header>
 
-      <div className="home-greeting">
-        <p className="home-greeting__hello">
-          {greeting}
-          {firstName ? `, ${firstName}` : ''}
+      <div className="greet">
+        <p className="greet__hello">
+          {greeting}, <span>{firstName ?? 'there'}</span>
         </p>
-        <p className="home-greeting__sub">{formatDayLabel(new Date().toISOString())}</p>
+        <p className="greet__sub">{todayLabel}</p>
       </div>
 
-      {/* The one thing that matters most, given the biggest area on the page. */}
-      {loading ? (
-        <div className="focus-card focus-card--loading">
-          <Skeleton w="40%" h={13} />
-          <Skeleton w="70%" h={22} />
-          <Skeleton w="55%" h={13} />
+      <div className="hero-row">
+        <HeroStat
+          label="Active Shifts"
+          value={week?.shifts ?? 0}
+          delta={week?.shiftsDelta ?? null}
+          loading={loading}
+          onClick={() => navigate('/shifts')}
+        />
+        <HeroStat
+          label="Visits"
+          value={week?.visits ?? week?.shifts ?? 0}
+          delta={week?.visitsDelta ?? null}
+          loading={loading}
+          onClick={() => navigate('/overview')}
+        />
+      </div>
+
+      <div className="metric-grid">
+        <MetricCard
+          icon="calendar"
+          tint="blue"
+          label="Shifts"
+          value={week?.shifts ?? 0}
+          unit="this week"
+          loading={loading}
+          onClick={() => navigate('/shifts')}
+        />
+        <MetricCard
+          icon="clock"
+          tint="mint"
+          label="Hours"
+          value={week?.hours ?? 0}
+          unit="hrs"
+          loading={loading}
+          onClick={() => navigate('/overview')}
+        />
+        <MetricCard
+          icon="users"
+          tint="green"
+          label="Clients"
+          value={week?.clients ?? 0}
+          unit="active"
+          loading={loading}
+          onClick={() => navigate('/shifts')}
+        />
+        <MetricCard
+          icon="trend"
+          tint="purple"
+          label="Miles"
+          value={week?.miles ?? 0}
+          unit="mi"
+          loading={loading}
+          onClick={() => navigate('/timesheet')}
+        />
+      </div>
+
+      {/* Weekly progress. The four figures above say what has happened; this
+          says how much of the week is left, which is the thing carers actually
+          ask. */}
+      <section className="weekbar-card">
+        <div className="weekbar-card__top">
+          <span className="weekbar-card__label">Hours this week</span>
+          <span className="weekbar-card__value">
+            {worked}
+            <span className="weekbar-card__of">of {target}</span>
+          </span>
         </div>
-      ) : focus ? (
-        <section className={`focus-card${clock.clockedIn ? ' focus-card--live' : ''}`}>
-          <div className="focus-card__head">
-            <span className="focus-card__eyebrow">
-              {clock.clockedIn ? (
-                <>
-                  <span className="live-dot" aria-hidden="true" />
-                  On shift now
-                </>
-              ) : (
-                'Next visit'
-              )}
+        <div className="weekbar" role="img" aria-label={`${worked} of ${target} hours worked`}>
+          <span className="weekbar__fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="weekbar-card__foot">
+          <span>{pct}% complete</span>
+          <span>{Math.max(0, Math.round((target - worked) * 10) / 10)} hrs to go</span>
+        </div>
+      </section>
+
+      {/* Quick ways into the screens that are not on the tab bar. */}
+      <section className="quick">
+        <div className="section-head section-head--inset">
+          <span className="section-head__title">Quick actions</span>
+        </div>
+        <div className="quick__row">
+          {QUICK.map((q) => (
+            <button
+              key={q.to}
+              type="button"
+              className="quick__item"
+              onClick={() => { tapFeedback(); navigate(q.to); }}
+            >
+              <span className={`tile-icon tile-icon--${q.tint}`}>
+                <Icon name={q.icon} size={18} />
+              </span>
+              <span className="quick__label">{q.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Kept from the working build: the design shows the grid alone, but a
+          carer opening the app needs to see what they are doing next. */}
+      {focus && (
+        <section className="upnext2">
+          <div className="section-head section-head--inset">
+            <span className="section-head__title">
+              {clock.clockedIn ? 'On shift now' : 'Up next'}
             </span>
-            <span className="focus-card__time">
-              {clock.clockedIn ? `since ${formatTime(focus.clockInAt)}` : formatTime(focus.startsAt)}
-            </span>
+            <button type="button" className="section-head__link" onClick={() => navigate('/shifts')}>
+              See All
+            </button>
           </div>
 
           <button
             type="button"
-            className="focus-card__body"
+            className={`upnext2__card${clock.clockedIn ? ' upnext2__card--live' : ''}`}
             onClick={() => { tapFeedback(); navigate(`/shifts/${focus.id}`); }}
           >
             <Avatar name={focus.client} size={44} />
-            <span className="focus-card__who">
-              <span className="focus-card__name">{focus.client}</span>
-              <span className="focus-card__meta">
+            <span className="upnext2__body">
+              <span className="upnext2__name">{focus.client}</span>
+              <span className="upnext2__meta">
+                <Icon name="clock" size={13} />
                 {formatTimeRange(focus.startsAt, focus.endsAt)}
               </span>
-              <span className="focus-card__addr">
+              <span className="upnext2__addr">
                 <Icon name="pin" size={13} />
                 {focus.address.split(',')[0]}
               </span>
             </span>
-            <Icon name="chevronRight" size={18} />
+            <span className={`badge badge--${clock.clockedIn ? 'active' : 'upcoming'}`}>
+              {clock.clockedIn ? 'On shift' : 'Upcoming'}
+            </span>
           </button>
 
-          <div className="focus-card__actions">
-            <Button
-              size="md"
-              block
-              onClick={() => { tapFeedback(); navigate(`/clock?shift=${focus.id}`); }}
-            >
-              <Icon name={clock.clockedIn ? 'stop' : 'play'} size={14} filled />
+          <div className="upnext2__actions">
+            <Button size="lg" block onClick={() => navigate(`/clock?shift=${focus.id}`)}>
+              <Icon name={clock.clockedIn ? 'stop' : 'play'} size={15} filled />
               {clock.clockedIn ? 'Clock out' : 'Clock in'}
             </Button>
-            <Button
-              variant="white"
-              size="md"
-              onClick={() => { tapFeedback(); navigate(`/navigate/${focus.id}`); }}
-              aria-label="Directions"
-            >
-              <Icon name="location" size={15} />
-              Directions
-            </Button>
           </div>
-        </section>
-      ) : (
-        <section className="focus-card focus-card--clear">
-          <span className="focus-card__clear-icon">
-            <Icon name="check" size={22} />
-          </span>
-          <p className="focus-card__clear-title">
-            {doneToday > 0 ? "That's everything for today" : 'Nothing scheduled today'}
-          </p>
-          <p className="focus-card__clear-text">
-            {doneToday > 0
-              ? `${doneToday} ${doneToday === 1 ? 'visit' : 'visits'} completed. Enjoy the rest of your day.`
-              : 'Your visits will appear here once the office publishes the rota.'}
-          </p>
         </section>
       )}
 
-      {/* Week at a glance: one row, one rule, no competing cards. */}
-      <section className="week-strip" aria-label="This week">
-        <div className="week-strip__head">
-          <span className="week-strip__title">This week</span>
-          <button
-            type="button"
-            className="week-strip__link"
-            onClick={() => navigate('/overview')}
-          >
-            Details
-          </button>
-        </div>
-
-        <div
-          className="week-bar"
-          role="img"
-          aria-label={`${week?.hoursWorked ?? 0} of ${week?.hoursTarget ?? 40} hours worked`}
-        >
-          <span className="week-bar__fill" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="week-bar__caption">
-          <span>
-            <b>{week?.hoursWorked ?? 0}</b> of {week?.hoursTarget ?? 40} hours
-          </span>
-          <span>{pct}%</span>
-        </div>
-
-        {/* The four figures a carer checks, as tappable cards. Each one is a
-            way into the screen that explains it, so the grid is navigation as
-            well as summary. */}
-        <div className="stat-grid">
-          <StatCard
-            icon="calendar"
-            tone="info"
-            label="Visits"
-            value={week?.shifts ?? 0}
-            hint="scheduled"
-            loading={loading}
-            onClick={() => navigate('/shifts')}
-          />
-          <StatCard
-            icon="clock"
-            tone="teal"
-            label="Hours"
-            value={week?.hours ?? 0}
-            hint="logged"
-            loading={loading}
-            onClick={() => navigate('/overview')}
-          />
-          <StatCard
-            icon="users"
-            tone="green"
-            label="People"
-            value={week?.clients ?? 0}
-            hint="supported"
-            loading={loading}
-            onClick={() => navigate('/shifts')}
-          />
-          <StatCard
-            icon="check"
-            tone="purple"
-            label="Done"
-            value={doneToday}
-            hint="today"
-            loading={loading}
-            onClick={() => navigate('/overview')}
-          />
-        </div>
-      </section>
-
-      {remaining > 1 && (
-        <section className="upnext">
-          <div className="week-strip__head">
-            <span className="week-strip__title">Later today</span>
-            <button type="button" className="week-strip__link" onClick={() => navigate('/shifts')}>
-              All visits
-            </button>
+      {/* The rest of the day, so the screen answers more than one question. */}
+      {today.length > 1 && (
+        <section className="today">
+          <div className="section-head section-head--inset">
+            <span className="section-head__title">Today</span>
+            <span className="today__count">
+              {doneToday} of {today.length} done
+            </span>
           </div>
-          <div className="upnext__list">
+
+          <div className="today__list">
             {today
-              .filter((s) => s.status === 'upcoming' && s.id !== focus?.id)
-              .slice(0, 3)
+              .slice()
+              .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
               .map((s) => (
                 <button
                   key={s.id}
                   type="button"
-                  className="upnext__row"
+                  className={`today__row today__row--${s.status}`}
                   onClick={() => { tapFeedback(); navigate(`/shifts/${s.id}`); }}
                 >
-                  <span className="upnext__time">{formatTime(s.startsAt)}</span>
-                  <span className="upnext__who">
-                    <span className="upnext__name">{s.client}</span>
-                    <span className="upnext__addr">{s.address.split(',')[0]}</span>
+                  <span className="today__rail" aria-hidden="true">
+                    <span className="today__dot" />
                   </span>
-                  <Icon name="chevronRight" size={16} />
+                  <span className="today__time">{formatTime(s.startsAt)}</span>
+                  <span className="today__who">
+                    <span className="today__name">{s.client}</span>
+                    <span className="today__addr">{s.address.split(',')[0]}</span>
+                  </span>
+                  <Icon name="chevronRight" size={15} />
                 </button>
               ))}
           </div>
         </section>
       )}
 
-      <section className="shortcuts">
-        <div className="week-strip__head">
-          <span className="week-strip__title">Shortcuts</span>
-        </div>
-        <div className="shortcut-grid">
-          {SHORTCUTS.map((s) => (
-            <button
-              key={s.to}
-              type="button"
-              className="shortcut"
-              onClick={() => {
-                tapFeedback();
-                navigate(s.to);
-              }}
-            >
-              <span className="shortcut__icon">
-                <Icon name={s.icon} size={17} />
-              </span>
-              <span className="shortcut__text">
-                <span className="shortcut__label">{s.label}</span>
-                <span className="shortcut__hint">{s.hint}</span>
-              </span>
-              <Icon name="chevronRight" size={15} />
-            </button>
-          ))}
-        </div>
-      </section>
+      {remaining === 0 && today.length > 0 && (
+        <p className="home-note">
+          <Icon name="check" size={14} />
+          Everything for today is done. Nice work.
+        </p>
+      )}
 
-      {/* Reassurance rather than filler: this is the question carers ask most
-          about the app, and answering it on the home screen costs nothing. */}
-      <p className="home-footnote">
+      <p className="home-foot">
         <Icon name="pin" size={13} />
         Your location is only recorded when you clock in or out.
       </p>
@@ -370,14 +363,7 @@ export default function HomePage() {
         onClose={() => setBellOpen(false)}
         title="Notifications"
         footer={
-          <Button
-            block
-            variant="white"
-            onClick={() => {
-              setBellOpen(false);
-              navigate('/notifications');
-            }}
-          >
+          <Button block variant="white" onClick={() => { setBellOpen(false); navigate('/notifications'); }}>
             See all
           </Button>
         }
@@ -397,11 +383,7 @@ export default function HomePage() {
                   key={n.id}
                   type="button"
                   className={`bell-item${n.read ? '' : ' bell-item--unread'}`}
-                  onClick={() => {
-                    tapFeedback();
-                    setBellOpen(false);
-                    navigate(n.link ?? '/notifications');
-                  }}
+                  onClick={() => { tapFeedback(); setBellOpen(false); navigate(n.link ?? '/notifications'); }}
                 >
                   <span className="bell-item__body">
                     <span className="bell-item__title">{n.title}</span>

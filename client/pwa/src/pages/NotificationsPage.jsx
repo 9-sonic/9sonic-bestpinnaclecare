@@ -68,19 +68,20 @@ export default function NotificationsPage() {
 
   return (
     <div className="page--flush">
-      <ScreenHeader
-        title="Notifications"
-        back
-        onBack={() => navigate('/home')}
-        action={
-          unread.length > 0 && (
-            <button type="button" className="header-action" onClick={handleReadAll}>
-              <Icon name="check" size={15} />
-              <span>Read all</span>
-            </button>
-          )
-        }
-      />
+      <ScreenHeader title="Notifications" back onBack={() => navigate('/home')} />
+
+      {/* The action sits on its own line rather than in the header slot: there
+          it had to share 44px with the title and wrapped onto two lines. */}
+      <div className="notif-head">
+        <span className="notif-head__title">
+          {unread.length > 0 ? `${unread.length} unread` : 'All caught up'}
+        </span>
+        {unread.length > 0 && (
+          <button type="button" className="notif-head__action" onClick={handleReadAll}>
+            Read all
+          </button>
+        )}
+      </div>
 
       {items.length > 0 && (
         <div className="seg-row">

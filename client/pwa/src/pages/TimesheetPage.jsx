@@ -78,6 +78,18 @@ export default function TimesheetPage() {
     }
   }
 
+  // Share of the scheduled time that has actually been recorded.
+  // `totals` is null until the period loads, so this has to tolerate that:
+  // it is computed above the loading guard and would otherwise throw on the
+  // first render.
+  const workedPct =
+    totals && totals.scheduled > 0
+      ? Math.min(100, Math.round((totals.worked / totals.scheduled) * 100))
+      : 0;
+
+  // Minutes over or under the booked length, per entry.
+  const diffOf = (e) => (e.workedMinutes ?? 0) - (e.scheduledMinutes ?? 0);
+
   return (
     <div className="page--flush">
       <ScreenHeader title="Timesheet" back onBack={() => navigate(-1)} />
@@ -92,21 +104,41 @@ export default function TimesheetPage() {
         />
       ) : (
         <>
-          <Card className="pay-card">
-            <span className="pay-card__label">Hours recorded this period</span>
-            <span className="pay-card__value">{hoursFrom(totals.worked)}</span>
-            <div className="pay-card__split">
-              <span>
-                <b>{data.entries.length}</b> {data.entries.length === 1 ? 'visit' : 'visits'}
-              </span>
-              <span>
-                <b>{hoursFrom(totals.scheduled)}</b> scheduled
+          <section className="paysum">
+            <div className="paysum__head">
+              <span className="paysum__eyebrow">Hours recorded this period</span>
+              <span className="paysum__value">{hoursFrom(totals.worked)}</span>
+              <span className="paysum__against">
+                of {hoursFrom(totals.scheduled)} scheduled
               </span>
             </div>
-            <p className="pay-card__note">
-              Your manager checks and approves these hours before they go to payroll.
-            </p>
-          </Card>
+
+            {/* How much of the scheduled time is accounted for. Worth showing
+                because a gap here is what a query is usually about. */}
+            <div className="paysum__meter" role="img" aria-label={`${workedPct}% of scheduled hours recorded`}>
+              <span className="paysum__meter-fill" style={{ width: `${workedPct}%` }} />
+            </div>
+
+            <div className="paysum__stats">
+              <span className="paysum__stat">
+                <b>{data.entries.length}</b>
+                {data.entries.length === 1 ? 'visit' : 'visits'}
+              </span>
+              <span className="paysum__stat">
+                <b>{workedPct}%</b>
+                of scheduled
+              </span>
+              <span className="paysum__stat">
+                <b>{totals.flagged}</b>
+                to check
+              </span>
+            </div>
+          </section>
+
+          <p className="paysum__note">
+            <Icon name="shield" size={14} />
+            Your manager checks and approves these hours before they reach payroll.
+          </p>
 
           <div className="section-head section-head--inset">
             <span className="section-head__title">Entries</span>
@@ -119,26 +151,35 @@ export default function TimesheetPage() {
 
           <div className="stack">
             {data.entries.map((e) => (
-              <Card key={e.id} className="ts-row">
-                <span className="ts-row__day">
-                  <span className="ts-row__date">{formatDayLabel(e.workDate)}</span>
-                  <span className="ts-row__client">
+              <article key={e.id} className={`tsrow${(e.flags ?? []).length ? ' tsrow--flagged' : ''}`}>
+                <span className="tsrow__date">
+                  <span className="tsrow__dow">
+                    {new Date(e.workDate).toLocaleDateString('en-GB', { weekday: 'short' })}
+                  </span>
+                  <span className="tsrow__day">{new Date(e.workDate).getDate()}</span>
+                </span>
+
+                <span className="tsrow__body">
+                  <span className="tsrow__hours">{hoursFrom(e.workedMinutes ?? 0)}</span>
+                  <span className="tsrow__note">
                     {(e.flags ?? []).length > 0
                       ? (e.flags ?? []).map((f) => FLAG_LABELS[f] ?? f).join(', ')
                       : 'As scheduled'}
                   </span>
                 </span>
-                <span className="ts-row__meta">
-                  <span className="ts-row__time">{hoursFrom(e.workedMinutes ?? 0)}</span>
-                  <button
-                    type="button"
-                    className="ts-row__query"
-                    onClick={() => setQueryLine(e)}
-                  >
+
+                <span className="tsrow__side">
+                  {diffOf(e) !== 0 && (
+                    <span className={`tsrow__diff tsrow__diff--${diffOf(e) > 0 ? 'over' : 'under'}`}>
+                      {diffOf(e) > 0 ? '+' : ''}
+                      {diffOf(e)}m
+                    </span>
+                  )}
+                  <button type="button" className="tsrow__query" onClick={() => setQueryLine(e)}>
                     Query
                   </button>
                 </span>
-              </Card>
+              </article>
             ))}
           </div>
         </>

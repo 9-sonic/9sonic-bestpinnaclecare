@@ -90,46 +90,97 @@ test.describe('bottom navigation', () => {
 });
 
 test.describe('home screen', () => {
-  // Regression: the grid of figures was replaced with a flat strip and the
-  // section below it was left empty.
-  test('keeps the grid of figures and the shortcuts below it', async ({ page }) => {
+  // The redesign leads with two gradient headline cards over a 2x2 grid of
+  // metrics. The original point of this test still holds: the figures must not
+  // quietly disappear again, only the shape they take has changed.
+  test('keeps the headline cards and the metric grid', async ({ page }) => {
     await signIn(page);
 
-    await expect(page.locator('.stat-card')).toHaveCount(4);
-    await expect(page.locator('.stat-grid')).toBeVisible();
-    await expect(page.locator('.shortcut')).not.toHaveCount(0);
+    await expect(page.locator('.hero')).toHaveCount(2);
+    await expect(page.locator('.metric')).toHaveCount(4);
+    await expect(page.locator('.metric-grid')).toBeVisible();
+
+    // Each metric keeps its own tint, which is what makes the grid scannable.
+    const tints = await page.locator('.metric .tile-icon').evaluateAll((els) =>
+      els.map((el) => el.className.split('--')[1])
+    );
+    expect(new Set(tints).size, 'metric tiles share a colour').toBe(4);
+  });
+});
+
+test.describe('clock dial', () => {
+  // Regression: the dial has been redesigned three times and each pass appended
+  // rules without removing the last, so leftovers from earlier versions were
+  // still applying. Between them they rotated the SVG a quarter turn, pinned a
+  // 176px height against a 300px width, and left an opaque white disc over the
+  // whole thing. The dial rendered as a blank squashed ellipse with no ring,
+  // no ticks and no plate — and every element was present in the DOM, so
+  // checking that the parts exist proves nothing. Geometry is what broke, so
+  // geometry is what this measures.
+  test('is round, upright, and not covered by its own face', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/clock');
+    await page.locator('.dial').waitFor({ state: 'visible' });
+
+    const dial = await page.locator('.dial').boundingBox();
+    expect(Math.abs(dial.width - dial.height), 'the dial is not square').toBeLessThanOrEqual(1);
+
+    // The SVG must fill the dial without being rotated: a quarter turn swaps
+    // its box, which stays square and so would otherwise pass unnoticed.
+    const svg = await page.locator('.dial__svg').boundingBox();
+    expect(Math.abs(svg.width - dial.width), 'the svg does not fill the dial').toBeLessThanOrEqual(1);
+    const rotated = await page.locator('.dial__svg').evaluate((el) => {
+      const t = getComputedStyle(el).transform;
+      return t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)';
+    });
+    expect(rotated, 'the svg is transformed').toBe(false);
+
+    // The face holds the time and nothing else. Any background on it hides the
+    // ring, the ticks and the plate underneath.
+    const face = await page.locator('.dial__face').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundColor, image: cs.backgroundImage, shadow: cs.boxShadow };
+    });
+    expect(face.bg, 'the dial face is painted over the dial').toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+    expect(face.image).toBe('none');
+    expect(face.shadow).toBe('none');
+
+    // The plate is drawn in the SVG and has to be a real circle inside it.
+    const plate = await page.locator('.dial__plate').boundingBox();
+    expect(Math.abs(plate.width - plate.height), 'the plate is an ellipse').toBeLessThanOrEqual(1);
+    expect(plate.width, 'the plate is too small for the dial').toBeGreaterThan(dial.width * 0.5);
   });
 });
 
 test.describe('shift cards', () => {
-  // Regression: the clock screen had its own copy of the card markup, which
-  // stopped matching when the card became a two column grid and collapsed into
-  // an unreadable vertical strip.
-  test('render as a time column beside the details, never stacked', async ({ page }) => {
+  // The redesign leads with the person rather than a time column, but the
+  // original regression still matters: the clock screen once carried its own
+  // copy of this markup and collapsed into an unreadable vertical strip when
+  // the shared card changed. Both screens must render the same component.
+  test('lead with the avatar beside the details, never stacked', async ({ page }) => {
     await signIn(page);
 
     for (const path of ['/shifts', '/clock']) {
       await page.goto(path);
-      const cards = page.locator('.shift-card');
-      const count = await cards.count();
-      if (count === 0) continue;
+      const cards = page.locator('.scard');
+      await expect(cards.first(), `${path}: no shift cards rendered`).toBeVisible({ timeout: 10000 });
 
       const shape = await cards.first().evaluate((el) => {
-        const rail = el.querySelector('.shift-card__rail');
-        const main = el.querySelector('.shift-card__main');
-        if (!rail || !main) return { missing: true };
-        const r = rail.getBoundingClientRect();
-        const m = main.getBoundingClientRect();
+        const avatar = el.querySelector('.avatar');
+        const body = el.querySelector('.scard__name');
+        if (!avatar || !body) return { missing: true };
+        const a = avatar.getBoundingClientRect();
+        const b = body.getBoundingClientRect();
         return {
           missing: false,
-          sideBySide: m.left >= r.right - 2 && Math.abs(m.top - r.top) < 20,
-          railWidth: r.width,
+          sideBySide: b.left >= a.right - 2,
+          avatarSize: a.width,
         };
       });
 
       expect(shape.missing, `${path}: card is missing the shared structure`).toBe(false);
       expect(shape.sideBySide, `${path}: card content is stacked vertically`).toBe(true);
-      expect(shape.railWidth).toBeGreaterThan(30);
+      expect(shape.avatarSize).toBeGreaterThan(20);
     }
   });
 });
@@ -166,7 +217,7 @@ test.describe('long database values', () => {
     // parallel load the dev server is slow enough that a timeout measures an
     // empty page and passes for the wrong reason, or half a page and fails.
     const pages = [
-      { path: '/home', ready: '.focus-card, .focus-card--clear' },
+      { path: '/home', ready: '.hero, .metric' },
       { path: '/shifts', ready: '.cal' },
       { path: '/notifications', ready: '.ncard, .empty-state' },
       { path: '/messages', ready: '.thread-row, .empty-state' },
@@ -215,37 +266,84 @@ test.describe('sticky headers', () => {
     await signIn(page);
     await page.goto('/notifications');
 
+    // Let the screen's entry animation finish first: measuring mid-animation
+    // reports a few pixels of offset that look like the header scrolling away.
+    await page.evaluate(() => {
+      document.getAnimations().forEach((a) => {
+        try {
+          a.finish();
+        } catch {
+          /* some animations cannot be finished; harmless */
+        }
+      });
+    });
+    await page.waitForTimeout(150);
+
+    // The app scrolls inside .app-content, not the window, so scroll that.
+    // A wheel event at the pointer nudges the page a few pixels before the
+    // inner container takes over, which is not the header coming unstuck.
     const header = page.locator('.screen-header').first();
     const before = await header.boundingBox();
-    await page.mouse.wheel(0, 600);
+    await page.evaluate(() => {
+      document.querySelector('.app-content')?.scrollBy(0, 600);
+    });
     await page.waitForTimeout(400);
     const after = await header.boundingBox();
 
-    expect(Math.abs(after.y - before.y), 'header scrolled away').toBeLessThanOrEqual(2);
+    // A header that has come unstuck travels with the content, hundreds of
+    // pixels for a 600px scroll. A few pixels of settle from safe-area and
+    // sub-pixel rounding is not that, and holding this to zero made the test
+    // fail on noise rather than on regressions.
+    expect(Math.abs(after.y - before.y), 'header scrolled away').toBeLessThanOrEqual(8);
   });
 });
 
 test.describe('accessibility basics', () => {
   test.skip(({ isMobile }) => !isMobile, 'touch targets are a phone concern');
 
+  // The floor is 44px, which is what Apple asks for; Android asks for 48. It
+  // used to be 32, which passed while nineteen controls were still too small
+  // for a finger, including the "Clock in" button on the shift detail page.
+  //
+  // Several controls stay visually small on purpose and carry an invisible
+  // padded hit area instead, so this measures the area that actually responds
+  // to a tap: the element's own box, or its ::after if that is larger.
   test('every control is big enough to tap and is labelled', async ({ page }) => {
     await signIn(page);
 
-    for (const path of ['/home', '/shifts', '/clock', '/profile', '/notifications']) {
-      await page.goto(path);
+    for (const route of ROUTES) {
+      await page.goto(route.path);
       await page.waitForTimeout(500);
 
       const problems = await page.evaluate(() => {
         const bad = { small: [], unlabelled: [] };
         document
-          .querySelectorAll('button, a[href], [role="switch"], input, select')
+          .querySelectorAll('button, a[href], [role="switch"], [role="button"], input:not([type="hidden"]), select')
           .forEach((el) => {
             const r = el.getBoundingClientRect();
             if (r.width === 0 || r.height === 0) return;
-            // Switches carry an invisible padded hit area.
-            const h = el.getAttribute('role') === 'switch' ? r.height + 16 : r.height;
+            const cs = getComputedStyle(el);
+            if (cs.visibility === 'hidden' || Number(cs.opacity) === 0) return;
+
+            // The hit area may be an ::after larger than the element itself.
+            const after = getComputedStyle(el, '::after');
+            let w = r.width;
+            let h = r.height;
+            if (after.content !== 'none') {
+              const aw = parseFloat(after.width);
+              const ah = parseFloat(after.height);
+              if (Number.isFinite(aw)) w = Math.max(w, aw);
+              if (Number.isFinite(ah)) h = Math.max(h, ah);
+              // An inset-based area (the switch) grows the box on both sides.
+              const inset = parseFloat(after.top);
+              if (Number.isFinite(inset) && inset < 0) {
+                w = Math.max(w, r.width - inset * 2);
+                h = Math.max(h, r.height - inset * 2);
+              }
+            }
+
             const name = (el.className || el.tagName).toString().split(' ')[0];
-            if (h < 32 || r.width < 32) bad.small.push(`${name} ${Math.round(r.width)}x${Math.round(h)}`);
+            if (h < 44 || w < 44) bad.small.push(`${name} ${Math.round(w)}x${Math.round(h)}`);
             const labelled =
               el.textContent.trim().length > 0 ||
               el.getAttribute('aria-label') ||
@@ -256,8 +354,8 @@ test.describe('accessibility basics', () => {
         return bad;
       });
 
-      expect(problems.small, `${path}: controls smaller than 32px`).toEqual([]);
-      expect(problems.unlabelled, `${path}: controls with no accessible name`).toEqual([]);
+      expect(problems.small, `${route.path}: controls smaller than 44px`).toEqual([]);
+      expect(problems.unlabelled, `${route.path}: controls with no accessible name`).toEqual([]);
     }
   });
 });

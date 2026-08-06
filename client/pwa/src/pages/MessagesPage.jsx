@@ -80,7 +80,8 @@ export default function MessagesPage() {
           }
         />
       ) : (
-        filtered.map((t) => (
+        <div className="thread-list">
+          {filtered.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -96,8 +97,9 @@ export default function MessagesPage() {
               <span className="thread-row__time">{formatChatTime(t.lastAt)}</span>
               {t.unread > 0 && <span className="thread-row__count">{t.unread}</span>}
             </span>
-          </button>
-        ))
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

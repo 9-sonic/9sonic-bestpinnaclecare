@@ -98,17 +98,17 @@ export default function NavigationPage() {
         </div>
 
         <div className="nav-dest__stats">
-          <div>
-            <div className="nav-dest__stat-label">ETA</div>
-            <div className="nav-dest__stat-value">{shift.eta ?? '8 min'}</div>
+          <div className="nav-stat nav-stat--lead">
+            <div className="nav-stat__label">ETA</div>
+            <div className="nav-stat__value">{shift.eta ?? '8 min'}</div>
           </div>
-          <div className="nav-dest__stat--plain">
-            <div className="nav-dest__stat-label">Distance</div>
-            <div className="nav-dest__stat-value">{shift.distance ?? '2.4 mi'}</div>
+          <div className="nav-stat">
+            <div className="nav-stat__label">Distance</div>
+            <div className="nav-stat__value">{shift.distance ?? '2.4 mi'}</div>
           </div>
-          <div className="nav-dest__stat--plain">
-            <div className="nav-dest__stat-label">Arrive</div>
-            <div className="nav-dest__stat-value">{arrival}</div>
+          <div className="nav-stat">
+            <div className="nav-stat__label">Arrive</div>
+            <div className="nav-stat__value">{arrival}</div>
           </div>
         </div>
 

@@ -59,7 +59,10 @@ export default function ShiftsPage() {
       <Calendar
         selected={selected}
         onSelect={setSelected}
-        markedDates={shifts.map((s) => s.startsAt)}
+        markedDates={shifts.map((s) => ({
+          date: s.startsAt,
+          tone: s.needsAttention ? 'pink' : s.status === 'completed' ? 'amber' : 'teal',
+        }))}
       />
 
       {loading ? (
@@ -68,7 +71,9 @@ export default function ShiftsPage() {
         <>
           <div className="section-head section-head--inset">
             <span className="section-head__title">Upcoming</span>
-            <span className="section-head__count">{upcoming.length}</span>
+            <button type="button" className="section-head__link" onClick={() => navigate('/overview')}>
+              See All
+            </button>
           </div>
           {upcoming.length === 0 ? (
             <EmptyState

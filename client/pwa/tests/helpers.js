@@ -16,7 +16,7 @@ export async function signIn(page) {
 // Every route the carer can reach, with something on each that proves the page
 // actually rendered rather than falling back to an error boundary.
 export const ROUTES = [
-  { path: '/home', expect: '.focus-card, .focus-card--clear' },
+  { path: '/home', expect: '.hero, .metric' },
   { path: '/shifts', expect: '.cal' },
   { path: '/clock', expect: '.dial, .empty-state' },
   { path: '/messages', expect: '.thread-row, .empty-state' },
@@ -25,21 +25,39 @@ export const ROUTES = [
   { path: '/profile/details', expect: '.detail-row' },
   { path: '/profile/availability', expect: '.avail-day' },
   { path: '/profile/preferences', expect: '.list-row' },
-  { path: '/timesheet', expect: '.ts-row, .empty-state, .pay-card' },
+  { path: '/timesheet', expect: '.tsrow, .empty-state, .paysum' },
   { path: '/overview', expect: '.chart' },
   { path: '/notifications', expect: '.ncard, .empty-state' },
   { path: '/navigate/102', expect: '.map-wrap' },
   { path: '/shifts/102', expect: '.detail-hero' },
 ];
 
+// Noise the test setup causes itself, rather than anything the app got wrong.
+//
+// serviceWorkers: 'block' in the config makes registration fail, and the app
+// correctly logs that it could not register one. The log is asynchronous, so
+// whether it arrives before a test finishes depends on how loaded the machine
+// is: the same test passed alone and failed in a full parallel run. Ignoring it
+// here is safe because the installability tests turn service workers back on
+// and assert a worker really does register and activate.
+const HARNESS_NOISE = [
+  /\[sw\] could not register a service worker/,
+  /Failed to register a ServiceWorker/i,
+];
+
 // Fails the test if anything was logged as an error or thrown while the page
 // was open. Call at the start of a test and check at the end.
 export function watchForErrors(page) {
   const errors = [];
+  const keep = (text) => !HARNESS_NOISE.some((pattern) => pattern.test(text));
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text().slice(0, 200));
+    if (msg.type() !== 'error') return;
+    const text = msg.text().slice(0, 200);
+    if (keep(text)) errors.push(text);
   });
-  page.on('pageerror', (err) => errors.push(`uncaught: ${err.message}`));
+  page.on('pageerror', (err) => {
+    if (keep(err.message)) errors.push(`uncaught: ${err.message}`);
+  });
   return errors;
 }
 

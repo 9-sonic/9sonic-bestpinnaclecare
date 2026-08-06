@@ -27,6 +27,19 @@ export function useHistoryOverlay(open, onClose) {
   const unwindRef = useRef(null);
   const onCloseRef = useRef(onClose);
 
+  // Hands the pushed entry over to the caller instead of unwinding it.
+  //
+  // Needed when closing the overlay *and* navigating in the same breath, as the
+  // menu drawer does. Without it the cleanup's history.back() fires after the
+  // navigation and undoes it, so tapping a menu item appeared to do nothing.
+  // The caller navigates with `replace: true`, so the destination takes over
+  // the slot this overlay was occupying and the stack stays balanced.
+  const release = useRef(() => {
+    clearTimeout(unwindRef.current);
+    unwindRef.current = null;
+    pushedRef.current = false;
+  }).current;
+
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -69,6 +82,8 @@ export function useHistoryOverlay(open, onClose) {
     // tidied up there too. A second unmount-only effect would race with this
     // one under StrictMode and pop the entry out from under the overlay.
   }, [open]);
+
+  return { release };
 }
 
 export default useHistoryOverlay;

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
 import { getCurrentLocation } from '../utils/geolocation.js';
-import { formatElapsed } from '../utils/format.js';
+import { formatElapsed, formatTime } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Dial from '../components/clock/Dial.jsx';
@@ -92,6 +92,17 @@ export default function ClockPage() {
     return Math.max(0, end - start - (shift.breakMs ?? 0) - runningBreak);
   }, [shift, now]);
 
+  // How long the visit is booked for, shown under the running total.
+  const scheduledLabel = useMemo(() => {
+    if (!shift) return '';
+    const mins = Math.round((new Date(shift.endsAt) - new Date(shift.startsAt)) / 60000);
+    if (!Number.isFinite(mins) || mins <= 0) return '';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h === 0) return `${m}m`;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  }, [shift]);
+
   // Progress around the dial = elapsed / scheduled duration.
   const progress = useMemo(() => {
     if (!shift) return 0;
@@ -172,10 +183,18 @@ export default function ClockPage() {
   if (loading) return <Spinner fullscreen />;
 
   return (
-    <div className="clock-screen">
-      <div className="clock-screen__head">
-        <h1 className="clock-screen__title">{isActive ? 'On shift' : 'Clock'}</h1>
-        <Button variant="white" size="sm" onClick={() => navigate('/overview')}>
+    <div className="clockscreen">
+      {/* Title and who the visit is for, with History opposite. */}
+      <div className="clockscreen__head">
+        <div className="grow">
+          <h1 className="clockscreen__title">{isActive ? 'On Shift' : 'Clock In'}</h1>
+          {shift && (
+            <p className="clockscreen__where">
+              {shift.client} · {shift.address.split(',')[0]}
+            </p>
+          )}
+        </div>
+        <Button variant="white" size="sm" className="btn--pill" onClick={() => navigate('/overview')}>
           History
         </Button>
       </div>
@@ -184,12 +203,8 @@ export default function ClockPage() {
         <EmptyState icon="calendar" title="No shifts today" text="When your rota is published your visits will appear here." />
       ) : (
         <>
-          <p className="clock-screen__client">
-            {shift.client} at {shift.address.split(',')[0]}
-          </p>
-
           <span
-            className={`gps-chip${gps ? ' gps-chip--ok' : gps === null ? '' : ' gps-chip--off'}`}
+            className={`gps-chip${gps ? ' gps-chip--ok' : ''}`}
           >
             <Icon name={gps ? 'location' : 'target'} size={13} />
             {gps
@@ -198,8 +213,16 @@ export default function ClockPage() {
           </span>
 
           <Dial
-            progress={isActive ? progress : 0}
-            state={onBreak ? 'break' : isActive ? 'running' : 'idle'}
+            progress={shift.status === 'completed' ? 1 : isActive ? progress : 0}
+            state={
+              shift.status === 'completed'
+                ? 'complete'
+                : onBreak
+                  ? 'break'
+                  : isActive
+                    ? 'running'
+                    : 'idle'
+            }
           >
             <span className="dial__time">
               {isActive || shift.status === 'completed' ? formatElapsed(elapsedMs) : '00:00:00'}
@@ -213,17 +236,24 @@ export default function ClockPage() {
                     ? 'On shift'
                     : 'Not started'}
             </span>
+            {/* Before a shift starts the elapsed figure is meaningless, so the
+                face shows when the visit is booked for instead. */}
+            {shift.status === 'upcoming' ? (
+              <span className="dial__window">
+                <Icon name="clock" size={12} />
+                {formatTime(shift.startsAt)} to {formatTime(shift.endsAt)}
+              </span>
+            ) : (
+              <span className="dial__sub">
+                {progress > 1.001 ? 'over ' : 'of '}
+                {scheduledLabel}
+              </span>
+            )}
           </Dial>
 
           {error && <p className="error-text clock-error">{error}</p>}
 
           <div className="clock-actions">
-            {shift.status === 'upcoming' && (
-              <Button size="lg" block onClick={handleClockIn} disabled={busy}>
-                {busy ? 'Getting location' : 'Clock in'}
-              </Button>
-            )}
-
             {isActive && (
               <>
                 <Button variant="white" size="lg" onClick={handleClockOut} disabled={busy}>
@@ -243,6 +273,23 @@ export default function ClockPage() {
               </Button>
             )}
           </div>
+
+          {shift.status === 'upcoming' && (
+            <div>
+              <button
+                type="button"
+                className="clock-power"
+                onClick={handleClockIn}
+                disabled={busy}
+                aria-label="Clock in"
+              >
+                <Icon name="play" size={26} filled />
+              </button>
+              <span className="clock-power__label">
+                {busy ? 'Getting your location' : 'Tap to clock in'}
+              </span>
+            </div>
+          )}
 
           {/* Switcher for the rest of the day. Uses the shared card in its
               compact form rather than a local copy of the markup. */}
