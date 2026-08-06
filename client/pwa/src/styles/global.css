@@ -9179,57 +9179,116 @@ body:has(.drawer-backdrop) .app-content {
 }
 
 /* ===========================================================================
-   Dial: settling the cascade.
+   The dial.
 
-   The dial has been redesigned three times, and each pass appended a new set
-   of rules without removing the previous one. Later rules only override the
-   properties they actually declare, so three leftovers from earlier passes
-   were still applying to the current markup and between them destroyed it:
+   This is the whole definition. It is last in the file on purpose, because
+   three earlier redesigns are still sitting above it and later rules only
+   override the properties they actually declare. Anything those older blocks
+   set and this one does not would leak through, which is exactly how the dial
+   ended up as a squashed white blob: a leftover rotation, a leftover fixed
+   height, and a leftover white disc over the face.
 
-     .dial__svg carried transform: rotate(-90deg) from the first version,
-     which swapped the SVG's box (measured 176x300 inside a 300-wide dial)
+   So every property the dial depends on is stated here, including the ones
+   that look redundant. If you change the dial, change it in this block.
 
-     .dial__face still had background, border-radius: 50% and a box-shadow
-     from a version where the face was a white disc drawn in CSS. The current
-     face is a transparent text layer over an SVG plate, and inset: 0 made
-     that stale white disc cover the entire dial
-
-     a compact media query pinned height: 176px against a 300px width, so the
-     "circle" was drawn as an ellipse
-
-   The result was a squashed white blob with no ring, no ticks and no plate:
-   exactly the "doesn't look designed" the redesign was meant to fix.
-
-   This block states the current dial's geometry explicitly and neutralises
-   what the older rules set. It is deliberately last so it wins outright.
-
-   The four generations should be collapsed into one; that is a mechanical
-   tidy-up worth its own change, not something to land in the same commit as
-   a visual fix.
+   Collapsing the older generations is still worth doing, and still belongs in
+   its own change rather than alongside a visual one. tests/layout.spec.js
+   measures the geometry and will fail if any of it leaks back.
    =========================================================================== */
 
 .dial {
   position: relative;
   width: min(300px, 80vw);
-  /* Both axes are stated. aspect-ratio alone lost to the fixed height in the
-     compact media query, and an ellipse is worse than a slightly small dial. */
+  /* Both axes are stated. aspect-ratio alone lost to a fixed height in an
+     older compact media query, and an ellipse is worse than a small dial. */
   height: min(300px, 80vw);
   aspect-ratio: 1;
   flex-shrink: 0;
-  margin: 0 auto var(--space-6);
+  margin: 0 auto var(--space-5);
 }
 
 .dial__svg {
   width: 100%;
   height: 100%;
+  /* The ticks sit outside the ring and would otherwise be clipped. */
   overflow: visible;
-  /* The arc is rotated in the markup, per element, not by spinning the whole
-     drawing: rotating the SVG also rotated the ticks and the plate shadow. */
+  /* The arc is rotated per element in the markup. Rotating the whole drawing
+     also rotated the scale and the plate's shadow. */
   transform: none;
 }
 
-/* A transparent layer that holds the time. Everything visible is drawn in the
-   SVG underneath it. */
+/* -- the scale ------------------------------------------------------------ */
+
+/* Outside the ring, where it reads as a measure rather than as decoration. */
+.dial__ticks line {
+  stroke: var(--dial-tick);
+  stroke-linecap: round;
+  transition: stroke var(--dur) var(--ease);
+}
+
+.dial__ticks line.is-past {
+  stroke: var(--brand-teal);
+}
+
+.dial--break .dial__ticks line.is-past,
+.dial--over .dial__ticks line.is-past {
+  stroke: var(--warning);
+}
+
+.dial--complete .dial__ticks line.is-past {
+  stroke: var(--success);
+}
+
+/* -- the ring ------------------------------------------------------------- */
+
+/* Thin, and always drawn in full, so an idle dial still looks like a dial. */
+.dial__track {
+  fill: none;
+  stroke: var(--dial-track);
+}
+
+.dial__arc {
+  fill: none;
+  stroke: url(#dialArc);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s var(--ease-out);
+}
+
+.dial--break .dial__arc,
+.dial--over .dial__arc {
+  stroke: url(#dialArcWarn);
+}
+
+.dial--complete .dial__arc {
+  stroke: url(#dialArcDone);
+}
+
+/* The bead on the leading edge. White with a coloured rim, which stays
+   findable against the arc in daylight. */
+.dial__cap-ring {
+  fill: var(--color-surface);
+  stroke: var(--brand-teal);
+  stroke-width: 3;
+}
+
+.dial--break .dial__cap-ring,
+.dial--over .dial__cap-ring {
+  stroke: var(--warning);
+}
+
+/* -- the face ------------------------------------------------------------- */
+
+.dial__plate {
+  fill: var(--color-surface);
+  filter: drop-shadow(0 6px 18px rgba(15, 30, 46, 0.08));
+}
+
+:root[data-theme='dark'] .dial__plate {
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
+}
+
+/* A transparent layer holding the text. Everything visible is drawn in the
+   SVG underneath, so this must not paint anything of its own. */
 .dial__face {
   position: absolute;
   inset: 0;
@@ -9237,11 +9296,58 @@ body:has(.drawer-backdrop) .app-content {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 2px;
   background: none;
   border-radius: 0;
   box-shadow: none;
   pointer-events: none;
+}
+
+/* The state sits above the time, quiet and letterspaced, so the figure below
+   it is the only thing competing for attention. */
+.dial__state {
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.dial--running .dial__state {
+  color: var(--brand-text);
+}
+
+.dial--break .dial__state,
+.dial--over .dial__state {
+  color: var(--warning-text);
+}
+
+.dial--complete .dial__state {
+  color: var(--success-text);
+}
+
+.dial__time {
+  font-family: var(--font-display);
+  /* Sized against the disc rather than the screen: at the previous size the
+     figure ran to the edge of the plate and the dial looked cramped. */
+  font-size: clamp(1.7rem, 9vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The face carries the state and the time and nothing else. The booked window
+   and the scheduled total moved out to the summary strip below the dial,
+   where they can be read without crowding the figure. */
+.dial__sub,
+.dial__window {
+  display: none;
 }
 
 /* The compact breakpoints scale the whole dial rather than one axis. */
@@ -9257,4 +9363,933 @@ body:has(.drawer-backdrop) .app-content {
     width: min(240px, 62vw);
     height: min(240px, 62vw);
   }
+}
+
+/* ===========================================================================
+   Clock screen.
+
+   Complete definition, last in the file, for the same reason as the dial: two
+   earlier versions of these rules are still above it and would otherwise leak
+   properties this block does not restate.
+
+   The classes from those versions (.clockscreen__head, .clockscreen__title,
+   .clockscreen__where, .clock-power, .clock-power__label, .gps-chip) are no
+   longer in the markup. They are dead and should be swept up with the dial
+   generations in the same tidy-up.
+   =========================================================================== */
+
+.clockscreen {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-bottom: var(--space-4);
+}
+
+/* -- who the visit is for ------------------------------------------------- */
+
+.clockhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.clockhead__who {
+  min-width: 0;
+}
+
+.clockhead__name {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-text);
+  /* A long client name must not push History off the screen. */
+  overflow-wrap: anywhere;
+}
+
+.clockhead__addr {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.clockhead__state {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+/* -- the lifecycle chip --------------------------------------------------- */
+
+.statuschip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.statuschip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.statuschip--upcoming {
+  background: var(--brand-tint);
+  color: var(--brand-text);
+}
+
+.statuschip--onshift {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.statuschip--break {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.statuschip--done {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+
+/* -- location ------------------------------------------------------------- */
+
+.verifychip {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Once a fix is taken the chip states it plainly. It says the location was
+   recorded, not that the carer is at the right place: whether being outside
+   the geofence blocks a clock-in is a client policy nobody has settled. */
+.verifychip--ok {
+  background: var(--success-bg);
+  border-color: transparent;
+  color: var(--success-text);
+}
+
+/* -- the note under the dial ---------------------------------------------- */
+
+.clock-note {
+  margin: calc(var(--space-2) * -1) 0 var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.clock-error {
+  margin-bottom: var(--space-3);
+  text-align: center;
+}
+
+/* -- actions -------------------------------------------------------------- */
+
+.clock-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.clock-actions__primary {
+  min-width: 180px;
+}
+
+.clock-actions__help {
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Break and clock out sit side by side. They are different decisions, so they
+   do not look alike: one continues the visit, one ends it. */
+.clock-actions__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.clock-actions__pair .btn {
+  width: 100%;
+}
+
+/* The square in "Clock Out", which reads as stop without needing the word. */
+.clock-stop {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* -- the summary strip ---------------------------------------------------- */
+
+.clockstats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: var(--space-3) 0;
+  margin-bottom: var(--space-5);
+}
+
+.clockstat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--space-2);
+  text-align: center;
+}
+
+/* Hairlines between the three, not around them. */
+.clockstat + .clockstat {
+  border-left: 1px solid var(--color-border);
+}
+
+.clockstat__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.clockstat__value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.clockstat__value--accent {
+  color: var(--brand-text);
+}
+
+.clock-switcher {
+  margin-top: var(--space-2);
+}
+
+/* An earlier `.clock-actions .btn` rule squares off the corners. It is two
+   classes deep, so it beats `.btn--pill` on specificity no matter which comes
+   last; matching its specificity here is the fix. */
+.clock-actions .btn,
+.clock-actions__pair .btn {
+  flex: 0 1 auto;
+  min-height: 52px;
+  border-radius: var(--radius-pill);
+}
+
+/* ===========================================================================
+   Home.
+
+   Rebuilt to the new design: one visit given the whole width because it is the
+   thing being acted on, the week reduced to a ring and two counts, then the
+   day as cards that carry enough to act on without opening them.
+
+   The hero pair, the 2x2 metric grid, the week bar and the quick action row
+   are gone from the markup. Their rules are above and now dead.
+   =========================================================================== */
+
+.greet {
+  margin-bottom: var(--space-4);
+}
+
+.greet__sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.greet__hello {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+/* Says how much is left today in one line, so the number does not have to be
+   counted off the list below. */
+.greet__chip {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 4px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-tint);
+  color: var(--brand-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.home-sec {
+  margin-bottom: var(--space-5);
+}
+
+/* -- the featured visit --------------------------------------------------- */
+
+.fvisit {
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--grad-brand);
+  box-shadow: var(--shadow-brand);
+  color: #fff;
+}
+
+.fvisit__top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.fvisit__id {
+  flex: 1;
+  min-width: 0;
+}
+
+.fvisit__when {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.fvisit__time {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How long until it starts. On a white-on-teal card this sits on its own panel
+   rather than relying on a lighter weight, which would fall below AA. */
+.fvisit__soon {
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.24);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fvisit__name {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.fvisit__addr {
+  margin-top: 1px;
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.fvisit__call {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--brand-deep);
+  transition: transform var(--dur) var(--ease);
+}
+
+.fvisit__call:active {
+  transform: scale(0.94);
+}
+
+/* The two inner panels. Translucent white over the gradient, which is why the
+   gradient underneath had to be dark enough to carry white text. */
+.fvisit__tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.fvisit__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.fvisit__tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.fvisit__tile-value {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.fvisit__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.fvisit__btn {
+  min-height: 42px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+.fvisit__btn:active {
+  transform: scale(0.98);
+}
+
+.fvisit__btn--solid {
+  background: #fff;
+  border-color: #fff;
+  color: var(--brand-deep);
+}
+
+.fvisit__btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.fvisit__btn--solid:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* -- the week ------------------------------------------------------------- */
+
+.home-stats {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.hours-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.hours-ring__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.hours-ring__dial {
+  position: relative;
+  width: 108px;
+  height: 108px;
+}
+
+.hours-ring__dial svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hours-ring__track {
+  fill: none;
+  stroke: var(--dial-track);
+}
+
+.hours-ring__arc {
+  fill: none;
+  stroke: var(--brand-teal);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s var(--ease-out);
+}
+
+.hours-ring__value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.hours-ring__unit {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-left: 1px;
+}
+
+.hours-ring__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.home-stats__col {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.ministat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease);
+}
+
+.ministat:active {
+  transform: scale(0.98);
+}
+
+.ministat__value {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.ministat__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* -- the visits for today ------------------------------------------------- */
+
+.vlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.vcard {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+/* A finished visit is settled rather than dimmed: dimming reads as a card that
+   failed to load. */
+.vcard--completed {
+  background: var(--color-surface-alt);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+}
+
+.vcard__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.vcard__id {
+  flex: 1;
+  min-width: 0;
+}
+
+.vcard__name {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.vcard__when {
+  margin-top: 1px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vcard__addr {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.vcard__addr svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* The visit note. Care notes run long, so it wraps rather than truncating:
+   a half-shown instruction is worse than a tall card. */
+.vcard__note {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.vcard__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.vcard__go {
+  flex: 1;
+  min-height: 42px;
+  border-radius: var(--radius-pill);
+  background: var(--grad-brand);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  box-shadow: var(--shadow-brand);
+  transition: transform var(--dur) var(--ease);
+}
+
+.vcard__go:active {
+  transform: scale(0.98);
+}
+
+.vcard__go--quiet {
+  background: var(--color-surface);
+  color: var(--brand-text);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+.vcard__details {
+  padding: 0 var(--space-3);
+  min-height: 42px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.vcard__details:hover {
+  color: var(--color-text);
+}
+
+/* The unread count on the bell, which used to be an unlabelled dot. */
+.home2__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* The avatar on the gradient card. --avatar-ink is a dark tone chosen for
+   pastel circles on a white page; on teal it is nearly invisible, so the
+   card redefines the token for its own subtree rather than fighting the
+   !important that sets it. */
+.fvisit .avatar {
+  --avatar-ink: var(--brand-deep);
+  background: rgba(255, 255, 255, 0.94);
+  flex-shrink: 0;
+}
+
+/* These are buttons, and the user-agent border was showing through. */
+.ministat,
+.vcard__go,
+.vcard__details,
+.fvisit__call {
+  border: none;
+}
+
+.vcard__go--quiet {
+  border: 1px solid var(--color-border);
+}
+
+/* ===========================================================================
+   Visit card, shared.
+
+   One card for Home, Shifts and the clock switcher. The .scard rules from the
+   previous design are above and now dead.
+   =========================================================================== */
+
+/* Time first, because a carer scanning the day is looking for a time. */
+.vcard__lead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.vcard__timing {
+  min-width: 0;
+}
+
+.vcard__range {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.vcard__day {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.vcard__avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* The tick that says a visit is finished, on the corner of the avatar. */
+.vcard__done {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  border: 2px solid var(--color-surface-alt);
+}
+
+.vcard__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-right: 7px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.vcard__worked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--success-bg);
+  color: var(--success-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.vcard__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--space-3);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+/* Picked out in the clock screen switcher. */
+.vcard--selected {
+  outline: 2px solid var(--brand-teal);
+  outline-offset: -2px;
+}
+
+.vcard--compact {
+  padding: var(--space-3);
+}
+
+.vcard--compact .vcard__lead {
+  margin-bottom: var(--space-2);
+}
+
+/* The clickable card needs to look clickable and respond to a tap. */
+.vcard[role='button'] {
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.vcard[role='button']:active {
+  transform: scale(0.99);
+}
+
+.vcard[role='button']:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ===========================================================================
+   Calendar.
+
+   The legend moves inside the card in the new design, and the day states are
+   filled circles rather than dots alone: selected is the brand, today is
+   picked out, and a day with something wrong is amber. The dots under a day
+   stay, because a day can carry more than one kind of event.
+   =========================================================================== */
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.cal-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cal-legend__swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cal-legend__swatch--care { background: var(--brand-teal); }
+.cal-legend__swatch--missed { background: var(--danger); }
+.cal-legend__swatch--late { background: var(--warning); }
+
+/* The avatar row. Centre-aligned because the name is a single line here;
+   flex-start left the name floating above a gap. */
+.vcard__head {
+  align-items: center;
+}
+
+.vcard__id {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* ===========================================================================
+   Chat background.
+
+   The wallpaper added in the previous pass is gone: the new designs show a
+   plain surface behind the thread. Removing the tile also removes the thing
+   that made bubble contrast awkward to reason about, since text now sits on
+   a flat colour.
+   =========================================================================== */
+.chat__body::before {
+  display: none;
+}
+
+.chat__body {
+  background-color: var(--color-bg);
+}
+
+/* The redesign sizes several controls at 40 to 42px, which looks right and is
+   under the 44px a finger needs. Same treatment as the rest: an invisible
+   centred hit area, so nothing moves visually. */
+.fvisit__call,
+.fvisit__btn,
+.vcard__go,
+.vcard__details {
+  position: relative;
+}
+
+.fvisit__call::after,
+.fvisit__btn::after,
+.vcard__go::after,
+.vcard__details::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+  background: none;
+  border-radius: inherit;
 }

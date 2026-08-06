@@ -2,24 +2,24 @@ import { useMemo } from 'react';
 
 // The shift timer.
 //
-// The important thing about this component is that it has to look finished in
-// every state, not only while counting. Before, a shift that had not started
-// drew an empty grey groove and nothing else, so the screen a carer sees most
-// of the time was the one screen with no design on it.
+// Matches the redesign: a thin ring rather than a heavy groove, the tick scale
+// moved outside the ring where it reads as a measure instead of decoration, and
+// a plain white disc in the middle carrying the state above the time.
 //
-// So each state gets its own complete treatment:
+// The arc colour is the state:
 //
-//   idle       a full ring in a pale brand tint, reading as loaded and ready
-//   running    the gradient arc over that ring, with a glowing cap and a pulse
-//   break      the same arc held in amber, with the cap still
-//   complete   a full ring in the success colour
-//   over       amber, because running past the booked end is worth seeing
+//   idle       nothing drawn, just the ring and the scale
+//   running    teal through cyan
+//   break      amber, because a paused shift should not look like a running one
+//   complete   the ring filled in the success colour
+//   over       amber, since running past the booked end is worth seeing
 //
 // `progress` is 0..1 of the scheduled duration and may exceed 1.
 const SIZE = 300;
-const STROKE = 15;
-const R = 116;
+const R = 116; // arc radius
+const STROKE = 10; // the ring is thin in the new design
 const TICKS = 60;
+const TICK_INNER = R + 14; // the scale sits outside the ring, not on it
 
 export default function Dial({ progress = 0, state = 'idle', children }) {
   const over = progress > 1.001;
@@ -39,18 +39,19 @@ export default function Dial({ progress = 0, state = 'idle', children }) {
 
   const ticks = useMemo(() => {
     const out = [];
-    const base = R + STROKE / 2 + 7;
     for (let i = 0; i < TICKS; i += 1) {
       const a = (i / TICKS) * 2 * Math.PI - Math.PI / 2;
+      // Every fifth mark is longer, which gives the scale a rhythm without
+      // needing numbers on it.
       const major = i % 5 === 0;
-      const len = major ? 10 : 5;
+      const len = major ? 13 : 7;
       out.push({
-        x1: SIZE / 2 + Math.cos(a) * base,
-        y1: SIZE / 2 + Math.sin(a) * base,
-        x2: SIZE / 2 + Math.cos(a) * (base + len),
-        y2: SIZE / 2 + Math.sin(a) * (base + len),
+        x1: SIZE / 2 + Math.cos(a) * TICK_INNER,
+        y1: SIZE / 2 + Math.sin(a) * TICK_INNER,
+        x2: SIZE / 2 + Math.cos(a) * (TICK_INNER + len),
+        y2: SIZE / 2 + Math.sin(a) * (TICK_INNER + len),
         major,
-        past: i / TICKS <= filled,
+        past: i / TICKS <= filled && filled > 0,
       });
     }
     return out;
@@ -61,40 +62,23 @@ export default function Dial({ progress = 0, state = 'idle', children }) {
       <svg className="dial__svg" viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
         <defs>
           <linearGradient id="dialArc" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--brand-teal)" />
-            <stop offset="55%" stopColor="var(--brand-cyan)" />
-            <stop offset="100%" stopColor="#8af2f7" />
+            <stop offset="0%" stopColor="var(--brand-deep)" />
+            <stop offset="60%" stopColor="var(--brand-teal)" />
+            <stop offset="100%" stopColor="var(--brand-cyan)" />
           </linearGradient>
 
           <linearGradient id="dialArcWarn" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="#c98a1e" />
-            <stop offset="100%" stopColor="#f0c274" />
+            <stop offset="0%" stopColor="#e08a2b" />
+            <stop offset="100%" stopColor="#f2a852" />
           </linearGradient>
 
           <linearGradient id="dialArcDone" x1="0" y1="1" x2="1" y2="0">
             <stop offset="0%" stopColor="var(--success)" />
             <stop offset="100%" stopColor="#63d6a1" />
           </linearGradient>
-
-          {/* A soft light across the face, so it reads as a physical disc. */}
-          <linearGradient id="dialFace" x1="0.2" y1="0" x2="0.8" y2="1">
-            <stop offset="0%" stopColor="var(--dial-face-hi)" />
-            <stop offset="100%" stopColor="var(--dial-face-lo)" />
-          </linearGradient>
-
-          <filter id="dialGroove" x="-25%" y="-25%" width="150%" height="150%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#0f1e2e" floodOpacity="0.14" />
-          </filter>
-
-          <filter id="dialGlow" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="6" result="b" />
-            <feMerge>
-              <feMergeNode in="b" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
+        {/* The scale, outside the ring. */}
         <g className="dial__ticks">
           {ticks.map((t, i) => (
             <line
@@ -103,26 +87,21 @@ export default function Dial({ progress = 0, state = 'idle', children }) {
               y1={t.y1}
               x2={t.x2}
               y2={t.y2}
-              strokeWidth={t.major ? 2.2 : 1.2}
+              strokeWidth={t.major ? 2.4 : 1.4}
               className={t.past ? 'is-past' : undefined}
             />
           ))}
         </g>
 
-        {/* The groove. */}
+        {/* The ring the arc runs along. Thin, and always fully drawn, so the
+            idle dial still reads as a dial rather than an empty space. */}
         <circle
           className="dial__track"
           cx={SIZE / 2}
           cy={SIZE / 2}
           r={R}
           strokeWidth={STROKE}
-          filter="url(#dialGroove)"
         />
-
-        {/* A full ring in a pale brand tint sitting under the arc. This is what
-            gives the idle state something to look at, and under a partial arc
-            it reads as the distance still to go. */}
-        <circle className="dial__rest" cx={SIZE / 2} cy={SIZE / 2} r={R} strokeWidth={STROKE - 5} />
 
         <circle
           className="dial__arc"
@@ -133,27 +112,25 @@ export default function Dial({ progress = 0, state = 'idle', children }) {
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-          filter="url(#dialGlow)"
         />
 
+        {/* The leading edge: a white bead with a coloured ring, so the current
+            position is findable at a glance on a bright screen. */}
         {filled > 0.002 && !done && (
           <g className="dial__cap">
-            <circle cx={cap.x} cy={cap.y} r={13} className="dial__cap-ring" />
-            <circle cx={cap.x} cy={cap.y} r={5.5} className="dial__cap-core" />
+            <circle cx={cap.x} cy={cap.y} r={9} className="dial__cap-ring" />
           </g>
         )}
 
-        {/* The face, drawn in SVG so it shares the gradient and sits under the
-            text without a second stacking context. */}
-        <circle className="dial__plate" cx={SIZE / 2} cy={SIZE / 2} r={R - STROKE / 2 - 14} />
-
-        {/* A hairline just inside the plate: a small detail, but it is what
-            stops the middle looking like a plain white hole. */}
+        {/* The white disc the time sits on. Drawn in the SVG so it shares the
+            same coordinate space as the ring and cannot drift out of centre.
+            The gap to the ring is deliberate: with the disc any larger the two
+            read as one heavy blob rather than a dial with a face. */}
         <circle
-          className="dial__hairline"
+          className="dial__plate"
           cx={SIZE / 2}
           cy={SIZE / 2}
-          r={R - STROKE / 2 - 22}
+          r={R - STROKE / 2 - 34}
         />
       </svg>
 

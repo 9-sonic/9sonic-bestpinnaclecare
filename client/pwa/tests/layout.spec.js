@@ -90,21 +90,31 @@ test.describe('bottom navigation', () => {
 });
 
 test.describe('home screen', () => {
-  // The redesign leads with two gradient headline cards over a 2x2 grid of
-  // metrics. The original point of this test still holds: the figures must not
-  // quietly disappear again, only the shape they take has changed.
-  test('keeps the headline cards and the metric grid', async ({ page }) => {
+  // The latest design leads with one featured visit, then the week as a ring
+  // plus two counts. The shape has changed twice now; what this test is really
+  // protecting is unchanged, which is that the figures a carer opens the app
+  // for must not quietly disappear.
+  test('keeps the featured visit and the week summary', async ({ page }) => {
     await signIn(page);
 
-    await expect(page.locator('.hero')).toHaveCount(2);
-    await expect(page.locator('.metric')).toHaveCount(4);
-    await expect(page.locator('.metric-grid')).toBeVisible();
+    // The visit being acted on, with somewhere to go and someone to call.
+    await expect(page.locator('.fvisit')).toHaveCount(1);
+    await expect(page.locator('.fvisit__tile')).toHaveCount(2);
+    await expect(page.locator('.fvisit__call')).toBeVisible();
 
-    // Each metric keeps its own tint, which is what makes the grid scannable.
-    const tints = await page.locator('.metric .tile-icon').evaluateAll((els) =>
-      els.map((el) => el.className.split('--')[1])
-    );
-    expect(new Set(tints).size, 'metric tiles share a colour').toBe(4);
+    // The week: hours as a ring, then the two counts beside it.
+    await expect(page.locator('.hours-ring')).toBeVisible();
+    await expect(page.locator('.ministat')).toHaveCount(2);
+
+    // The ring must actually be drawn, not left at zero length. A ring showing
+    // nothing looks identical to one that failed to render.
+    const drawn = await page.locator('.hours-ring__arc').evaluate((el) => {
+      const total = Number(el.getAttribute('stroke-dasharray'));
+      const offset = Number(el.getAttribute('stroke-dashoffset'));
+      return { total, offset, swept: total - offset };
+    });
+    expect(drawn.total, 'the hours ring has no circumference').toBeGreaterThan(0);
+    expect(drawn.swept, 'the hours ring is empty').toBeGreaterThan(0);
   });
 });
 
@@ -160,14 +170,14 @@ test.describe('shift cards', () => {
   test('lead with the avatar beside the details, never stacked', async ({ page }) => {
     await signIn(page);
 
-    for (const path of ['/shifts', '/clock']) {
+    for (const path of ['/shifts', '/clock', '/home']) {
       await page.goto(path);
-      const cards = page.locator('.scard');
+      const cards = page.locator('.vcard');
       await expect(cards.first(), `${path}: no shift cards rendered`).toBeVisible({ timeout: 10000 });
 
       const shape = await cards.first().evaluate((el) => {
         const avatar = el.querySelector('.avatar');
-        const body = el.querySelector('.scard__name');
+        const body = el.querySelector('.vcard__name');
         if (!avatar || !body) return { missing: true };
         const a = avatar.getBoundingClientRect();
         const b = body.getBoundingClientRect();
@@ -217,7 +227,7 @@ test.describe('long database values', () => {
     // parallel load the dev server is slow enough that a timeout measures an
     // empty page and passes for the wrong reason, or half a page and fails.
     const pages = [
-      { path: '/home', ready: '.hero, .metric' },
+      { path: '/home', ready: '.fvisit, .home-stats' },
       { path: '/shifts', ready: '.cal' },
       { path: '/notifications', ready: '.ncard, .empty-state' },
       { path: '/messages', ready: '.thread-row, .empty-state' },

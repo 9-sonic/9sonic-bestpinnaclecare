@@ -16,7 +16,7 @@ export async function signIn(page) {
 // Every route the carer can reach, with something on each that proves the page
 // actually rendered rather than falling back to an error boundary.
 export const ROUTES = [
-  { path: '/home', expect: '.hero, .metric' },
+  { path: '/home', expect: '.fvisit, .home-stats' },
   { path: '/shifts', expect: '.cal' },
   { path: '/clock', expect: '.dial, .empty-state' },
   { path: '/messages', expect: '.thread-row, .empty-state' },

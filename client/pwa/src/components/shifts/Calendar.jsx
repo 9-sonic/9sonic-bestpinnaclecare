@@ -128,6 +128,23 @@ export default function Calendar({ selected, onSelect, markedDates = [], onMonth
             );
           })}
         </div>
+
+        {/* The key to the dots, inside the card as in the design. Without it
+            the coloured dots are decoration nobody can read. */}
+        <div className="cal-legend">
+          <span className="cal-legend__item">
+            <span className="cal-legend__swatch cal-legend__swatch--care" />
+            Care visit
+          </span>
+          <span className="cal-legend__item">
+            <span className="cal-legend__swatch cal-legend__swatch--missed" />
+            Missed visit
+          </span>
+          <span className="cal-legend__item">
+            <span className="cal-legend__swatch cal-legend__swatch--late" />
+            Late arrival
+          </span>
+        </div>
       </div>
     </>
   );

@@ -19,90 +19,142 @@ const LABELS = {
 
 // A visit in a list.
 //
-// The revamped design drops the time rail and leads with the person: a tinted
-// initials avatar, then the name, the time, the address and the visit note,
-// with a status pill in the corner. Reading down a column of faces is how a
-// carer actually scans their day.
+// One component for every list of visits in the app: Home, Shifts, and the
+// switcher on the clock screen. That is deliberate. The clock screen used to
+// carry its own copy of this markup, the shared card changed, and the copy
+// silently collapsed into an unreadable strip. There is a test for it now, but
+// the real fix is not having a second copy to drift.
 //
-// `compact` keeps the same shape but hides the address and note, for places
-// that list visits only so one can be chosen.
-export default function ShiftCard({ shift, onSelect, index, compact = false, selected = false }) {
+// Layout follows the redesign: when and what day first, since a carer scanning
+// their day is looking for a time, then the person, then where and what the
+// visit is for.
+//
+// `compact` hides the address, note and actions, for places that list visits
+// only so one can be picked.
+// `actions` adds the route and details buttons.
+export default function ShiftCard({
+  shift,
+  onSelect,
+  index,
+  compact = false,
+  selected = false,
+  actions = false,
+  onRoute,
+  onDetails,
+}) {
+  const done = shift.status === 'completed';
+  // The whole card is clickable only when it has no buttons of its own.
+  // Nesting a button inside a clickable card means one tap fires two things.
+  const clickable = !!onSelect && !actions;
+
   return (
     <article
       className={[
-        'scard',
-        `scard--${shift.status}`,
-        compact && 'scard--compact',
-        selected && 'scard--selected',
+        'vcard',
+        `vcard--${shift.status}`,
+        compact && 'vcard--compact',
+        selected && 'vcard--selected',
       ]
         .filter(Boolean)
         .join(' ')}
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
       aria-current={selected ? 'true' : undefined}
       onClick={() => {
-        if (!onSelect) return;
+        if (!clickable) return;
         tapFeedback();
         onSelect(shift);
       }}
       onKeyDown={(e) => {
-        if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           onSelect(shift);
         }
       }}
     >
-      <div className="scard__top">
-        <Avatar name={shift.client} size={44} />
-        {/* A finished visit is marked rather than dimmed: greying the whole
-            card made it look broken instead of done. */}
-        {shift.status === 'completed' && (
-          <span className="scard__done" aria-hidden="true">
-            <Icon name="check" size={12} strokeWidth={3} />
+      <div className="vcard__lead">
+        <div className="vcard__timing">
+          <span className="vcard__range">
+            {formatTimeRange(shift.startsAt, shift.endsAt)}
           </span>
-        )}
-
-        <div className="grow">
-          <div className="scard__name">
-            {typeof index === 'number' && <span className="scard__index">{index}</span>}
-            {shift.client}
-          </div>
-
-          <div className="scard__when">
-            <Icon name="clock" size={13} />
-            <span>{formatTimeRange(shift.startsAt, shift.endsAt)}</span>
-            <span className="scard__sep" aria-hidden="true">•</span>
-            <span>{formatDayLabel(shift.startsAt)}</span>
-          </div>
+          <span className="vcard__day">{formatDayLabel(shift.startsAt)}</span>
         </div>
-
         <span className={`badge badge--${shift.status}`}>
           {LABELS[shift.status] ?? shift.status}
         </span>
       </div>
 
+      <div className="vcard__head">
+        <div className="vcard__avatar">
+          <Avatar name={shift.client} size={40} />
+          {/* A finished visit is marked rather than dimmed: greying the whole
+              card made it look broken instead of done. */}
+          {done && (
+            <span className="vcard__done" aria-hidden="true">
+              <Icon name="check" size={11} strokeWidth={3} />
+            </span>
+          )}
+        </div>
+
+        <div className="vcard__id">
+          <h3 className="vcard__name">
+            {typeof index === 'number' && <span className="vcard__index">{index}</span>}
+            {shift.client}
+          </h3>
+        </div>
+      </div>
+
       {!compact && (
         <>
-          <div className="scard__where">
+          <p className="vcard__addr">
             <Icon name="pin" size={13} />
             {shift.address}
-          </div>
+          </p>
 
           {/* Once a visit is done the hours worked matter more than the note. */}
-          {shift.status === 'completed' && shift.workedMinutes ? (
-            <span className="scard__worked">
+          {done && shift.workedMinutes ? (
+            <span className="vcard__worked">
               <Icon name="check" size={12} />
               {workedLabel(shift.workedMinutes)} recorded
             </span>
           ) : (
-            shift.note && <p className="scard__note">{shift.note}</p>
+            shift.note && <p className="vcard__note">{shift.note}</p>
           )}
 
           {shift.needsAttention && (
-            <span className="scard__flag">
+            <span className="vcard__flag">
               <Icon name="alert" size={12} />
               Needs attention
             </span>
+          )}
+
+          {actions && (
+            <div className="vcard__actions">
+              {shift.status === 'upcoming' ? (
+                <button
+                  type="button"
+                  className="vcard__go"
+                  onClick={() => { tapFeedback(); onRoute?.(shift); }}
+                >
+                  Start Route
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="vcard__go vcard__go--quiet"
+                  onClick={() => { tapFeedback(); onDetails?.(shift); }}
+                >
+                  View Visit
+                </button>
+              )}
+              <button
+                type="button"
+                className="vcard__details"
+                onClick={() => { tapFeedback(); onDetails?.(shift); }}
+              >
+                Details
+              </button>
+            </div>
           )}
         </>
       )}

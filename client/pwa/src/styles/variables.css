@@ -477,3 +477,21 @@
      state next to the bright active tab. */
   --nav-ink-muted: #8497aa;
 }
+
+/* ---------------------------------------------------------------------------
+   Dial parts.
+
+   The redesign moved the scale outside a thin ring, so both need their own
+   values: the ring is a faint groove the arc runs along, and the ticks are
+   quieter still until the arc passes them. Neither carries text, so these are
+   chosen to read at arm's length rather than to hit a contrast ratio.
+--------------------------------------------------------------------------- */
+:root {
+  --dial-track: #dde8ee;
+  --dial-tick: #c3d5de;
+}
+
+:root[data-theme='dark'] {
+  --dial-track: #23323f;
+  --dial-tick: #33465a;
+}
