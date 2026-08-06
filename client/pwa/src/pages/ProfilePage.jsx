@@ -113,12 +113,18 @@ export default function ProfilePage() {
         </button>
         <h1 className="profile__name">{user?.name}</h1>
         <p className="profile__role">{user?.role ?? 'Care Giver'}</p>
-        <p className="profile__id">Staff ID {user?.staffId ?? 'not set'}</p>
+        <p className="profile__id">ID No. {user?.staffId ?? 'not set'}</p>
       </div>
 
       <p className="list-group__label">Account</p>
       <Card className="stack-card" padded={false}>
-        <Row icon="user" tint={TINTS.teal} label="Personal details" onClick={() => navigate('/profile/details')} />
+        <Row
+          icon="user"
+          tint={TINTS.teal}
+          label="Personal details"
+          value={user?.name}
+          onClick={() => navigate('/profile/details')}
+        />
         <Row
           icon="calendar"
           tint={TINTS.blue}

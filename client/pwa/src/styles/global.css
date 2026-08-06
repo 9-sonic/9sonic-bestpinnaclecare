@@ -10293,3 +10293,672 @@ body:has(.drawer-backdrop) .app-content {
   background: none;
   border-radius: inherit;
 }
+
+/* ===========================================================================
+   Calendar colours.
+
+   Three colours, and they are the three the legend names. Anything else on
+   this grid is a colour the carer has no key for.
+
+     care     teal    an ordinary day of visits, shown as a dot
+     late     amber   arrived outside the window
+     missed   red     the visit did not happen
+
+   Only the two that went wrong get a filled day. Filling every working day
+   would leave nothing standing out, which is the whole point of the grid.
+   =========================================================================== */
+
+.cal__dot--care { background: var(--brand-teal); }
+.cal__dot--late { background: var(--warning); }
+.cal__dot--missed { background: var(--danger); }
+
+/* A filled day carries white numerals, so the fill has to be dark enough to
+   hold them. These are the text-grade tones, not the dot tones. */
+.cal__day--late,
+.cal__day--missed {
+  color: #fff;
+}
+
+.cal__day--late .cal__num,
+.cal__day--missed .cal__num {
+  color: #fff;
+  font-weight: 700;
+}
+
+.cal__day--late {
+  background: var(--warning-text);
+}
+
+.cal__day--missed {
+  background: var(--danger);
+}
+
+/* The dot on a filled day would disappear into it, so it goes white. */
+.cal__day--late .cal__dot,
+.cal__day--missed .cal__dot {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Selection always wins the fill: the carer chose it, and it has to be
+   findable even on a day that also went wrong. */
+.cal__day--selected {
+  background: var(--grad-brand);
+  color: #fff;
+}
+
+.cal__day--selected .cal__num {
+  color: #fff;
+}
+
+.cal__day--selected .cal__dot {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Today is marked with a ring rather than a fill, so it can coexist with any
+   of the above without arguing about the background. */
+.cal__day--today:not(.cal__day--selected):not(.cal__day--late):not(.cal__day--missed) {
+  box-shadow: inset 0 0 0 1.5px var(--brand-teal);
+  color: var(--brand-text);
+}
+
+/* ===========================================================================
+   Home: closing the gaps.
+
+   The greeting block, the section heads and the card stack each carried their
+   own margin, which stacked into bands of empty screen on a phone. The rhythm
+   is set here in one place instead.
+   =========================================================================== */
+
+.greet {
+  margin-bottom: var(--space-3);
+}
+
+.greet__chip {
+  margin-top: var(--space-2);
+}
+
+.home-sec {
+  margin-bottom: var(--space-4);
+}
+
+/* The section head sat well clear of the card below it. */
+.home-sec .section-head--inset,
+.home-stats + .home-sec .section-head--inset {
+  margin-bottom: var(--space-2);
+}
+
+.home-stats {
+  margin-bottom: var(--space-4);
+}
+
+/* The ring card was taller than the two beside it and padded on top of that,
+   which is where most of the empty space came from. */
+.hours-ring {
+  padding: var(--space-3);
+  gap: 6px;
+}
+
+.hours-ring__dial {
+  width: 96px;
+  height: 96px;
+}
+
+.vlist {
+  gap: var(--space-2);
+}
+
+.vcard {
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ===========================================================================
+   Overview.
+   =========================================================================== */
+
+.ov-sub {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  text-align: center;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* The round steppers either side of the year. */
+.round-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--brand-tint);
+  color: var(--brand-text);
+  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+
+.round-btn:hover:not(:disabled) {
+  background: var(--tint-teal-bg);
+}
+
+.round-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+/* Stepping past this week is not a thing that can be done, so it says so
+   rather than silently doing nothing. */
+.round-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.range-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.range-card__year {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.range-card__dates {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.range-card__to {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--brand-text);
+}
+
+/* -- the three figures ---------------------------------------------------- */
+
+.ov-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.ov-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.ov-tile__value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.ov-tile__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* -- the chart ------------------------------------------------------------ */
+
+.chart-card {
+  border: 1px solid var(--brand-tint-line);
+}
+
+.chart-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chart-card__title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* The average, so the total below has something to be judged against. */
+.chart-card__avg {
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chart-card__total {
+  margin-top: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-card__unit {
+  margin-left: 2px;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  align-items: end;
+  gap: var(--space-1);
+  height: 168px;
+  margin-top: var(--space-4);
+}
+
+.chart__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  border: none;
+  background: none;
+}
+
+.chart__bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+}
+
+.chart__bar {
+  width: 60%;
+  max-width: 22px;
+  min-height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-tint);
+  transition: height 0.5s var(--ease-out), background var(--dur) var(--ease);
+}
+
+.chart__bar--weekend {
+  background: var(--tint-pink-bg);
+}
+
+.chart__bar--active {
+  background: var(--grad-accent);
+}
+
+/* The value for the selected day, above its bar. A dark chip because it sits
+   over a pale column and has to be readable there. */
+.chart__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.chart__label--active {
+  color: var(--brand-text);
+  font-weight: 800;
+}
+
+/* -- recent clock-ins ----------------------------------------------------- */
+
+.event-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.event-row + .event-row {
+  border-top: 1px solid var(--color-border);
+}
+
+/* Direction as colour and arrow together, so it does not rely on colour
+   alone: green up for in, red down for out. */
+.event-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+}
+
+.event-row__icon--in {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.event-row__icon--out {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.event-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.event-row__title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.event-row__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.event-row__time {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ===========================================================================
+   Chat list.
+
+   Grouped by what a thread is, because that is how a carer looks for one. The
+   office, a team channel and a client thread are different kinds of
+   conversation and should not be an undifferentiated column of rows.
+   =========================================================================== */
+
+.thread-group {
+  margin-bottom: var(--space-4);
+}
+
+.thread-group__label {
+  padding: 0 var(--space-4);
+  margin-bottom: var(--space-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.thread-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+  text-align: left;
+  transition: transform var(--dur) var(--ease);
+}
+
+.thread-row:active {
+  transform: scale(0.99);
+}
+
+.thread-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.thread-row__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.thread-row__name {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-row__pin {
+  flex-shrink: 0;
+  color: var(--brand-text);
+  transform: rotate(45deg);
+}
+
+.thread-row__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One line, clipped. A preview that wraps to three lines stops the list being
+   scannable, which is the only job it has. */
+.thread-row__preview {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-row__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.thread-row__time {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+/* The unread count. Green rather than red: unread mail is not an error. */
+.thread-row__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+/* Unread is weight, not a coloured edge. */
+.thread-row--unread .thread-row__name {
+  font-weight: 800;
+}
+
+.thread-row--unread .thread-row__preview {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* ===========================================================================
+   Chat thread.
+
+   Two details from the design that were missing: who said it, above the
+   bubble, and when, below it. Both sit outside the bubble so a long message
+   does not have to make room for them.
+   =========================================================================== */
+
+.msg-sender {
+  margin: 0 0 3px 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.bubble__time {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+/* The day divider, as a rule with the date sitting in it. */
+.chat__day {
+  position: relative;
+  align-self: center;
+  margin: var(--space-3) 0;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Quick replies scroll sideways. The row is given its own scrollbar rather
+   than wrapping, so the composer never gets pushed down the screen. */
+.quick-replies {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-4);
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.quick-reply {
+  flex-shrink: 0;
+  padding: 0 14px;
+  min-height: 34px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--brand-tint-line);
+  background: var(--color-surface);
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.quick-reply:hover {
+  background: var(--brand-tint);
+}
+
+/* ---------------------------------------------------------------------------
+   Message row.
+
+   The bubble used to be the flex item and carried its own alignment through
+   align-self. Now that the sender and the time sit outside it, the row is the
+   flex item and owns the alignment; the bubble just sizes to its text.
+--------------------------------------------------------------------------- */
+.msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 82%;
+  align-self: flex-start;
+}
+
+.msg--mine {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.msg .bubble {
+  max-width: 100%;
+  align-self: auto;
+  margin: 0;
+}
+
+/* The timestamp is outside the bubble now, so it sits on the page rather than
+   on the gradient and takes the page text colour in both cases. */
+.msg .bubble__time,
+.msg--mine .bubble__time {
+  color: var(--color-text-faint);
+  opacity: 1;
+}
+
+/* The columns must be stretched to the full height of the plot, otherwise a
+   percentage bar height has nothing to be a percentage of. With align-items:
+   end the grid sized each column to its content, so every bar collapsed to
+   its 3% minimum and the chart looked empty. */
+.chart {
+  align-items: stretch;
+}
+
+.chart__col {
+  justify-content: flex-end;
+}
+
+/* The bar is the positioning context for its own value chip, so the chip
+   rides the top of the bar instead of floating at a fixed height. */
+.chart__bar {
+  position: relative;
+}
+
+.chart__tip {
+  bottom: calc(100% + 6px);
+}
+
+.chart__bar { background: var(--chart-bar); }
+.chart__bar--weekend { background: var(--chart-bar-weekend); }
+.chart__bar--active { background: var(--grad-accent); }

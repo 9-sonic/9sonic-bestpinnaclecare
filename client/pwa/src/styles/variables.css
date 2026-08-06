@@ -495,3 +495,38 @@
   --dial-track: #23323f;
   --dial-tick: #33465a;
 }
+
+/* A hairline in the brand colour, for cards the design outlines rather than
+   shadows (the chart card). Pale enough to read as a border, not a rule. */
+:root {
+  --brand-tint-line: #b9e6ec;
+}
+
+:root[data-theme='dark'] {
+  --brand-tint-line: #1b4a55;
+}
+
+/* ---------------------------------------------------------------------------
+   Brand tint.
+
+   This was being used by the visits chip, the status chip, the round steppers,
+   the quick replies and the chart bars, and it was never defined. An undefined
+   custom property is not an error and does not fall back to anything sensible:
+   `background: var(--brand-tint)` simply paints nothing. The chart bars were
+   the visible symptom, drawing at full height in no colour at all, so the
+   chart looked empty while the geometry was correct the whole time.
+
+   Defined here once, alongside the two chart fills, which need to be visible
+   against a white card rather than against the page.
+--------------------------------------------------------------------------- */
+:root {
+  --brand-tint: #e2f5f8;
+  --chart-bar: #b8e7ee;
+  --chart-bar-weekend: #f6c9d7;
+}
+
+:root[data-theme='dark'] {
+  --brand-tint: #16333c;
+  --chart-bar: #1d4d58;
+  --chart-bar-weekend: #4a2231;
+}

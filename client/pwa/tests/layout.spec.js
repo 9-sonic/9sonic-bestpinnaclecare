@@ -118,6 +118,63 @@ test.describe('home screen', () => {
   });
 });
 
+test.describe('design tokens', () => {
+  // Regression: an undefined custom property is not an error. `var(--nope)`
+  // resolves to nothing and the declaration is simply dropped, so the element
+  // paints no background at all and everything else still renders.
+  //
+  // That happened twice in one pass. --brand-tint was used by five components
+  // and never defined, which made the whole Overview chart look empty while
+  // its bars were the correct height. Three of the four avatar tints pointed
+  // at names that did not exist, so three clients in four got no circle.
+  //
+  // This walks every var(--x) referenced in the stylesheet and checks it
+  // resolves to something. It is cheap and it catches a class of bug that is
+  // invisible in review.
+  test('every referenced custom property is defined', async ({ page }) => {
+    await signIn(page);
+
+    const undefinedTokens = await page.evaluate(() => {
+      const referenced = new Set();
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try {
+          rules = sheet.cssRules;
+        } catch {
+          continue; // cross-origin, not ours
+        }
+        const walk = (list) => {
+          for (const rule of list) {
+            if (rule.cssRules) {
+              walk(rule.cssRules);
+              continue;
+            }
+            const text = rule.cssText ?? '';
+            for (const m of text.matchAll(/var\(\s*(--[\w-]+)/g)) {
+              referenced.add(m[1]);
+            }
+          }
+        };
+        walk(rules);
+      }
+
+      const root = getComputedStyle(document.documentElement);
+      const body = getComputedStyle(document.body);
+      return [...referenced]
+        .filter((name) => {
+          // A property may be defined on :root or on a narrower scope. Check
+          // both, and treat anything with a fallback as intentional.
+          const onRoot = root.getPropertyValue(name).trim();
+          const onBody = body.getPropertyValue(name).trim();
+          return !onRoot && !onBody;
+        })
+        .sort();
+    });
+
+    expect(undefinedTokens, 'custom properties used but never defined').toEqual([]);
+  });
+});
+
 test.describe('clock dial', () => {
   // Regression: the dial has been redesigned three times and each pass appended
   // rules without removing the last, so leftovers from earlier versions were

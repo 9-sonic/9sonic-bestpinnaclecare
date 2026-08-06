@@ -9,11 +9,14 @@ const keyOf = (d) => new Date(d).toDateString();
 
 // Month grid.
 //
-// Sunday first and borderless, matching the revamped design: a plain white
-// card, muted days from the neighbouring months, a filled circle on the
-// selection, and a small dot under any day that has visits. The dot takes its
-// colour from the earliest visit that day, so a glance down the month shows
-// where the work is without opening anything.
+// Sunday first and borderless: a plain white card, muted days from the
+// neighbouring months, and each day carrying what happened on it.
+//
+// The colours are the legend's colours, and only those three. A day that went
+// wrong is filled in its colour so it is findable while scrolling the month;
+// an ordinary day of care visits gets a dot, because filling every working day
+// would leave nothing standing out. Selection is the brand colour and always
+// wins the fill, since the carer chose it.
 export default function Calendar({ selected, onSelect, markedDates = [], onMonthChange }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date(selected ?? Date.now());
@@ -21,14 +24,21 @@ export default function Calendar({ selected, onSelect, markedDates = [], onMonth
   });
 
   // date -> { count, tone }
+  //
+  // A day can hold several visits with different outcomes. The worst one wins
+  // the day's colour: a missed visit is the thing worth spotting from a
+  // month away, and it should not be hidden behind three that went fine.
   const marks = useMemo(() => {
+    const RANK = { care: 0, late: 1, missed: 2 };
     const map = new Map();
     markedDates.forEach((entry) => {
       const date = entry?.date ?? entry;
-      const tone = entry?.tone ?? 'teal';
+      const tone = entry?.tone ?? 'care';
       const k = keyOf(date);
       const existing = map.get(k);
-      map.set(k, { count: (existing?.count ?? 0) + 1, tone: existing?.tone ?? tone });
+      const worst =
+        existing && RANK[existing.tone] >= RANK[tone] ? existing.tone : tone;
+      map.set(k, { count: (existing?.count ?? 0) + 1, tone: worst });
     });
     return map;
   }, [markedDates]);
@@ -117,6 +127,9 @@ export default function Calendar({ selected, onSelect, markedDates = [], onMonth
                   cell.outside && 'cal__day--outside',
                   isToday && 'cal__day--today',
                   isSelected && 'cal__day--selected',
+                  // Filled only when something went wrong; an ordinary day of
+                  // care visits shows a dot instead.
+                  !isSelected && mark && mark.tone !== 'care' && `cal__day--${mark.tone}`,
                 ]
                   .filter(Boolean)
                   .join(' ')}

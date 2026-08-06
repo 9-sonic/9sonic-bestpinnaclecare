@@ -212,22 +212,37 @@ export default function ChatPage() {
               {row.label}
             </span>
           ) : (
+            /* Sender above, time below, both outside the bubble. Inside, they
+               forced every long message to leave a gap for them, and the
+               sender was not shown at all — which matters in a channel where
+               several people post. */
             <div
               key={row.id}
-              className={[
-                'bubble',
-                row.mine ? 'bubble--mine' : 'bubble--theirs',
-                row.first && 'bubble--first',
-                !row.last && 'bubble--grouped',
-                row.pending && 'bubble--pending',
-              ]
-                .filter(Boolean)
-                .join(' ')}
+              className={`msg${row.mine ? ' msg--mine' : ''}`}
             >
-              {row.text}
+              {row.first && !row.mine && row.senderName && (
+                <p className="msg-sender">{row.senderName}</p>
+              )}
+
+              <div
+                className={[
+                  'bubble',
+                  row.mine ? 'bubble--mine' : 'bubble--theirs',
+                  row.first && 'bubble--first',
+                  !row.last && 'bubble--grouped',
+                  row.pending && 'bubble--pending',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {row.text}
+              </div>
+
               {row.last && (
                 <span className="bubble__time">
                   {row.pending ? 'Sending' : formatChatTime(row.at)}
+                  {/* Read receipts only mean anything on your own messages. */}
+                  {row.mine && !row.pending && row.readAt && ' · Read'}
                 </span>
               )}
             </div>

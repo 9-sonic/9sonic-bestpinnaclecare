@@ -1,11 +1,19 @@
 // Avatar: shows an image when available, otherwise coloured initials.
 // The designs use tinted initial circles for clients (ET, HG, MF).
 
+// Four of these referenced tokens that were never defined
+// (--color-purple-bg, --color-purple, --color-green-bg, --color-blue-bg), so
+// three names in four got no background at all and the initials fell back to
+// inherited text. An undefined custom property paints nothing rather than
+// failing loudly, which is why it survived this long.
+//
+// These are the --tint-* pairs, which are defined for both themes.
 const TINTS = [
-  { bg: 'var(--teal-100)', fg: 'var(--teal-600)' },
-  { bg: 'var(--color-purple-bg)', fg: 'var(--color-purple)' },
-  { bg: 'var(--color-green-bg)', fg: 'var(--color-success)' },
-  { bg: 'var(--color-blue-bg)', fg: '#3b82f6' },
+  { bg: 'var(--tint-teal-bg)', fg: 'var(--tint-teal-fg)' },
+  { bg: 'var(--tint-purple-bg)', fg: 'var(--tint-purple-fg)' },
+  { bg: 'var(--tint-green-bg)', fg: 'var(--tint-green-fg)' },
+  { bg: 'var(--tint-blue-bg)', fg: 'var(--tint-blue-fg)' },
+  { bg: 'var(--tint-pink-bg)', fg: 'var(--tint-pink-fg)' },
 ];
 
 function initialsOf(name = '') {

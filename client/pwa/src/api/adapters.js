@@ -210,10 +210,38 @@ export function toThread(convo, { viewerType, viewerId, nameFor } = {}) {
   const label = (p) => p?.full_name ?? p?.name ?? nameFor?.(p) ?? `${p?.type} ${p?.id}`;
   const title = convo.title || others.map(label).join(', ') || 'Conversation';
 
+  // The list groups threads by what they are. The API's `kind` is the source
+  // of that; it was being collapsed into a "Group" label and otherwise thrown
+  // away, so every thread arrived at the UI looking like a direct message.
+  //
+  // `group` is the API's word for a channel. Anything unrecognised falls back
+  // to direct, so a new kind added server-side still shows up in the list
+  // rather than vanishing out of every group.
+  const kind =
+    convo.kind === 'group'
+      ? 'channel'
+      : convo.kind === 'client'
+        ? 'client'
+        : 'direct';
+
+  // The line under the name, saying what the thread is. A channel says how
+  // many people are in it; a direct thread says who the person is.
+  const memberCount = (convo.participants ?? []).length;
+  const subtitle =
+    convo.subtitle ??
+    (kind === 'channel'
+      ? `${memberCount} member${memberCount === 1 ? '' : 's'}`
+      : kind === 'client'
+        ? 'Client thread'
+        : others.map((p) => p?.job_title).filter(Boolean)[0] ?? '');
+
   return {
     id: String(convo.id),
     name: title,
-    role: convo.kind === 'group' ? 'Group' : '',
+    kind,
+    subtitle,
+    pinned: !!convo.pinned,
+    role: kind === 'channel' ? 'Group' : '',
     online: false, // No presence in the API.
     unread: convo.unread_count ?? 0,
     lastAt: convo.last_message_at,
@@ -230,6 +258,13 @@ export function toMessage(m, { viewerType, viewerId } = {}) {
     mine: m.sender_type === viewerType && m.sender_id === viewerId,
     text: m.body ?? '',
     at: m.created_at,
+    // Who said it, for the label above the bubble. It only gets drawn on
+    // other people's messages, and it matters in a channel where several
+    // people post; a thread of unattributed bubbles is unreadable.
+    senderName: m.sender_name ?? m.sender?.full_name ?? m.sender?.name ?? '',
+    // Only ever shown on your own messages. Reporting that you have read
+    // someone else's message back to yourself is noise.
+    readAt: m.read_at ?? null,
     clientMessageId: m.client_message_id,
   };
 }
