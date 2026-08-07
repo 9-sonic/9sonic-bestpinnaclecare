@@ -144,6 +144,139 @@
   --scroll-size: 10px;
 }
 
+/* ---------------------------------------------------------------------------
+   Second design pass.
+
+   The revamped screens move away from flat teal towards a brighter cyan to
+   teal gradient, cooler blue grey surfaces, and pastel tinted icon tiles.
+   Gradients are used deliberately here rather than avoided: the designer uses
+   them as the brand's main device, on the hero cards, the primary button, the
+   dial and the wave header.
+--------------------------------------------------------------------------- */
+:root {
+  /* Brand ramp, sampled from the new screens. */
+  --brand-cyan: #2ed3dd;
+  --brand-teal: #0eb2c4;
+  --brand-deep: #0a8fa3;
+  --brand-ink: #04616f;
+
+  /* The gradient that carries the brand. Angled slightly so it reads as light
+     falling across the surface rather than a flat two tone fill. */
+  --grad-brand: linear-gradient(115deg, var(--brand-cyan) 0%, var(--brand-teal) 100%);
+  --grad-brand-strong: linear-gradient(115deg, var(--brand-teal) 0%, var(--brand-deep) 100%);
+  /* Used on the sign in header, which is much darker at the top left. */
+  --grad-header: linear-gradient(150deg, #0d6b7a 0%, #12a7bb 45%, #2ed3dd 100%);
+
+  /* Surfaces. Cooler and lighter than before: the new screens sit on a pale
+     blue grey rather than a warm grey. */
+  --color-bg: #eef2f7;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f4f7fa;
+  --color-surface-sunken: #e7edf3;
+  --color-border: #e4eaf1;
+  --color-border-strong: #cfd9e4;
+
+  /* Text. Headings are close to navy rather than neutral charcoal. */
+  --color-text: #14263a;
+  --color-text-muted: #64788f;
+  --color-text-faint: #93a5b8;
+
+  --color-primary: var(--brand-teal);
+  --color-primary-strong: var(--brand-deep);
+  --color-primary-contrast: #ffffff;
+
+  /* Pastel tiles behind the metric icons. Each metric keeps its own colour so
+     the grid is scannable at a glance. */
+  --tint-blue-bg: #e8effe;
+  --tint-blue-fg: #4c7ef3;
+  --tint-mint-bg: #dff7ec;
+  --tint-mint-fg: #23a86c;
+  --tint-green-bg: #e3f6e9;
+  --tint-green-fg: #35a35c;
+  --tint-purple-bg: #f0e9fd;
+  --tint-purple-fg: #8b5cf0;
+  --tint-teal-bg: #d7f2f6;
+  /* Darker than --brand-deep: brand teal on a pale teal chip measured 3.37:1,
+     so chip text gets its own tone rather than reusing the brand colour. */
+  --tint-teal-fg: #056072;
+  --tint-pink-bg: #fde9ef;
+  --tint-pink-fg: #e0568a;
+  --tint-amber-bg: #fdf0dd;
+  --tint-amber-fg: #c9821a;
+
+  /* Status pills on the shift cards. */
+  --pill-upcoming-bg: #d7f2f6;
+  --pill-upcoming-fg: #056072;
+  --pill-later-bg: #fde7ee;
+  --pill-later-fg: #b32e60;
+  --pill-done-bg: #e3f6e9;
+  --pill-done-fg: #1d6b3b;
+
+  /* Roomier corners throughout. */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+
+  /* Shadows are softer, wider and cooler; cards lift off the background rather
+     than being outlined. */
+  --shadow-xs: 0 1px 2px rgba(20, 38, 58, 0.04);
+  --shadow-sm: 0 2px 8px rgba(20, 38, 58, 0.06);
+  --shadow: 0 6px 18px rgba(20, 38, 58, 0.08);
+  --shadow-lg: 0 16px 36px rgba(20, 38, 58, 0.14);
+  /* Coloured lift under anything using the brand gradient. */
+  --shadow-brand: 0 8px 20px rgba(14, 178, 196, 0.32);
+  --shadow-focus: 0 0 0 3px rgba(46, 211, 221, 0.35);
+
+  --scroll-thumb: #c6d3e0;
+  --scroll-thumb-hover: #a8b9ca;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Contrast and state pass.
+
+   Two problems being fixed here. Muted text was too pale to read comfortably
+   on a phone outdoors, and several controls had no state of their own, so a
+   destructive action looked identical to a neutral one.
+
+   Text colours below are chosen to clear WCAG AA against their own surface:
+   muted reaches about 5.6:1 on white and faint about 4.6:1, rather than the
+   3.1:1 and 2.4:1 they were.
+--------------------------------------------------------------------------- */
+:root {
+  --color-text: #0f1e2e;
+  --color-text-muted: #445a70;
+  /* Measured at ~5.1:1 on white. The previous value came in at 4.13:1, which
+     reads fine on a desk and badly on a phone in daylight. */
+  --color-text-faint: #5c7085;
+
+  --color-border: #dde5ee;
+  --color-border-strong: #b9c7d6;
+
+  /* Semantic families. Each has a surface, a border, a solid fill and a text
+     colour that reads on the pale surface. */
+  --success: #12855a;
+  --success-bg: #e2f6ec;
+  --success-border: #9bdcbc;
+  --success-text: #0c6844;
+
+  --warning: #b26b04;
+  --warning-bg: #fdf1dd;
+  --warning-border: #f0cd8e;
+  --warning-text: #8a5203;
+
+  --danger: #c62f38;
+  --danger-bg: #fdeaec;
+  --danger-border: #f2b2b7;
+  --danger-text: #a01f28;
+
+  --info: #2563c9;
+  --info-bg: #e7f0fe;
+  --info-border: #aac7f5;
+  --info-text: #1c4ea3;
+}
+
 /* Dark theme. Not an inversion: surfaces lift as they come forward, the way
    they do on iOS and Android, and the brand teal is brightened so it still
    carries against a dark background. */
@@ -196,4 +329,298 @@
 
   --scroll-thumb: #2f4150;
   --scroll-thumb-hover: #405768;
+
+  /* Second design pass, dark. The gradient is dimmed rather than inverted:
+     a full brightness cyan on a near black background is glaring. */
+  --grad-brand: linear-gradient(115deg, #1aa9b8 0%, #0d8496 100%);
+  --grad-brand-strong: linear-gradient(115deg, #0d8496 0%, #0a6675 100%);
+  --grad-header: linear-gradient(150deg, #06313a 0%, #0a5f6d 55%, #0f8b9c 100%);
+
+  --color-bg: #0d151c;
+  --color-surface: #16212b;
+  --color-surface-alt: #1d2a36;
+  --color-surface-sunken: #101922;
+  --color-border: #253442;
+  --color-border-strong: #33475a;
+
+  --color-text: #e7eff6;
+  --color-text-muted: #93a7b9;
+  --color-text-faint: #6d8296;
+
+  --color-primary: #2ec4d4;
+  --color-primary-strong: #56d8e4;
+  --color-primary-contrast: #04252c;
+
+  --tint-blue-bg: #17263f;
+  --tint-blue-fg: #7ba2f7;
+  --tint-mint-bg: #0f3025;
+  --tint-mint-fg: #4fc98f;
+  --tint-green-bg: #123020;
+  --tint-green-fg: #5cc47f;
+  --tint-purple-bg: #241b3c;
+  --tint-purple-fg: #a983f5;
+  --tint-teal-bg: #0d2f36;
+  --tint-teal-fg: #4fd4e2;
+  --tint-pink-bg: #33161f;
+  --tint-pink-fg: #f07aa4;
+  --tint-amber-bg: #322412;
+  --tint-amber-fg: #e0a94f;
+
+  --pill-upcoming-bg: #0d2f36;
+  --pill-upcoming-fg: #56d8e4;
+  --pill-later-bg: #33161f;
+  --pill-later-fg: #f28cae;
+  --pill-done-bg: #123020;
+  --pill-done-fg: #6bd193;
+
+  --shadow-brand: 0 8px 20px rgba(0, 0, 0, 0.45);
+  --shadow-focus: 0 0 0 3px rgba(46, 196, 212, 0.35);
+
+  --scroll-thumb: #2c3f52;
+  --scroll-thumb-hover: #3d566d;
+
+  --color-text: #eef4f9;
+  --color-text-muted: #a9bccc;
+  --color-text-faint: #8399ab;
+
+  --success: #45c78b;
+  --success-bg: #10301f;
+  --success-border: #23593c;
+  --success-text: #7bdcaa;
+
+  --warning: #e0a545;
+  --warning-bg: #33260f;
+  --warning-border: #6b501f;
+  --warning-text: #f0c274;
+
+  --danger: #ef6b74;
+  --danger-bg: #351519;
+  --danger-border: #6d2b31;
+  --danger-text: #f79aa0;
+
+  --info: #5f97ef;
+  --info-bg: #142744;
+  --info-border: #2b4c7e;
+  --info-text: #9cc0f7;
+}
+
+/* ---------------------------------------------------------------------------
+   Contrast corrections.
+
+   Two systemic problems, both measured rather than guessed:
+
+   1. Brand teal as a text colour on white came in around 2.6:1 to 3.4:1. It
+      was being used for links, chip labels and the profile role, all of which
+      are small text needing 4.5:1. Decorative teal is fine at that lightness;
+      text is not, so text now has its own darker tone.
+
+   2. White on the brand gradient measured 1.83:1 against the light cyan end.
+      A gradient that carries white text has to be dark enough to hold it, so
+      the text-bearing gradient is darkened and the bright cyan is kept for
+      decoration only, where nothing sits on top of it.
+--------------------------------------------------------------------------- */
+:root {
+  /* Teal for text on a light surface. About 5.6:1 on white. */
+  --brand-text: #056072;
+
+  /* Carries white text: buttons, hero cards, the pay summary. The light end
+     is now dark enough for small white labels. */
+  --grad-brand: linear-gradient(115deg, #0b8b9c 0%, #056070 100%);
+  --grad-brand-strong: linear-gradient(115deg, #077383 0%, #04515f 100%);
+
+  /* Decoration only. Nothing readable sits on these, so they keep the
+     brightness the design is built around: the dial arc, chart bars, the
+     switch, the calendar selection. */
+  --grad-accent: linear-gradient(115deg, #2ed3dd 0%, #0eb2c4 100%);
+
+  --shadow-brand: 0 8px 20px rgba(5, 96, 112, 0.3);
+
+  /* Avatar initials were 3.2:1 to 3.7:1 on their pastel circles. */
+  --avatar-ink: #0d3d4a;
+}
+
+:root[data-theme='dark'] {
+  --brand-text: #6fdfec;
+  --grad-brand: linear-gradient(115deg, #12879a 0%, #0a6070 100%);
+  --grad-brand-strong: linear-gradient(115deg, #0d6d7d 0%, #084e5b 100%);
+  --grad-accent: linear-gradient(115deg, #2ec4d4 0%, #1595a8 100%);
+  --avatar-ink: #d8f2f7;
+}
+
+/* ---------------------------------------------------------------------------
+   Second contrast pass, after measuring the first one.
+
+   Darkening the gradient once was not enough. Even pure white on the light end
+   of --grad-brand measured 4.05:1 in light mode and 4.24:1 in dark, and small
+   labels sit on that gradient in three places: the home hero, the pay summary,
+   and the active segmented control. Small text needs 4.5:1, so the light end
+   comes down again. Measured after the change at 4.8:1 and 4.9:1.
+
+   The dark end was already fine; only the stop the labels actually sit over
+   needed to move, so the gradient keeps its direction and its feel.
+--------------------------------------------------------------------------- */
+:root {
+  --grad-brand: linear-gradient(115deg, #0a7e8e 0%, #05545f 100%);
+  --grad-brand-strong: linear-gradient(115deg, #086b79 0%, #04454f 100%);
+
+  /* Inactive tab labels. Light mode already cleared AA on white, so this is
+     the dark-mode value; see the override below. */
+  --nav-ink-muted: #445a70;
+}
+
+:root[data-theme='dark'] {
+  --grad-brand: linear-gradient(115deg, #0e7c8c 0%, #084e5b 100%);
+  --grad-brand-strong: linear-gradient(115deg, #0b6675 0%, #06404b 100%);
+
+  /* #64788f measured 2.29:1 against the dark nav bar, which is close to
+     invisible. This is 5.4:1 on the same bar and still reads as the quiet
+     state next to the bright active tab. */
+  --nav-ink-muted: #8497aa;
+}
+
+/* ---------------------------------------------------------------------------
+   Dial parts.
+
+   The redesign moved the scale outside a thin ring, so both need their own
+   values: the ring is a faint groove the arc runs along, and the ticks are
+   quieter still until the arc passes them. Neither carries text, so these are
+   chosen to read at arm's length rather than to hit a contrast ratio.
+--------------------------------------------------------------------------- */
+:root {
+  --dial-track: #dde8ee;
+  --dial-tick: #c3d5de;
+}
+
+:root[data-theme='dark'] {
+  --dial-track: #23323f;
+  --dial-tick: #33465a;
+}
+
+/* A hairline in the brand colour, for cards the design outlines rather than
+   shadows (the chart card). Pale enough to read as a border, not a rule. */
+:root {
+  --brand-tint-line: #b9e6ec;
+}
+
+:root[data-theme='dark'] {
+  --brand-tint-line: #1b4a55;
+}
+
+/* ---------------------------------------------------------------------------
+   Brand tint.
+
+   This was being used by the visits chip, the status chip, the round steppers,
+   the quick replies and the chart bars, and it was never defined. An undefined
+   custom property is not an error and does not fall back to anything sensible:
+   `background: var(--brand-tint)` simply paints nothing. The chart bars were
+   the visible symptom, drawing at full height in no colour at all, so the
+   chart looked empty while the geometry was correct the whole time.
+
+   Defined here once, alongside the two chart fills, which need to be visible
+   against a white card rather than against the page.
+--------------------------------------------------------------------------- */
+:root {
+  --brand-tint: #e2f5f8;
+  --chart-bar: #b8e7ee;
+  --chart-bar-weekend: #f6c9d7;
+}
+
+:root[data-theme='dark'] {
+  --brand-tint: #16333c;
+  --chart-bar: #1d4d58;
+  --chart-bar-weekend: #4a2231;
+}
+
+/* The two panels peeking out behind the featured visit card. Taken from the
+   board, which uses the brand cyan at 20% and 30% over the page. */
+:root {
+  --deck-near: #9fe6ee;
+  --deck-far: #c7f0f5;
+}
+
+:root[data-theme='dark'] {
+  --deck-near: #14555f;
+  --deck-far: #0f3d45;
+}
+
+/* ---------------------------------------------------------------------------
+   Typography and elevation, from the Penpot React export.
+
+   The export names four families, and the app was loading none of them. Every
+   screen has been rendering in the Segoe UI fallback, which is why the type
+   never quite matched the boards no matter how the sizes were tuned.
+
+     Plus Jakarta Sans   the interface: labels, body, figures, badges
+     Outfit              section headings ("May 2026", "Upcoming")
+     Raleway             client names on a visit card
+     Figtree             times ("09:00 - 11:00")
+
+   Raleway and Figtree are used in exactly one place each. They are kept as
+   their own tokens rather than folded into the others so that if Athaliah
+   drops them, one value changes here instead of a hunt through the sheet.
+
+   The shadows are the export's own two-layer values. A single soft shadow
+   reads as blur; two layers, one tight and one wide, is what gives these
+   cards their edge.
+--------------------------------------------------------------------------- */
+:root {
+  --font-body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-name: 'Raleway', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-time: 'Figtree', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+
+  /* Cards. */
+  --shadow-xs:
+    0 4px 12px -2px rgba(11, 18, 32, 0.08),
+    0 2px 4px -2px rgba(11, 18, 32, 0.05);
+  --shadow:
+    0 4px 12px -2px rgba(11, 18, 32, 0.08),
+    0 2px 4px -2px rgba(11, 18, 32, 0.05);
+  /* The floating tab bar sits higher off the page than a card does. */
+  --shadow-nav:
+    0 12px 28px -8px rgba(11, 18, 32, 0.14),
+    0 4px 10px -4px rgba(11, 18, 32, 0.08);
+  /* The hairline the export draws as an inset stroke on every card. */
+  --card-line: rgba(11, 18, 32, 0.06);
+
+  --radius-lg: 20px;
+}
+
+:root[data-theme='dark'] {
+  /* Shadow does almost nothing on a dark surface, so dark mode separates
+     cards with a lifted background and a visible hairline instead. */
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-nav: 0 12px 28px -8px rgba(0, 0, 0, 0.6);
+  --card-line: rgba(255, 255, 255, 0.08);
+}
+
+/* Calendar day states, the export's own flat fills. Teal for the selection,
+   pink for a missed visit, amber for a late arrival. The legend's care dot is
+   a brighter cyan than the selected day in the export, so it keeps its own
+   token rather than being assumed identical. */
+:root {
+  --cal-selected: #00a3ac;
+  --cal-missed: #ec6da0;
+  --cal-late: #f0923f;
+  --cal-legend-care: #00cbd5;
+}
+
+:root[data-theme='dark'] {
+  --cal-selected: #17b3bd;
+  --cal-missed: #e05c93;
+  --cal-late: #e0872f;
+  --cal-legend-care: #2ed3dd;
+}
+
+/* Client avatar. The export uses one pale teal disc with a deep teal monogram
+   everywhere a client appears. */
+:root {
+  --avatar-bg: #d6f3f5;
+  --avatar-fg: #00838c;
+}
+
+:root[data-theme='dark'] {
+  --avatar-bg: #14444c;
+  --avatar-fg: #7fdde5;
 }

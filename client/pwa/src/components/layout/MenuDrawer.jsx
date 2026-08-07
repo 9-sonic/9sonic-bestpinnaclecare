@@ -48,7 +48,7 @@ export default function MenuDrawer({ open, onClose }) {
   const panelRef = useRef(null);
 
   // Back closes the drawer rather than leaving the screen.
-  useHistoryOverlay(open, onClose);
+  const { release } = useHistoryOverlay(open, onClose);
   // The shared lock also stops the page behind scrolling on iOS, which the
   // body overflow trick below never reliably did.
   useScrollLock(open);
@@ -93,10 +93,14 @@ export default function MenuDrawer({ open, onClose }) {
 
   if (!open) return null;
 
+  // Hand the drawer's history entry to the destination rather than unwinding
+  // it. Closing normally schedules a history.back(), which would fire after
+  // this navigation and bounce straight back to where we started.
   const go = (to) => {
     tapFeedback();
+    release();
     onClose();
-    navigate(to);
+    navigate(to, { replace: true });
   };
 
   // Portalled for the same reason as Modal: inside the page tree an ancestor

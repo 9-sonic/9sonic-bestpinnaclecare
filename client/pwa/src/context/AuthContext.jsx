@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 import * as authApi from '../api/auth.js';
+import { registerDeviceQuietly } from '../api/devices.js';
 import { setUnauthorizedHandler } from '../api/client.js';
 import { getToken, setToken, clearToken } from '../utils/storage.js';
 
@@ -31,7 +32,10 @@ export function AuthProvider({ children }) {
       }
       try {
         const me = await authApi.fetchCurrentUser();
-        if (active) setUser(me);
+        if (active) {
+          setUser(me);
+          registerDeviceQuietly();
+        }
       } catch {
         clearToken();
       } finally {
@@ -56,6 +60,9 @@ export function AuthProvider({ children }) {
 
     setToken(res.token);
     setUser(res.user ?? (await authApi.fetchCurrentUser()));
+    // Best effort, never awaited: a failed registration must not stop a carer
+    // reaching the clock screen.
+    registerDeviceQuietly();
     return { mfaRequired: false };
   }, []);
 
@@ -64,6 +71,7 @@ export function AuthProvider({ children }) {
       const res = await authApi.completeMfa({ mfaToken, otpCode });
       setToken(res.token);
       setUser(res.user ?? (await authApi.fetchCurrentUser()));
+      registerDeviceQuietly();
       setMfaToken(null);
     },
     [mfaToken]
@@ -77,6 +85,9 @@ export function AuthProvider({ children }) {
     const res = await run(email);
     setToken(res.token);
     setUser(res.user ?? (await authApi.fetchCurrentUser()));
+    // Best effort, never awaited: a failed registration must not stop a carer
+    // reaching the clock screen.
+    registerDeviceQuietly();
   }, []);
 
   const logout = useCallback(async () => {

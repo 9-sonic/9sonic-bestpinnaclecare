@@ -75,7 +75,8 @@ export function toShift(va) {
       ? { lat: Number(su.lat), lng: Number(su.lng), radius: su.geofence_radius_m ?? 150 }
       : null,
 
-    // The API has no per-visit carer notes or task list yet. See api_missing.md.
+    // The list endpoint carries none of these. GET /staff/visit_assignments/:id
+    // does — see toShiftDetail.
     note: visit.notes ?? null,
     carePlan: [],
     tasks: [],
@@ -84,6 +85,62 @@ export function toShift(va) {
 }
 
 export const toShifts = (list = []) => list.map(toShift).filter(Boolean);
+
+// ---------------------------------------------------------------------------
+// GET /staff/visit_assignments/:id returns the assignment plus care_plan, tasks
+// and notes. The spec types those three as bare objects, so the item shapes are
+// undocumented — these mappers read the field names the migration in
+// suggestedMissingEndpoints.md proposed and fall back rather than throw. Once
+// the real shapes are confirmed against the running API, tighten them.
+// ---------------------------------------------------------------------------
+export function toCarePlanItem(item, i) {
+  return {
+    id: String(item?.id ?? i),
+    category: item?.category ?? 'general',
+    label: item?.label ?? item?.title ?? '',
+    detail: item?.detail ?? item?.description ?? '',
+  };
+}
+
+export function toVisitTask(task, i) {
+  return {
+    id: String(task?.id ?? i),
+    label: task?.label ?? task?.title ?? '',
+    done: Boolean(task?.done ?? task?.completed_at),
+    carePlanItemId: task?.care_plan_item_id ?? null,
+  };
+}
+
+// Notes are append-only: an edit adds a row that supersedes the previous one,
+// so the newest entry is the current text and the rest are history.
+export function toVisitNotes(list = []) {
+  const notes = [...list].sort(
+    (a, b) => new Date(b?.created_at ?? 0) - new Date(a?.created_at ?? 0)
+  );
+  return {
+    current: notes[0]?.body ?? '',
+    history: notes.map((n, i) => ({
+      id: String(n?.id ?? i),
+      body: n?.body ?? '',
+      at: n?.created_at ?? null,
+    })),
+  };
+}
+
+export function toShiftDetail(payload) {
+  const shift = toShift(payload);
+  if (!shift) return null;
+
+  const notes = toVisitNotes(payload.notes ?? []);
+
+  return {
+    ...shift,
+    carePlan: (payload.care_plan ?? []).map(toCarePlanItem),
+    tasks: (payload.tasks ?? []).map(toVisitTask),
+    visitNote: notes.current,
+    noteHistory: notes.history,
+  };
+}
 
 // Employee -> the user object the UI renders.
 export function toUser(employee) {
@@ -103,6 +160,16 @@ export function toUser(employee) {
     active: employee.active,
     mfaEnabled: employee.mfa_enabled,
     avatar: null,
+
+    // PATCH /staff/me accepts these two, so the carer can set them. They are
+    // not in the documented Employee schema, so whether they come back on a
+    // read is unconfirmed — see suggestedMissingEndpoints.md.
+    emergencyContactName: employee.emergency_contact_name ?? null,
+    emergencyContactPhone: employee.emergency_contact_phone ?? null,
+
+    // Only present once contracted hours exist on the employee record. The
+    // Home screen falls back to the API summary, then to 40.
+    contractedHoursPerWeek: employee.contracted_hours_per_week ?? null,
   };
 }
 
@@ -129,26 +196,56 @@ export function toNotification(n) {
 
 export const toNotifications = (list = []) => list.map(toNotification);
 
-// Conversation -> the UI's thread row. The API returns participants as
-// {type, id} pairs, so the display name is resolved by the caller which knows
-// who the viewer is.
+// Conversation -> the UI's thread row.
+//
+// The conversations endpoint now embeds participant names, so `full_name` is
+// preferred. `nameFor` remains as a second choice for the mock path, and the
+// "Admin 2" style label is the last resort: a thread with a visible label is
+// better than a blank row, and it is obvious enough to report.
 export function toThread(convo, { viewerType, viewerId, nameFor } = {}) {
   const others = (convo.participants ?? []).filter(
     (p) => !(p.type === viewerType && p.id === viewerId)
   );
-  const title =
-    convo.title ??
-    others.map((p) => nameFor?.(p) ?? `${p.type} ${p.id}`).join(', ') ??
-    'Conversation';
+
+  const label = (p) => p?.full_name ?? p?.name ?? nameFor?.(p) ?? `${p?.type} ${p?.id}`;
+  const title = convo.title || others.map(label).join(', ') || 'Conversation';
+
+  // The list groups threads by what they are. The API's `kind` is the source
+  // of that; it was being collapsed into a "Group" label and otherwise thrown
+  // away, so every thread arrived at the UI looking like a direct message.
+  //
+  // `group` is the API's word for a channel. Anything unrecognised falls back
+  // to direct, so a new kind added server-side still shows up in the list
+  // rather than vanishing out of every group.
+  const kind =
+    convo.kind === 'group'
+      ? 'channel'
+      : convo.kind === 'client'
+        ? 'client'
+        : 'direct';
+
+  // The line under the name, saying what the thread is. A channel says how
+  // many people are in it; a direct thread says who the person is.
+  const memberCount = (convo.participants ?? []).length;
+  const subtitle =
+    convo.subtitle ??
+    (kind === 'channel'
+      ? `${memberCount} member${memberCount === 1 ? '' : 's'}`
+      : kind === 'client'
+        ? 'Client thread'
+        : others.map((p) => p?.job_title).filter(Boolean)[0] ?? '');
 
   return {
     id: String(convo.id),
     name: title,
-    role: convo.kind === 'group' ? 'Group' : '',
-    online: false, // No presence in the API. See api_missing.md.
+    kind,
+    subtitle,
+    pinned: !!convo.pinned,
+    role: kind === 'channel' ? 'Group' : '',
+    online: false, // No presence in the API.
     unread: convo.unread_count ?? 0,
     lastAt: convo.last_message_at,
-    preview: '',
+    preview: convo.last_message_preview ?? '',
     participants: convo.participants ?? [],
   };
 }
@@ -161,11 +258,76 @@ export function toMessage(m, { viewerType, viewerId } = {}) {
     mine: m.sender_type === viewerType && m.sender_id === viewerId,
     text: m.body ?? '',
     at: m.created_at,
+    // Who said it, for the label above the bubble. It only gets drawn on
+    // other people's messages, and it matters in a channel where several
+    // people post; a thread of unattributed bubbles is unreadable.
+    senderName: m.sender_name ?? m.sender?.full_name ?? m.sender?.name ?? '',
+    // Only ever shown on your own messages. Reporting that you have read
+    // someone else's message back to yourself is noise.
+    readAt: m.read_at ?? null,
     clientMessageId: m.client_message_id,
   };
 }
 
 export const toMessages = (list = [], ctx) => list.map((m) => toMessage(m, ctx));
+
+// ---------------------------------------------------------------------------
+// Availability.
+//
+// The API stores one row per weekday per slot: { weekday, slot, available },
+// weekday 0 = Monday. The screen thinks in days holding a list of slots they
+// can work. These two convert between them.
+//
+// `night` is in the API's enum but has no control on the Availability screen.
+// Rather than assert `night: false` on every save — which would silently wipe a
+// value the carer cannot see, let alone have set — whatever the server already
+// holds for it is preserved. Flagged in suggestedMissingEndpoints.md: either the
+// screen grows a Night row or the enum drops it.
+// ---------------------------------------------------------------------------
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+export const API_SLOTS = ['morning', 'afternoon', 'evening', 'night'];
+// The three the Availability screen actually renders.
+export const UI_SLOTS = ['morning', 'afternoon', 'evening'];
+
+// The GET response shape is not documented ("weekly pattern"), so this accepts
+// the three plausible ones rather than guessing which landed.
+export function toAvailabilityDays(payload) {
+  const days = Object.fromEntries(WEEKDAY_KEYS.map((k) => [k, []]));
+  if (!payload) return days;
+
+  const entries = Array.isArray(payload) ? payload : (payload.entries ?? payload.availability);
+
+  if (Array.isArray(entries)) {
+    entries.forEach((e) => {
+      if (e?.available === false) return;
+      const key = WEEKDAY_KEYS[e?.weekday];
+      if (key && e?.slot && !days[key].includes(e.slot)) days[key].push(e.slot);
+    });
+    return days;
+  }
+
+  // Already keyed by day name.
+  WEEKDAY_KEYS.forEach((k) => {
+    if (Array.isArray(payload[k])) days[k] = [...payload[k]];
+  });
+  return days;
+}
+
+// `previous` is the last payload from GET, used only to carry `night` through.
+export function toAvailabilityEntries(days = {}, previous = null) {
+  const prior = previous ? toAvailabilityDays(previous) : null;
+
+  return WEEKDAY_KEYS.flatMap((key, weekday) => {
+    const chosen = days[key] ?? [];
+    return API_SLOTS.map((slot) => ({
+      weekday,
+      slot,
+      available: UI_SLOTS.includes(slot)
+        ? chosen.includes(slot)
+        : Boolean(prior?.[key]?.includes(slot)),
+    }));
+  });
+}
 
 // Timesheet lines -> the summary the Timesheet screen draws. Pay rates and
 // mileage do not exist in the API yet, so money is left out rather than guessed.
@@ -187,6 +349,46 @@ export function toTimesheet(lines = []) {
     entries,
     totalMinutes,
     totalHours: Math.round((totalMinutes / 60) * 100) / 100,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GET /staff/summary -> the Home and Overview figures.
+//
+// This replaces deriving the same numbers from the visit list plus the
+// timesheet, which was two round trips on a phone every time the Home screen
+// opened. `by_weekday` is typed as a bare object in the spec, so the series are
+// read defensively and fall back to zeros rather than breaking the chart.
+// ---------------------------------------------------------------------------
+const zeros = () => Array(7).fill(0);
+
+function series(source, key) {
+  const values = source?.[key];
+  if (!Array.isArray(values) || values.length !== 7) return zeros();
+  return values.map((n) => (Number.isFinite(Number(n)) ? Number(n) : 0));
+}
+
+export function toSummary(payload = {}) {
+  const workedMinutes = payload.hours_worked_minutes ?? 0;
+  const contractedMinutes = payload.contracted_minutes ?? null;
+  const hours = Math.round((workedMinutes / 60) * 100) / 100;
+
+  return {
+    week: {
+      hoursWorked: Math.round(hours),
+      hours,
+      // 40 remains the fallback only while contracted hours are unset on the
+      // employee record. It is an assumption, not a contract figure.
+      hoursTarget: contractedMinutes ? Math.round(contractedMinutes / 60) : 40,
+      shifts: payload.visits_count ?? 0,
+      clients: payload.clients_count ?? 0,
+      miles: payload.miles ?? 0,
+    },
+    weekly: {
+      hours: series(payload.by_weekday, 'hours').map((h) => Math.round(h * 10) / 10),
+      visits: series(payload.by_weekday, 'visits'),
+      miles: series(payload.by_weekday, 'miles'),
+    },
   };
 }
 

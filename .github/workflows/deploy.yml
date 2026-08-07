@@ -139,7 +139,16 @@ jobs:
         working-directory: client/pwa
         env:
           # Vite inlines VITE_* at build time, so it must be set here.
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          #
+          # The app reads VITE_API_BASE_URL (see src/config/env.js). This job
+          # was passing VITE_API_URL, which nothing reads, so every deployed
+          # build shipped with an empty base URL. Falls back to the old
+          # variable name so an existing repo variable keeps working.
+          #
+          # The value must include the /api/v1 prefix.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || vars.VITE_API_URL }}
+          # Explicit, so a deployed carer app can never serve mock shifts.
+          VITE_USE_MOCK: 'false'
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
@@ -197,7 +206,9 @@ jobs:
         id: build
         working-directory: client/admin-web
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          # Same correction as the PWA job above: the app reads
+          # VITE_API_BASE_URL, not VITE_API_URL.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || vars.VITE_API_URL }}
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then

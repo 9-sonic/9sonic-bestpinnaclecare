@@ -1,8 +1,6 @@
 # Dependencies
 node_modules/
 
-suggestedMissingEndpoints.md
-
 # Env / secrets (never commit real env files)
 .env
 .env.*

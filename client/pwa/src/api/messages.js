@@ -8,12 +8,19 @@ import { newUuid } from '../utils/ids.js';
 // ({ type: "Admin" | "Employee", id }). The viewer is passed in so the adapter
 // can work out which messages belong to this carer.
 
+// Participant display names come from the server on the live path — the
+// conversations endpoint is documented as returning names, unread counts and a
+// preview. `mock.participantName` is a lookup over sample people and must never
+// be reachable with a real API behind it: against live data it would either
+// return nothing or, worse, label a thread with the wrong person's name.
+const nameFor = (participant) => (env.useMock ? mock.participantName(participant) : undefined);
+
 export async function listThreads(viewer) {
   const res = env.useMock ? await mock.listConversations() : await api.get('/conversations');
   return toThreads(res, {
     viewerType: 'Employee',
     viewerId: viewer?.id,
-    nameFor: mock.participantName,
+    nameFor,
   });
 }
 
@@ -23,12 +30,12 @@ export async function getThread(id, viewer) {
     env.useMock ? mock.listMessages(id) : api.get(`/conversations/${id}/messages`),
   ]);
 
-  const convo = convos.find((c) => String(c.id) === String(id));
+  const convo = (convos ?? []).find((c) => String(c.id) === String(id));
   const thread = convo
     ? toThread(convo, {
         viewerType: 'Employee',
         viewerId: viewer?.id,
-        nameFor: mock.participantName,
+        nameFor,
       })
     : { id: String(id), name: 'Conversation', unread: 0 };
 

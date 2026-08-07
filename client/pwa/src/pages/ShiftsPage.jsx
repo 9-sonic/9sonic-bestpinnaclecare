@@ -59,7 +59,20 @@ export default function ShiftsPage() {
       <Calendar
         selected={selected}
         onSelect={setSelected}
-        markedDates={shifts.map((s) => s.startsAt)}
+        // The three tones are the three the legend names, and nothing else.
+        // Taken from the real lifecycle state rather than the collapsed UI
+        // status, which cannot tell a missed visit from a finished one. The
+        // previous mapping coloured every completed visit amber, so a good
+        // month looked like a month of late arrivals.
+        markedDates={shifts.map((s) => ({
+          date: s.startsAt,
+          tone:
+            s.lifecycleState === 'missed'
+              ? 'missed'
+              : s.lifecycleState === 'late' || s.lifecycleState === 'overdue'
+                ? 'late'
+                : 'care',
+        }))}
       />
 
       {loading ? (
@@ -68,7 +81,9 @@ export default function ShiftsPage() {
         <>
           <div className="section-head section-head--inset">
             <span className="section-head__title">Upcoming</span>
-            <span className="section-head__count">{upcoming.length}</span>
+            <button type="button" className="section-head__link" onClick={() => navigate('/overview')}>
+              See All
+            </button>
           </div>
           {upcoming.length === 0 ? (
             <EmptyState

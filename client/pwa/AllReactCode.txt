@@ -1,0 +1,2270 @@
+import React from "react";
+import "./ShiftsScheduleMay.css";
+
+export default function ShiftsScheduleMay() {
+  return (
+    <div className="shifts-schedule-may">
+      <div className="rectangle" />
+      <div className="svg">
+        <div className="svg-polyline" />
+      </div>
+      <p className="text">Shifts</p>
+      <div className="svg">
+        <div className="svg-circle" />
+        <div className="svg-circle" />
+        <div className="svg-circle" />
+      </div>
+      <p className="text">May 2026</p>
+      <div className="ellipse" />
+      <div className="svg">
+        <div className="svg-polyline" />
+      </div>
+      <div className="ellipse" />
+      <div className="svg">
+        <div className="svg-polyline" />
+      </div>
+      <div className="rectangle" />
+      <p className="text">S</p>
+      <p className="text">M</p>
+      <p className="text">T</p>
+      <p className="text">W</p>
+      <p className="text">T</p>
+      <p className="text">F</p>
+      <p className="text">S</p>
+      <p className="text">26</p>
+      <p className="text">27</p>
+      <p className="text">28</p>
+      <p className="text">29</p>
+      <p className="text">30</p>
+      <p className="text">1</p>
+      <p className="text">2</p>
+      <p className="text">3</p>
+      <p className="text">4</p>
+      <p className="text">5</p>
+      <p className="text">6</p>
+      <div className="group">
+        <div className="ellipse" />
+        <div className="ellipse" />
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+        <div className="ellipse" />
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+        <div className="ellipse" />
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+      </div>
+      <p className="text">7</p>
+      <p className="text">8</p>
+      <p className="text">9</p>
+      <p className="text">10</p>
+      <p className="text">11</p>
+      <p className="text">12</p>
+      <p className="text">13</p>
+      <p className="text">14</p>
+      <div className="ellipse" />
+      <p className="text">15</p>
+      <p className="text">16</p>
+      <p className="text">17</p>
+      <p className="text">18</p>
+      <p className="text">19</p>
+      <p className="text">20</p>
+      <p className="text">21</p>
+      <p className="text">22</p>
+      <div className="ellipse" />
+      <p className="text">23</p>
+      <p className="text">24</p>
+      <p className="text">25</p>
+      <p className="text">26</p>
+      <p className="text">27</p>
+      <p className="text">28</p>
+      <p className="text">29</p>
+      <p className="text">30</p>
+      <p className="text">31</p>
+      <p className="text">Upcoming</p>
+      <p className="text">See  all</p>
+      <div className="svg">
+        <div className="svg-circle" />
+        <div className="svg-path" />
+      </div>
+      <p className="text">•</p>
+      <div className="rectangle" />
+      <div className="group">
+        <p className="text">9:41</p>
+        <div className="svg">
+          <div className="svg-rect" />
+          <div className="svg-rect" />
+          <div className="svg-rect" />
+          <div className="svg-rect" />
+        </div>
+        <div className="svg">
+          <div className="svg-path" />
+          <div className="svg-path" />
+          <div className="svg-circle" />
+        </div>
+        <div className="svg">
+          <div className="svg-rect" />
+          <div className="svg-rect" />
+          <div className="svg-path" />
+        </div>
+      </div>
+      <div className="svg">
+        <div className="svg-circle" />
+        <div className="svg-path" />
+      </div>
+      <nav className="navbar">
+        <div className="rectangle" />
+        <div className="svg">
+          <div className="svg-path" />
+          <div className="svg-path" />
+        </div>
+        <div className="svg">
+          <div className="svg-path" />
+        </div>
+        <div className="svg">
+          <div className="svg-circle" />
+          <div className="svg-path" />
+        </div>
+        <div className="ellipse" />
+        <div className="svg">
+          <div className="svg-circle" />
+          <div className="svg-line" />
+          <div className="svg-line" />
+        </div>
+        <div className="svg">
+          <div className="svg-rect" />
+          <div className="svg-path" />
+          <div className="svg-path" />
+        </div>
+      </nav>
+      <div className="group">
+        <div className="group">
+          <div className="rectangle" />
+          <div className="group">
+            <div className="group">
+              <div className="ellipse" />
+            </div>
+            <p className="text">ET</p>
+          </div>
+          <p className="text">Edith Thornbury</p>
+          <div className="group">
+            <div className="rectangle" />
+            <p className="text">UPCOMING</p>
+          </div>
+          <p className="text">Morning call — medication prompt, breakfast and personal care.</p>
+          <div className="group">
+            <p className="text">12 Rosewood Ave, Leeds</p>
+            <div className="symbols--math--bold--map-pin-bold">
+              <div className="map-pin-bold">
+                <div className="svg-path" />
+              </div>
+            </div>
+          </div>
+          <div className="group">
+            <div className="group">
+              <p className="text">09:00 - 11:00</p>
+              <p className="text">Today, 15 May</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="group">
+        <div className="group">
+          <div className="rectangle" />
+          <div className="group">
+            <div className="group">
+              <div className="ellipse" />
+            </div>
+            <p className="text">ET</p>
+          </div>
+          <p className="text">Edith Thornbury</p>
+          <div className="group">
+            <div className="rectangle" />
+            <p className="text">UPCOMING</p>
+          </div>
+          <p className="text">Morning call — medication prompt, breakfast and personal care.</p>
+          <div className="group">
+            <p className="text">12 Rosewood Ave, Leeds</p>
+            <div className="symbols--math--bold--map-pin-bold">
+              <div className="map-pin-bold">
+                <div className="svg-path" />
+              </div>
+            </div>
+          </div>
+          <div className="group">
+            <div className="group">
+              <p className="text">09:00 - 11:00</p>
+              <p className="text">Today, 15 May</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="rectangle" />
+      <div className="group">
+        <div className="ellipse" />
+        <p className="text">Care visit</p>
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+        <p className="text">Missed Visits</p>
+      </div>
+      <div className="group">
+        <div className="ellipse" />
+        <p className="text">Late Arrival</p>
+      </div>
+    </div>
+  );
+}
+
+/* Stylesheet: ShiftsScheduleMay.css */
+.shifts-schedule-may {
+  width: 428px;
+  height: 980px;
+  position: absolute;
+  left: 3988px;
+  top: -1211px;
+  background-color: #FFFFFF;
+}
+
+.rectangle {
+  width: 428px;
+  height: 1080px;
+  position: absolute;
+  left: 4000px;
+  top: -1091px;
+  background-color: #ffffff;
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4014px;
+  top: -1153px;
+}
+
+.svg-polyline {
+  width: 6px;
+  height: 13px;
+  position: absolute;
+  left: 7px;
+  top: 5px;
+  border: 2.2px solid #334155;
+}
+
+.text {
+  width: 428px;
+  height: 27px;
+  position: absolute;
+  left: 3988px;
+  top: -1153px;
+  color: #0f172a;
+  font-family: "Plus Jakarta Sans";
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4368px;
+  top: -1157px;
+}
+
+.svg-circle {
+  width: 4px;
+  height: 4px;
+  position: absolute;
+  left: 9px;
+  top: 3px;
+  background-color: #334155;
+}
+
+.svg-circle {
+  width: 4px;
+  height: 4px;
+  position: absolute;
+  left: 9px;
+  top: 9px;
+  background-color: #334155;
+}
+
+.svg-circle {
+  width: 4px;
+  height: 4px;
+  position: absolute;
+  left: 9px;
+  top: 15px;
+  background-color: #334155;
+}
+
+.text {
+  width: 200px;
+  height: 35px;
+  position: absolute;
+  left: 4014px;
+  top: -1125px;
+  color: #0f172a;
+  font-family: "Outfit";
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 4314px;
+  top: -1127px;
+  background-color: #d6f3f5;
+}
+
+.svg {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 4323px;
+  top: -1118px;
+}
+
+.svg-polyline {
+  width: 5px;
+  height: 9px;
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  border: 2.2px solid #00a3ac;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 4356px;
+  top: -1127px;
+  background-color: #d6f3f5;
+}
+
+.svg {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 4365px;
+  top: -1118px;
+}
+
+.svg-polyline {
+  width: 5px;
+  height: 9px;
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  border: 2.2px solid #00a3ac;
+}
+
+.rectangle {
+  width: 376px;
+  height: 350px;
+  position: absolute;
+  left: 4014px;
+  top: -1077px;
+  background-color: #ffffff;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px rgba(11, 18, 32, 0.06); /* inner stroke */
+  box-shadow: 0px 4px 12px -2px rgba(11, 18, 32, 0.08), 0px 2px 4px -2px rgba(11, 18, 32, 0.05);
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4036px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4083px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4131px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4178px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4226px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4273px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 18px;
+  position: absolute;
+  left: 4321px;
+  top: -1059px;
+  color: #748192;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -1031px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4083px;
+  top: -1031px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4131px;
+  top: -1031px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4178px;
+  top: -1031px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4226px;
+  top: -1031px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4273px;
+  top: -1031px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4321px;
+  top: -1031px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4083px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4131px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4178px;
+  top: -985px;
+  color: #334;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 34px;
+  height: 36px;
+  position: absolute;
+  left: 4186px;
+  top: -993px;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(149, 164, 185, 0.09);
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 15px;
+  top: 31px;
+  background-color: #00a3ac;
+}
+
+.group {
+  width: 34px;
+  height: 36px;
+  position: absolute;
+  left: 4326px;
+  top: -994px;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(149, 164, 185, 0.09);
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 15px;
+  top: 31px;
+  background-color: #00a3ac;
+}
+
+.group {
+  width: 34px;
+  height: 36px;
+  position: absolute;
+  left: 4138px;
+  top: -948px;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(149, 164, 185, 0.09);
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 15px;
+  top: 31px;
+  background-color: #00a3ac;
+}
+
+.group {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 4138px;
+  top: -901px;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #ec6da0;
+}
+
+.group {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 4138px;
+  top: -856px;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #f0923f;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4226px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4273px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4321px;
+  top: -985px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4083px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4131px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4178px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4226px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.ellipse {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  left: 4280px;
+  top: -947px;
+  background-color: #00a3ac;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4273px;
+  top: -939px;
+  color: #ffffff;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4321px;
+  top: -939px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4083px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4131px;
+  top: -893px;
+  color: #ffffff;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4178px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4226px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4273px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 4294px;
+  top: -871px;
+  background-color: #ec6da0;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4321px;
+  top: -893px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4083px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4131px;
+  top: -847px;
+  color: #ffffff;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4178px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4226px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4273px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4321px;
+  top: -847px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 47px;
+  height: 22px;
+  position: absolute;
+  left: 4036px;
+  top: -801px;
+  color: #334155;
+  font-family: "Plus Jakarta Sans";
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 200px;
+  height: 27px;
+  position: absolute;
+  left: 4013px;
+  top: -716px;
+  color: #0f172a;
+  font-family: "Outfit";
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 80px;
+  height: 21px;
+  position: absolute;
+  left: 4305px;
+  top: -711px;
+  color: #94a3b8;
+  font-family: "Plus Jakarta Sans";
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: right;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.svg {
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  left: 4084px;
+  top: -627px;
+}
+
+.svg-circle {
+  width: 11px;
+  height: 11px;
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  border: 2px solid #00a3ac;
+}
+
+.svg-path {
+  width: 2px;
+  height: 4px;
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  border: 2px solid #00a3ac;
+}
+
+.text {
+  width: 12px;
+  height: 20px;
+  position: absolute;
+  left: 4189px;
+  top: -360px;
+  color: #cbd5e1;
+  font-family: "Plus Jakarta Sans";
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.rectangle {
+  width: 120px;
+  height: 5px;
+  position: absolute;
+  left: 4138px;
+  top: -246px;
+  background-color: #0f172a;
+  border-radius: 3px;
+}
+
+.group {
+  width: 376px;
+  height: 22px;
+  position: absolute;
+  left: 4014px;
+  top: -1194px;
+}
+
+.text {
+  width: 90px;
+  height: 22px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  color: #0b1220;
+  font-family: "Plus Jakarta Sans";
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.svg {
+  width: 20px;
+  height: 12px;
+  position: absolute;
+  left: 303px;
+  top: 4px;
+}
+
+.svg-rect {
+  width: 3px;
+  height: 5px;
+  position: absolute;
+  left: 0px;
+  top: 8px;
+  background-color: #0b1220;
+  border-radius: 1.2px;
+}
+
+.svg-rect {
+  width: 3px;
+  height: 7px;
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  background-color: #0b1220;
+  border-radius: 1.2px;
+}
+
+.svg-rect {
+  width: 3px;
+  height: 10px;
+  position: absolute;
+  left: 11px;
+  top: 3px;
+  background-color: #0b1220;
+  border-radius: 1.2px;
+}
+
+.svg-rect {
+  width: 3px;
+  height: 12px;
+  position: absolute;
+  left: 17px;
+  top: 0px;
+  background-color: #0b1220;
+  border-radius: 1.2px;
+}
+
+.svg {
+  width: 16px;
+  height: 12px;
+  position: absolute;
+  left: 329px;
+  top: 4px;
+}
+
+.svg-path {
+  width: 14px;
+  height: 3px;
+  position: absolute;
+  left: 1px;
+  top: 2px;
+  border: 1.6px solid #0b1220;
+}
+
+.svg-path {
+  width: 9px;
+  height: 2px;
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  border: 1.6px solid #0b1220;
+}
+
+.svg-circle {
+  width: 2px;
+  height: 2px;
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  background-color: #0b1220;
+}
+
+.svg {
+  width: 25px;
+  height: 12px;
+  position: absolute;
+  left: 351px;
+  top: 4px;
+}
+
+.svg-rect {
+  width: 21px;
+  height: 11px;
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  border-radius: 3px;
+  border: 1px solid rgba(11, 18, 32, 0.45);
+}
+
+.svg-rect {
+  width: 18px;
+  height: 8px;
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  background-color: #0b1220;
+  border-radius: 1.8px;
+}
+
+.svg-path {
+  width: 2px;
+  height: 4px;
+  position: absolute;
+  left: 23px;
+  top: 4px;
+  background-color: rgba(11, 18, 32, 0.45);
+}
+
+.svg {
+  width: 15px;
+  height: 15px;
+  position: absolute;
+  left: 4082px;
+  top: -628px;
+}
+
+.svg-circle {
+  width: 11px;
+  height: 11px;
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  border: 2px solid #00a3ac;
+}
+
+.svg-path {
+  width: 2px;
+  height: 4px;
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  border: 2px solid #00a3ac;
+}
+
+.navbar {
+  width: 376px;
+  height: 76px;
+  position: absolute;
+  left: 4013px;
+  top: -335px;
+}
+
+.rectangle {
+  width: 376px;
+  height: 76px;
+  position: absolute;
+  left: 4013px;
+  top: -335px;
+  background-color: #ffffff;
+  border-radius: 28px;
+  box-shadow: inset 0 0 0 1px rgba(11, 18, 32, 0.06); /* inner stroke */
+  box-shadow: 0px 12px 28px -8px rgba(11, 18, 32, 0.14), 0px 4px 10px -4px rgba(11, 18, 32, 0.08);
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4047px;
+  top: -308px;
+}
+
+.svg-path {
+  width: 17px;
+  height: 7px;
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  border: 2px solid #94a3b8;
+}
+
+.svg-path {
+  width: 12px;
+  height: 9px;
+  position: absolute;
+  left: 5px;
+  top: 9px;
+  border: 2px solid #94a3b8;
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4257px;
+  top: -308px;
+}
+
+.svg-path {
+  width: 15px;
+  height: 14px;
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  border: 2px solid #94a3b8;
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4333px;
+  top: -308px;
+}
+
+.svg-circle {
+  width: 7px;
+  height: 7px;
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  border: 2px solid #94a3b8;
+}
+
+.svg-path {
+  width: 15px;
+  height: 6px;
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  border: 2px solid #94a3b8;
+}
+
+.ellipse {
+  width: 62px;
+  height: 62px;
+  position: absolute;
+  left: 4170px;
+  top: -328px;
+  background-color: #0e7c82;
+  box-shadow: 0px 6px 16px -2px rgba(14, 154, 174, 0.45), 0px 2px 6px 0px rgba(11, 18, 32, 0.1);
+}
+
+.svg {
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  left: 4189px;
+  top: -309px;
+}
+
+.svg-circle {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  border: 2px solid #ffffff;
+}
+
+.svg-line {
+  width: 0px;
+  height: 4px;
+  position: absolute;
+  left: 12px;
+  top: 9px;
+  border: 2px solid #ffffff;
+}
+
+.svg-line {
+  width: 4px;
+  height: 0px;
+  position: absolute;
+  left: 10px;
+  top: 3px;
+  border: 2px solid #ffffff;
+}
+
+.svg {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  left: 4123px;
+  top: -308px;
+}
+
+.svg-rect {
+  width: 17px;
+  height: 14px;
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  border-radius: 3.5px;
+  border: 1.9px solid #94a3b8;
+}
+
+.svg-path {
+  width: 17px;
+  height: 0px;
+  position: absolute;
+  left: 3px;
+  top: 9px;
+  border: 1.9px solid #94a3b8;
+}
+
+.svg-path {
+  width: 7px;
+  height: 4px;
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  border: 1.9px solid #94a3b8;
+}
+
+.group {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 4014px;
+  top: -673px;
+}
+
+.group {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.rectangle {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #ffffff;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px rgba(11, 18, 32, 0.06); /* inner stroke */
+  box-shadow: 0px 4px 12px -2px rgba(11, 18, 32, 0.08), 0px 2px 4px -2px rgba(11, 18, 32, 0.05);
+}
+
+.group {
+  width: 47px;
+  height: 46px;
+  position: absolute;
+  left: 15px;
+  top: 59px;
+}
+
+.group {
+  width: 46px;
+  height: 46px;
+  position: absolute;
+  left: 1px;
+  top: 0px;
+}
+
+.ellipse {
+  width: 46px;
+  height: 46px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #d6f3f5;
+}
+
+.text {
+  width: 46px;
+  height: 25px;
+  position: absolute;
+  left: 0px;
+  top: 14px;
+  color: #00838c;
+  font-family: "Plus Jakarta Sans";
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 160px;
+  height: 26px;
+  position: absolute;
+  left: 72px;
+  top: 58px;
+  color: #0f172a;
+  font-family: "Raleway";
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 78px;
+  height: 26px;
+  position: absolute;
+  left: 280px;
+  top: 19px;
+}
+
+.rectangle {
+  width: 78px;
+  height: 26px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #d6f3f5;
+  border-radius: 12px;
+}
+
+.text {
+  width: 78px;
+  height: 17px;
+  position: absolute;
+  left: 0px;
+  top: 7px;
+  color: #00a3ac;
+  font-family: "Plus Jakarta Sans";
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 340px;
+  height: 16px;
+  position: absolute;
+  left: 19px;
+  top: 116px;
+  color: #475569;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 163px;
+  height: 20px;
+  position: absolute;
+  left: 69px;
+  top: 87px;
+}
+
+.text {
+  width: 147px;
+  height: 20px;
+  position: absolute;
+  left: 16px;
+  top: 0px;
+  color: #64748b;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.symbols--math--bold--map-pin-bold {
+  width: 12px;
+  height: 13px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.map-pin-bold {
+  width: 12px;
+  height: 13px;
+  position: absolute;
+  left: 4083px;
+  top: -586px;
+}
+
+.svg-path {
+  width: 9px;
+  height: 12px;
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  background-color: #64748b;
+}
+
+.group {
+  width: 142px;
+  height: 36px;
+  position: absolute;
+  left: 18px;
+  top: 14px;
+}
+
+.group {
+  width: 142px;
+  height: 36px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.text {
+  width: 90px;
+  height: 21px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  color: #334155;
+  font-family: "Figtree";
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 140px;
+  height: 16px;
+  position: absolute;
+  left: 2px;
+  top: 20px;
+  color: rgba(71, 85, 105, 0.91);
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 4014px;
+  top: -501px;
+}
+
+.group {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.rectangle {
+  width: 376px;
+  height: 151px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #ffffff;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px rgba(11, 18, 32, 0.06); /* inner stroke */
+  box-shadow: 0px 4px 12px -2px rgba(11, 18, 32, 0.08), 0px 2px 4px -2px rgba(11, 18, 32, 0.05);
+}
+
+.group {
+  width: 47px;
+  height: 46px;
+  position: absolute;
+  left: 15px;
+  top: 59px;
+}
+
+.group {
+  width: 46px;
+  height: 46px;
+  position: absolute;
+  left: 1px;
+  top: 0px;
+}
+
+.ellipse {
+  width: 46px;
+  height: 46px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #d6f3f5;
+}
+
+.text {
+  width: 46px;
+  height: 25px;
+  position: absolute;
+  left: 0px;
+  top: 14px;
+  color: #00838c;
+  font-family: "Plus Jakarta Sans";
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 160px;
+  height: 26px;
+  position: absolute;
+  left: 72px;
+  top: 58px;
+  color: #0f172a;
+  font-family: "Raleway";
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 78px;
+  height: 26px;
+  position: absolute;
+  left: 280px;
+  top: 19px;
+}
+
+.rectangle {
+  width: 78px;
+  height: 26px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  background-color: #d6f3f5;
+  border-radius: 12px;
+}
+
+.text {
+  width: 78px;
+  height: 17px;
+  position: absolute;
+  left: 0px;
+  top: 7px;
+  color: #00a3ac;
+  font-family: "Plus Jakarta Sans";
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 340px;
+  height: 16px;
+  position: absolute;
+  left: 19px;
+  top: 116px;
+  color: #475569;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 163px;
+  height: 20px;
+  position: absolute;
+  left: 69px;
+  top: 87px;
+}
+
+.text {
+  width: 147px;
+  height: 20px;
+  position: absolute;
+  left: 16px;
+  top: 0px;
+  color: #64748b;
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.symbols--math--bold--map-pin-bold {
+  width: 12px;
+  height: 13px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.map-pin-bold {
+  width: 12px;
+  height: 13px;
+  position: absolute;
+  left: 4083px;
+  top: -414px;
+}
+
+.svg-path {
+  width: 9px;
+  height: 12px;
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  background-color: #64748b;
+}
+
+.group {
+  width: 142px;
+  height: 36px;
+  position: absolute;
+  left: 18px;
+  top: 14px;
+}
+
+.group {
+  width: 142px;
+  height: 36px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.text {
+  width: 90px;
+  height: 21px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  color: #334155;
+  font-family: "Figtree";
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.text {
+  width: 140px;
+  height: 16px;
+  position: absolute;
+  left: 2px;
+  top: 20px;
+  color: rgba(71, 85, 105, 0.91);
+  font-family: "Plus Jakarta Sans";
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.rectangle {
+  width: 350px;
+  height: 1px;
+  position: absolute;
+  left: 4030px;
+  top: -775px;
+  background-color: rgba(11, 18, 32, 0.07);
+}
+
+.group {
+  width: 75px;
+  height: 15px;
+  position: absolute;
+  left: 4091px;
+  top: -760px;
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 0px;
+  top: 4px;
+  background-color: #00cbd5;
+}
+
+.text {
+  width: 63px;
+  height: 15px;
+  position: absolute;
+  left: 12px;
+  top: 0px;
+  color: #94a3b8;
+  font-family: "Plus Jakarta Sans";
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 75px;
+  height: 15px;
+  position: absolute;
+  left: 4167px;
+  top: -760px;
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 0px;
+  top: 4px;
+  background-color: #ec6da0;
+}
+
+.text {
+  width: 63px;
+  height: 15px;
+  position: absolute;
+  left: 12px;
+  top: 0px;
+  color: #94a3b8;
+  font-family: "Plus Jakarta Sans";
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.group {
+  width: 75px;
+  height: 15px;
+  position: absolute;
+  left: 4254px;
+  top: -761px;
+}
+
+.ellipse {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 0px;
+  top: 4px;
+  background-color: #f0923f;
+}
+
+.text {
+  width: 63px;
+  height: 15px;
+  position: absolute;
+  left: 12px;
+  top: 0px;
+  color: #94a3b8;
+  font-family: "Plus Jakarta Sans";
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0px;
+  text-align: left;
+  text-decoration: none;
+  text-transform: none;
+}

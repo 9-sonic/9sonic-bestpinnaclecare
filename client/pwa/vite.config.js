@@ -33,6 +33,22 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            // The four typefaces the design is drawn in. A carer opens this
+            // app in a dead zone routinely, and a font that only arrives with
+            // signal means the app changes shape depending on where they are
+            // standing. Cache first, kept for a year: the files are immutable
+            // and revisioned by URL.
+            urlPattern: ({ url }) =>
+              url.origin === 'https://fonts.googleapis.com' ||
+              url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'font-cache',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       manifest: {

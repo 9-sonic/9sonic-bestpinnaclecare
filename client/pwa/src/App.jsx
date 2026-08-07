@@ -9,6 +9,7 @@ import { lazyWithRetry } from './utils/lazyWithRetry.js';
 // Screens are code-split so the first paint only loads what it needs.
 const HomePage = lazyWithRetry(() => import('./pages/HomePage.jsx'));
 const ClockPage = lazyWithRetry(() => import('./pages/ClockPage.jsx'));
+const ClockHistoryPage = lazyWithRetry(() => import('./pages/ClockHistoryPage.jsx'));
 const ShiftsPage = lazyWithRetry(() => import('./pages/ShiftsPage.jsx'));
 const ShiftDetailPage = lazyWithRetry(() => import('./pages/ShiftDetailPage.jsx'));
 const OverviewPage = lazyWithRetry(() => import('./pages/OverviewPage.jsx'));
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/clock" element={<ClockPage />} />
           <Route path="/shifts" element={<ShiftsPage />} />
           <Route path="/shifts/:shiftId" element={<ShiftDetailPage />} />
+          <Route path="/clock/history" element={<ClockHistoryPage />} />
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

@@ -3,13 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
 import { getCurrentLocation } from '../utils/geolocation.js';
-import { formatElapsed } from '../utils/format.js';
+import { formatElapsed, formatTime } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Dial from '../components/clock/Dial.jsx';
 import ShiftCard from '../components/shifts/ShiftCard.jsx';
 import Spinner from '../components/common/Spinner.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
+import ScreenHeader from '../components/common/ScreenHeader.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useOnline } from '../hooks/useOnline.js';
 import { enqueue } from '../utils/offlineQueue.js';
@@ -26,6 +28,7 @@ export default function ClockPage() {
   const [error, setError] = useState('');
   const [gps, setGps] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [helpOpen, setHelpOpen] = useState(false);
   const tickRef = useRef(null);
 
   const selectedId = searchParams.get('shift');
@@ -91,6 +94,30 @@ export default function ClockPage() {
       : 0;
     return Math.max(0, end - start - (shift.breakMs ?? 0) - runningBreak);
   }, [shift, now]);
+
+  // Break time so far, including one currently running. Shown in the summary
+  // strip, where it explains why the timer and the wall clock disagree.
+  const breakLabel = useMemo(() => {
+    if (!shift) return '---';
+    const running = shift.breakStartedAt
+      ? now - new Date(shift.breakStartedAt).getTime()
+      : 0;
+    const mins = Math.round(((shift.breakMs ?? 0) + running) / 60000);
+    if (mins <= 0) return shift.clockInAt ? '0 min' : '---';
+    if (mins < 60) return `${mins} min`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  }, [shift, now]);
+
+  // The lifecycle state, said once, in the chip under the header.
+  const [statusTone, statusLabel] = useMemo(() => {
+    if (!shift) return ['upcoming', 'No visit'];
+    if (shift.status === 'completed') return ['done', 'Completed'];
+    if (shift.breakStartedAt) return ['break', 'On break'];
+    if (shift.status === 'active') return ['onshift', 'On shift'];
+    return ['upcoming', 'Upcoming'];
+  }, [shift]);
 
   // Progress around the dial = elapsed / scheduled duration.
   const progress = useMemo(() => {
@@ -172,34 +199,59 @@ export default function ClockPage() {
   if (loading) return <Spinner fullscreen />;
 
   return (
-    <div className="clock-screen">
-      <div className="clock-screen__head">
-        <h1 className="clock-screen__title">{isActive ? 'On shift' : 'Clock'}</h1>
-        <Button variant="white" size="sm" onClick={() => navigate('/overview')}>
+    <div className="clockscreen">
+      <ScreenHeader title="Clock In" />
+
+      {/* Who the visit is for, with History opposite and the lifecycle state
+          on its own line beneath. */}
+      <div className="clockhead">
+        <div className="clockhead__who">
+          <h2 className="clockhead__name">{shift ? shift.client : 'No visit selected'}</h2>
+          {shift && <p className="clockhead__addr">{shift.address.split(',')[0]}</p>}
+        </div>
+        <Button
+          variant="white"
+          size="sm"
+          className="btn--pill"
+          onClick={() => navigate('/clock/history')}
+        >
           History
         </Button>
       </div>
+
+      {shift && (
+        <div className="clockhead__state">
+          <span className={`statuschip statuschip--${statusTone}`}>
+            <span className="statuschip__dot" aria-hidden="true" />
+            {statusLabel}
+          </span>
+        </div>
+      )}
 
       {!shift ? (
         <EmptyState icon="calendar" title="No shifts today" text="When your rota is published your visits will appear here." />
       ) : (
         <>
-          <p className="clock-screen__client">
-            {shift.client} at {shift.address.split(',')[0]}
-          </p>
-
-          <span
-            className={`gps-chip${gps ? ' gps-chip--ok' : gps === null ? '' : ' gps-chip--off'}`}
-          >
-            <Icon name={gps ? 'location' : 'target'} size={13} />
+          {/* Where the location stands. Before clocking in this says what will
+              be recorded rather than implying the carer is being tracked. */}
+          <span className={`verifychip${gps ? ' verifychip--ok' : ''}`}>
+            <Icon name={gps ? 'check' : 'target'} size={13} />
             {gps
-              ? `Location fixed to within ${Math.round(gps.accuracy)}m`
+              ? `Verified · ${shift.address.split(',')[0]}`
               : 'Location is recorded when you clock in'}
           </span>
 
           <Dial
-            progress={isActive ? progress : 0}
-            state={onBreak ? 'break' : isActive ? 'running' : 'idle'}
+            progress={shift.status === 'completed' ? 1 : isActive ? progress : 0}
+            state={
+              shift.status === 'completed'
+                ? 'complete'
+                : onBreak
+                  ? 'break'
+                  : isActive
+                    ? 'running'
+                    : 'idle'
+            }
           >
             <span className="dial__time">
               {isActive || shift.status === 'completed' ? formatElapsed(elapsedMs) : '00:00:00'}
@@ -215,33 +267,88 @@ export default function ClockPage() {
             </span>
           </Dial>
 
+          {/* A paused timer looks identical to a stopped one, so it says so. */}
+          {onBreak && (
+            <p className="clock-note">
+              On break since {formatTime(shift.breakStartedAt)} — time is paused
+            </p>
+          )}
+
           {error && <p className="error-text clock-error">{error}</p>}
 
           <div className="clock-actions">
             {shift.status === 'upcoming' && (
-              <Button size="lg" block onClick={handleClockIn} disabled={busy}>
-                {busy ? 'Getting location' : 'Clock in'}
-              </Button>
-            )}
-
-            {isActive && (
               <>
-                <Button variant="white" size="lg" onClick={handleClockOut} disabled={busy}>
-                  <span className="clock-stop" aria-hidden="true" />
-                  Clock out
+                <Button
+                  size="lg"
+                  className="btn--pill clock-actions__primary"
+                  onClick={handleClockIn}
+                  disabled={busy}
+                >
+                  <Icon name="clock" size={18} />
+                  {busy ? 'Getting your location' : 'Clock In'}
                 </Button>
-                <Button size="lg" onClick={handleBreak} disabled={busy}>
-                  <Icon name={onBreak ? 'play' : 'coffee'} size={18} />
-                  {onBreak ? 'Resume' : 'Break'}
-                </Button>
+                <button
+                  type="button"
+                  className="text-btn clock-actions__help"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  Can&apos;t clock in?
+                </button>
               </>
             )}
 
+            {isActive && (
+              <div className="clock-actions__pair">
+                <Button
+                  variant={onBreak ? 'primary' : 'secondary'}
+                  size="lg"
+                  className="btn--pill"
+                  onClick={handleBreak}
+                  disabled={busy}
+                >
+                  <Icon name={onBreak ? 'play' : 'coffee'} size={18} filled={onBreak} />
+                  {onBreak ? 'Resume Shift' : 'Take a Break'}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="lg"
+                  className="btn--pill"
+                  onClick={handleClockOut}
+                  disabled={busy}
+                >
+                  <span className="clock-stop" aria-hidden="true" />
+                  Clock Out
+                </Button>
+              </div>
+            )}
+
             {shift.status === 'completed' && (
-              <Button variant="white" size="lg" block onClick={() => navigate('/shifts')}>
+              <Button variant="secondary" size="lg" className="btn--pill" block onClick={() => navigate('/shifts')}>
                 View shifts
               </Button>
             )}
+          </div>
+
+          {/* The three figures a carer checks mid-visit. These used to be
+              crowded into the dial face, where they competed with the timer. */}
+          <div className="clockstats">
+            <div className="clockstat">
+              <span className="clockstat__label">Started</span>
+              <span className="clockstat__value">
+                {shift.clockInAt ? formatTime(shift.clockInAt) : '---'}
+              </span>
+            </div>
+            <div className="clockstat">
+              <span className="clockstat__label">Break</span>
+              <span className="clockstat__value">{breakLabel}</span>
+            </div>
+            <div className="clockstat">
+              <span className="clockstat__label">Est. end</span>
+              <span className="clockstat__value clockstat__value--accent">
+                {formatTime(shift.endsAt)}
+              </span>
+            </div>
           </div>
 
           {/* Switcher for the rest of the day. Uses the shared card in its
@@ -269,6 +376,34 @@ export default function ClockPage() {
           )}
         </>
       )}
+
+      {/* What to do when the tap will not go through. Written so a carer can
+          act on it standing at a front door, and honest that the record is
+          kept either way. Location rules are not settled with the client, so
+          this describes what the app does, not what policy requires. */}
+      <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="Can't clock in?">
+        <div className="prose">
+          <p>
+            <strong>No signal.</strong> Tap Clock In anyway. The time of your tap is
+            saved on this phone and sent as soon as you have signal, so you are
+            recorded as clocking in when you actually did.
+          </p>
+          <p>
+            <strong>It says you are too far away.</strong> Move closer to the address
+            and try again. If you are at the right place and it still refuses, clock
+            in anyway and message the office so they can correct the record.
+          </p>
+          <p>
+            <strong>Location is switched off.</strong> Turn it on in your phone
+            settings. Location is only read at the moment you clock in or out, never
+            in between.
+          </p>
+          <p>
+            <strong>Still stuck.</strong> Message the office. Nothing is lost by
+            trying, and a correction keeps the original record with it.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

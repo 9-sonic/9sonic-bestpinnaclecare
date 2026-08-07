@@ -271,10 +271,25 @@ export async function createConversation({ participants, title, kind }) {
 
 /* ------------------- Local only, no API endpoint yet ---------------------- */
 
+// Mirrors PATCH /staff/me: the same camelCase patch goes in, and what comes
+// back is shaped like an Employee from the API. If this stored the patch keys
+// verbatim the mock would round-trip fields the live path cannot, and the two
+// would drift apart without anything failing.
 export async function updateProfile(patch) {
   await delay(320);
   const db = loadDb();
-  db.employee = { ...db.employee, ...patch };
+
+  db.employee = {
+    ...db.employee,
+    ...(patch.phone !== undefined ? { phone: patch.phone } : null),
+    ...(patch.emergencyContactName !== undefined
+      ? { emergency_contact_name: patch.emergencyContactName }
+      : null),
+    ...(patch.emergencyContactPhone !== undefined
+      ? { emergency_contact_phone: patch.emergencyContactPhone }
+      : null),
+  };
+
   if (patch.name) {
     const [first, ...rest] = patch.name.split(' ');
     db.employee.first_name = first;
@@ -285,12 +300,17 @@ export async function updateProfile(patch) {
   return db.employee;
 }
 
+export async function getAvailability() {
+  await delay(180);
+  return loadDb().local?.availability ?? null;
+}
+
 export async function updateAvailability(availability) {
   await delay(280);
   const db = loadDb();
   db.local.availability = availability;
   saveDb(db);
-  return db.employee;
+  return availability;
 }
 
 export async function saveVisitNote({ shiftId, note, tasks }) {

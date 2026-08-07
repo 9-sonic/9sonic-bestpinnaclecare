@@ -16,6 +16,22 @@
     <!-- iOS ignores the manifest for the home screen icon and uses this. It was
          pointing at the full landscape logo, which iOS then squashed. -->
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- The four typefaces the design is drawn in. Until now none were loaded
+         at all, so every screen rendered in the Segoe UI fallback and none of
+         the type in the design had ever actually been seen in the app.
+
+         Plus Jakarta Sans carries the interface, Outfit the section headings,
+         Raleway client names and Figtree the times. display=swap so a carer on
+         a slow connection gets readable text immediately rather than a blank
+         screen; the service worker caches the files for offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700&family=Raleway:wght@500;600;700&family=Figtree:wght@500;600;700&display=swap"
+    />
+
     <title>Best Pinnacle Care — Carer</title>
     <script>
       // Apply the saved theme before first paint so a dark-mode user never sees
