@@ -139,7 +139,9 @@ jobs:
         working-directory: client/pwa
         env:
           # Vite inlines VITE_* at build time, so it must be set here.
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          # The apps read VITE_API_BASE_URL (must include /api/v1) and VITE_USE_MOCK.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_USE_MOCK: 'false'
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
@@ -197,7 +199,8 @@ jobs:
         id: build
         working-directory: client/admin-web
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_USE_MOCK: 'false'
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
