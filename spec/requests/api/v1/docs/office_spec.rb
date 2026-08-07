@@ -60,6 +60,13 @@ RSpec.describe "Office (admin)", type: :request do
 
   # ---- Care packages ----
   path "/api/v1/admin/care_package_slots" do
+    get("List care packages (optionally filtered by service user)") do
+      tags "Office — Care Packages"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :service_user_id, in: :query, required: false, schema: { type: :integer }
+      let(:service_user_id) { nil }
+      response(200, "slots") { run_test! }
+    end
+
     post("Create a recurring call") do
       tags "Office — Care Packages"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :body, in: :body, schema: {
@@ -104,6 +111,26 @@ RSpec.describe "Office (admin)", type: :request do
       parameter name: :body, in: :body, schema: { type: :object, properties: { from: { type: :string, format: :date }, to: { type: :string, format: :date } }, required: %w[from to] }
       before { create(:care_package_slot, service_user: su, recurrence: "daily", effective_from: Date.current) }
       response(201, "created count") { schema type: :object, properties: { created: { type: :integer } }; let(:body) { { from: Date.current.iso8601, to: Date.current.iso8601 } }; run_test! }
+    end
+  end
+
+  path "/api/v1/admin/visits/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    patch("Retime a visit (audited; refused once clocked in)") do
+      tags "Office — Rota"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Reschedule a visit before it happens. A reason is required and appended to the audit trail (visit.rescheduled). 422 { error: 'visit_started' } once a carer has clocked in — the original record is never rewritten; 422 { error: 'reason_required' } without a reason."
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: {
+          scheduled_start: { type: :string, format: "date-time" }, scheduled_end: { type: :string, format: "date-time" },
+          notes: { type: :string }, reason: { type: :string }
+        }, required: %w[reason]
+      }
+      let(:id) { create(:visit, service_user: su, scheduled_start: 1.day.from_now.change(hour: 9), scheduled_end: 1.day.from_now.change(hour: 10)).id }
+      response(200, "retimed") do
+        schema "$ref" => "#/components/schemas/Visit"
+        let(:body) { { scheduled_start: 1.day.from_now.change(hour: 11).iso8601, scheduled_end: 1.day.from_now.change(hour: 12).iso8601, reason: "Client asked for a later call" } }
+        run_test!
+      end
     end
   end
 
@@ -180,6 +207,16 @@ RSpec.describe "Office (admin)", type: :request do
 
   # ---- Timesheets ----
   path "/api/v1/admin/timesheet_periods" do
+    get("List attendance periods (newest first)") do
+      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      response(200, "periods") do
+        schema type: :array, items: { type: :object, properties: {
+          id: { type: :integer }, starts_on: { type: :string, format: :date }, ends_on: { type: :string, format: :date }, status: { type: :string }
+        } }
+        run_test!
+      end
+    end
+
     post("Build/refresh an attendance period") do
       tags "Office — Timesheets"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :body, in: :body, schema: { type: :object, properties: { starts_on: { type: :string, format: :date } }, required: %w[starts_on] }
@@ -188,6 +225,12 @@ RSpec.describe "Office (admin)", type: :request do
   end
 
   path "/api/v1/admin/employees" do
+    get("List carers (with clocking stats)") do
+      tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Each carer merged with Staff::Stats — hours this week, punctuality, dominant capture method. Pay fields only for finance / registered manager."
+      response(200, "carers") { schema type: :array, items: { "$ref" => "#/components/schemas/Employee" }; run_test! }
+    end
+
     post("Invite a carer") do
       tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :body, in: :body, schema: { type: :object, properties: { email: { type: :string }, first_name: { type: :string }, last_name: { type: :string }, role: { type: :string, enum: %w[carer senior_carer] } }, required: %w[email first_name last_name] }

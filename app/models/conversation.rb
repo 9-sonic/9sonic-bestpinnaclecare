@@ -3,9 +3,12 @@ class Conversation < ApplicationRecord
   has_many   :conversation_participants, dependent: :destroy
   has_many   :messages, dependent: :destroy
   has_one    :last_message, -> { order(created_at: :desc) }, class_name: "Message"
+  has_one    :pinned_message, -> { where.not(pinned_at: nil).order(pinned_at: :desc) }, class_name: "Message"
+
+  scope :auto_posting_channels, -> { where(kind: :channel, auto_post: true) }
 
   # scopes: false — a `group` scope would collide with ActiveRecord's `.group`.
-  enum :kind, { direct: "direct", group: "group" }, scopes: false
+  enum :kind, { direct: "direct", group: "group", channel: "channel" }, scopes: false
 
   # direct_key: sorted "Type:id" pair, e.g. "Admin:3|Employee:12" -> one thread per pair
   def self.direct_key_for(a, b) = [ "#{a.class}:#{a.id}", "#{b.class}:#{b.id}" ].sort.join("|")

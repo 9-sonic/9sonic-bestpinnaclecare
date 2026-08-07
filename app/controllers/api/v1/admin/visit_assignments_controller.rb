@@ -11,6 +11,10 @@ module Api
           warnings = Assignments::Validate.call(visit: visit, employee: employee)
 
           va = VisitAssignment.create!(visit: visit, employee: employee, assigned_by: current_admin)
+          Events::Record.call(
+            aggregate: va, actor: current_admin, event_type: "assignment.created",
+            payload: { visit_id: visit.id, employee_id: employee.id, employee_name: employee.full_name }
+          )
           render json: VisitAssignmentSerializer.call(va).merge(warnings: warnings), status: :created
         end
 
@@ -18,6 +22,10 @@ module Api
         def destroy
           va = VisitAssignment.find(params[:id])
           va.update!(assignment_status: "withdrawn", lifecycle_state: :cancelled)
+          Events::Record.call(
+            aggregate: va, actor: current_admin, event_type: "assignment.withdrawn",
+            payload: { visit_id: va.visit_id, employee_id: va.employee_id }
+          )
           head :no_content
         end
       end

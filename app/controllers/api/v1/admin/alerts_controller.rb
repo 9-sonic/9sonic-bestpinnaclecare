@@ -2,8 +2,11 @@ module Api
   module V1
     module Admin
       class AlertsController < BaseController
+        # The inbox: everything not yet resolved, plus anything resolved today so
+        # the "resolved" count and filter have something to show.
         def index
-          render json: Alert.where(state: :open).order(raised_at: :desc).map { |a| AlertSerializer.call(a) }
+          scope = Alert.where("state <> 'resolved' OR resolved_at >= ?", Time.current.beginning_of_day)
+          render json: scope.order(raised_at: :desc).map { |a| AlertSerializer.call(a) }
         end
 
         # POST /api/v1/admin/alerts/:id/acknowledge

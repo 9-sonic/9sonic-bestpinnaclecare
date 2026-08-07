@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_07_150544) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -22,11 +22,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
   create_enum "alert_state", ["open", "acknowledged", "resolved"]
   create_enum "availability_slot", ["morning", "afternoon", "evening", "night"]
   create_enum "clock_kind", ["clock_in", "clock_out", "break_start", "break_end"]
-  create_enum "conversation_kind", ["direct", "group"]
+  create_enum "conversation_kind", ["direct", "group", "channel"]
   create_enum "employee_role", ["carer", "senior_carer"]
   create_enum "geofence_result", ["pass", "fail", "no_fix", "not_checked"]
   create_enum "lifecycle_state", ["scheduled", "check_in_window", "grace_period", "late", "in_progress", "overdue", "pending_review", "completed", "missed", "cancelled"]
   create_enum "shift_status", ["draft", "published", "cancelled"]
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "admins", force: :cascade do |t|
     t.timestamptz "accepted_invite_at"
@@ -101,6 +129,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
     t.index ["service_user_id", "position"], name: "index_care_plan_items_on_service_user_id_and_position"
   end
 
+  create_table "carer_requests", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.timestamptz "decided_at"
+    t.bigint "decided_by_admin_id"
+    t.text "decision_note"
+    t.text "detail"
+    t.bigint "employee_id", null: false
+    t.text "kind", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.text "state", default: "pending", null: false
+    t.text "summary", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.index ["employee_id"], name: "index_carer_requests_on_employee_id"
+    t.index ["state", "created_at"], name: "index_carer_requests_on_state_and_created_at"
+    t.check_constraint "kind = ANY (ARRAY['swap'::text, 'drop'::text, 'overtime'::text, 'availability'::text, 'leave'::text])", name: "carer_requests_kind_valid"
+    t.check_constraint "state = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text, 'cancelled'::text])", name: "carer_requests_state_valid"
+  end
+
   create_table "clock_events", force: :cascade do |t|
     t.integer "accuracy_m"
     t.uuid "client_event_id", null: false
@@ -138,17 +184,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
   end
 
   create_table "conversations", force: :cascade do |t|
+    t.boolean "auto_post", default: false, null: false
     t.timestamptz "created_at", default: -> { "now()" }, null: false
     t.bigint "created_by_id"
     t.text "created_by_type"
     t.text "direct_key"
     t.enum "kind", null: false, enum_type: "conversation_kind"
     t.timestamptz "last_message_at"
+    t.text "purpose"
     t.text "title"
     t.timestamptz "updated_at", default: -> { "now()" }, null: false
     t.index ["direct_key"], name: "index_conversations_on_direct_key", unique: true
     t.index ["last_message_at"], name: "idx_conversations_recent", order: :desc
     t.check_constraint "kind <> 'direct'::conversation_kind OR direct_key IS NOT NULL", name: "conversations_direct_key"
+  end
+
+  create_table "cover_offers", force: :cascade do |t|
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.bigint "employee_id", null: false
+    t.text "note"
+    t.timestamptz "offered_at", default: -> { "now()" }, null: false
+    t.bigint "offered_by_admin_id"
+    t.timestamptz "responded_at"
+    t.text "state", default: "pending", null: false
+    t.timestamptz "updated_at", default: -> { "now()" }, null: false
+    t.bigint "visit_id", null: false
+    t.index ["employee_id", "state"], name: "index_cover_offers_on_employee_id_and_state"
+    t.index ["visit_id", "employee_id"], name: "idx_cover_offers_unique", unique: true
+    t.index ["visit_id"], name: "index_cover_offers_on_visit_id"
+    t.check_constraint "state = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'withdrawn'::text])", name: "cover_offers_state_valid"
   end
 
   create_table "devices", force: :cascade do |t|
@@ -259,15 +323,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
 
   create_table "messages", force: :cascade do |t|
     t.text "body"
+    t.boolean "broadcast", default: false, null: false
     t.uuid "client_message_id", null: false
     t.bigint "conversation_id", null: false
     t.timestamptz "created_at", default: -> { "now()" }, null: false
     t.timestamptz "deleted_at"
     t.timestamptz "edited_at"
-    t.bigint "sender_id", null: false
-    t.text "sender_type", null: false
+    t.timestamptz "pinned_at"
+    t.bigint "pinned_by_id"
+    t.text "pinned_by_type"
+    t.bigint "sender_id"
+    t.text "sender_type"
+    t.boolean "system", default: false, null: false
+    t.bigint "visit_id"
     t.index ["client_message_id"], name: "index_messages_on_client_message_id", unique: true
     t.index ["conversation_id", "created_at"], name: "idx_messages_conversation", order: { created_at: :desc }
+    t.index ["conversation_id", "pinned_at"], name: "idx_messages_pinned", where: "(pinned_at IS NOT NULL)"
+    t.index ["visit_id"], name: "index_messages_on_visit_id"
   end
 
   create_table "mileage_claims", force: :cascade do |t|
@@ -370,6 +442,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
     t.jsonb "modules_enabled", default: {"shifts" => true}, null: false
     t.integer "overdue_threshold_minutes", default: 60, null: false
     t.text "phone"
+    t.jsonb "policy", default: {}, null: false
     t.text "postcode"
     t.text "timesheet_period", default: "weekly", null: false
     t.integer "timesheet_rounding_minutes", default: 0, null: false
@@ -378,6 +451,148 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
     t.text "trading_name"
     t.timestamptz "updated_at", default: -> { "now()" }, null: false
     t.check_constraint "id = 1", name: "settings_single_row"
+  end
+
+  create_table "solid_cable_messages", force: :cascade do |t|
+    t.binary "channel", null: false
+    t.bigint "channel_hash", null: false
+    t.datetime "created_at", null: false
+    t.binary "payload", null: false
+    t.index ["channel"], name: "index_solid_cable_messages_on_channel"
+    t.index ["channel_hash"], name: "index_solid_cable_messages_on_channel_hash"
+    t.index ["created_at"], name: "index_solid_cable_messages_on_created_at"
+  end
+
+  create_table "solid_cache_entries", force: :cascade do |t|
+    t.integer "byte_size", null: false
+    t.datetime "created_at", null: false
+    t.binary "key", null: false
+    t.bigint "key_hash", null: false
+    t.binary "value", null: false
+    t.index ["byte_size"], name: "index_solid_cache_entries_on_byte_size"
+    t.index ["key_hash", "byte_size"], name: "index_solid_cache_entries_on_key_hash_and_byte_size"
+    t.index ["key_hash"], name: "index_solid_cache_entries_on_key_hash", unique: true
+  end
+
+  create_table "solid_queue_blocked_executions", force: :cascade do |t|
+    t.string "concurrency_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.bigint "job_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.index ["concurrency_key", "priority", "job_id"], name: "index_solid_queue_blocked_executions_for_release"
+    t.index ["expires_at", "concurrency_key"], name: "index_solid_queue_blocked_executions_for_maintenance"
+    t.index ["job_id"], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
+  end
+
+  create_table "solid_queue_claimed_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.bigint "process_id"
+    t.index ["job_id"], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
+    t.index ["process_id", "job_id"], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
+  end
+
+  create_table "solid_queue_failed_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.bigint "job_id", null: false
+    t.index ["job_id"], name: "index_solid_queue_failed_executions_on_job_id", unique: true
+  end
+
+  create_table "solid_queue_jobs", force: :cascade do |t|
+    t.string "active_job_id"
+    t.text "arguments"
+    t.string "class_name", null: false
+    t.string "concurrency_key"
+    t.datetime "created_at", null: false
+    t.datetime "finished_at"
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.datetime "scheduled_at"
+    t.datetime "updated_at", null: false
+    t.index ["active_job_id"], name: "index_solid_queue_jobs_on_active_job_id"
+    t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
+    t.index ["finished_at"], name: "index_solid_queue_jobs_on_finished_at"
+    t.index ["queue_name", "finished_at"], name: "index_solid_queue_jobs_for_filtering"
+    t.index ["scheduled_at", "finished_at"], name: "index_solid_queue_jobs_for_alerting"
+  end
+
+  create_table "solid_queue_pauses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "queue_name", null: false
+    t.index ["queue_name"], name: "index_solid_queue_pauses_on_queue_name", unique: true
+  end
+
+  create_table "solid_queue_processes", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "hostname"
+    t.string "kind", null: false
+    t.datetime "last_heartbeat_at", null: false
+    t.text "metadata"
+    t.string "name", null: false
+    t.integer "pid", null: false
+    t.bigint "supervisor_id"
+    t.index ["last_heartbeat_at"], name: "index_solid_queue_processes_on_last_heartbeat_at"
+    t.index ["name", "supervisor_id"], name: "index_solid_queue_processes_on_name_and_supervisor_id", unique: true
+    t.index ["supervisor_id"], name: "index_solid_queue_processes_on_supervisor_id"
+  end
+
+  create_table "solid_queue_ready_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.index ["job_id"], name: "index_solid_queue_ready_executions_on_job_id", unique: true
+    t.index ["priority", "job_id"], name: "index_solid_queue_poll_all"
+    t.index ["queue_name", "priority", "job_id"], name: "index_solid_queue_poll_by_queue"
+  end
+
+  create_table "solid_queue_recurring_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.datetime "run_at", null: false
+    t.string "task_key", null: false
+    t.index ["job_id"], name: "index_solid_queue_recurring_executions_on_job_id", unique: true
+    t.index ["task_key", "run_at"], name: "index_solid_queue_recurring_executions_on_task_key_and_run_at", unique: true
+  end
+
+  create_table "solid_queue_recurring_tasks", force: :cascade do |t|
+    t.text "arguments"
+    t.string "class_name"
+    t.string "command", limit: 2048
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "key", null: false
+    t.integer "priority", default: 0
+    t.string "queue_name"
+    t.string "schedule", null: false
+    t.boolean "static", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_solid_queue_recurring_tasks_on_key", unique: true
+    t.index ["static"], name: "index_solid_queue_recurring_tasks_on_static"
+  end
+
+  create_table "solid_queue_scheduled_executions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.integer "priority", default: 0, null: false
+    t.string "queue_name", null: false
+    t.datetime "scheduled_at", null: false
+    t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
+    t.index ["scheduled_at", "priority", "job_id"], name: "index_solid_queue_dispatch_all"
+  end
+
+  create_table "solid_queue_semaphores", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "key", null: false
+    t.datetime "updated_at", null: false
+    t.integer "value", default: 1, null: false
+    t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
+    t.index ["key", "value"], name: "index_solid_queue_semaphores_on_key_and_value"
+    t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
   create_table "timesheet_disputes", force: :cascade do |t|
@@ -493,12 +708,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
     t.index ["owner_type", "owner_id"], name: "idx_webauthn_credentials_owner"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "alerts", "admins", column: "acknowledged_by_admin_id"
   add_foreign_key "care_package_slots", "service_users"
   add_foreign_key "care_plan_items", "service_users"
+  add_foreign_key "carer_requests", "admins", column: "decided_by_admin_id"
+  add_foreign_key "carer_requests", "employees"
   add_foreign_key "clock_events", "clock_events", column: "corrects_id"
   add_foreign_key "clock_events", "visit_assignments"
   add_foreign_key "conversation_participants", "conversations"
+  add_foreign_key "cover_offers", "admins", column: "offered_by_admin_id"
+  add_foreign_key "cover_offers", "employees"
+  add_foreign_key "cover_offers", "visits"
   add_foreign_key "employee_availabilities", "employees"
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_receipts", "messages"
@@ -507,6 +729,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_100006) do
   add_foreign_key "mileage_claims", "visit_assignments"
   add_foreign_key "notifications", "alerts"
   add_foreign_key "refresh_tokens", "devices"
+  add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
   add_foreign_key "timesheet_disputes", "employees", column: "raised_by_employee_id"
   add_foreign_key "timesheet_disputes", "timesheet_lines"

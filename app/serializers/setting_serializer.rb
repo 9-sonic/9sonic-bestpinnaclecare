@@ -6,7 +6,7 @@ class SettingSerializer
     checkin_window_before_start_minutes late_grace_minutes missed_threshold_minutes
     overdue_threshold_minutes auto_close_after_minutes early_leave_tolerance_minutes
     clock_skew_tolerance_minutes geofence_mode geofence_radius_m
-    timesheet_period timesheet_week_starts_on timesheet_rounding_minutes modules_enabled
+    timesheet_period timesheet_week_starts_on timesheet_rounding_minutes modules_enabled policy
   ].freeze
 
   def self.call(setting)

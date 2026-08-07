@@ -12,6 +12,9 @@ if Rails.env.production? && ENV["FORCE_SEED"].blank?
 end
 
 DEMO_PASSWORD = "Password123!".freeze
+# Fixed TOTP secret both demo users are enrolled with — add it once to an
+# authenticator app and it generates valid MFA codes for either login.
+DEMO_MFA_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".freeze
 
 # ---------------------------------------------------------------------------
 # Reset (clock_events/events are append-only, so TRUNCATE, never DELETE)
@@ -68,17 +71,14 @@ Setting.create!(
 )
 
 # ---------------------------------------------------------------------------
-# Admins (one per role) — MFA off so reviewers can log straight in
+# Admin (one) — MFA on, pre-enrolled with DEMO_MFA_SECRET
 # ---------------------------------------------------------------------------
 admins = {
-  registered_manager: [ "Rebecca", "Hartley",   "manager@bestpinnacle.test" ],
-  manager:            [ "Marcus",  "Doyle",      "ops@bestpinnacle.test" ],
-  coordinator:        [ "Carly",   "Fields",     "coordinator@bestpinnacle.test" ],
-  finance:            [ "Fiona",   "Nwosu",      "finance@bestpinnacle.test" ],
-  auditor:            [ "Alan",    "Pierce",     "auditor@bestpinnacle.test" ]
+  registered_manager: [ "Rebecca", "Hartley", "manager@bestpinnacle.test" ]
 }.map do |role, (first, last, email)|
   Admin.create!(email: email, password: DEMO_PASSWORD, first_name: first, last_name: last,
-                role: role, mfa_enabled: false, active: true, accepted_invite_at: 30.days.ago)
+                role: role, active: true, accepted_invite_at: 30.days.ago,
+                mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: DEMO_MFA_SECRET)
 end
 registered_manager = admins.first
 finance_admin = admins.find(&:finance?) || registered_manager
@@ -87,13 +87,13 @@ finance_admin = admins.find(&:finance?) || registered_manager
 # Employees (carers)
 # ---------------------------------------------------------------------------
 carers = [
-  %w[Aisha Khan],  %w[Ben Carter],  %w[Chloe Davies],
-  %w[Dan Evans],   %w[Ella Foster], %w[Femi Okafor]
+  %w[Aisha Khan]
 ].each_with_index.map do |(first, last), i|
   Employee.create!(
     email: "#{first.downcase}@bestpinnacle.test", password: DEMO_PASSWORD,
     first_name: first, last_name: last, role: (i.zero? ? :senior_carer : :carer),
     employee_reference: "EMP#{1001 + i}", active: true, accepted_invite_at: 25.days.ago,
+    mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: DEMO_MFA_SECRET,
     phone: "07700 9000#{i}#{i}", hourly_rate_pence: rand(1150..1450), mileage_rate_pence: 45,
     contracted_hours_per_week: [ 30, 37.5, 40 ].sample,
     emergency_contact_name: "Next of kin", emergency_contact_phone: "0161 555 0#{rand(100..999)}"
@@ -228,7 +228,66 @@ Messaging::SendMessage.call(conversation: direct, sender: carers.first,
 group = Messaging::CreateConversation.group(creator: registered_manager, title: "South team", participants: carers.first(3))
 Messaging::SendMessage.call(conversation: group, sender: registered_manager,
                             body: "Team catch-up Friday 9am at the office.", client_message_id: SecureRandom.uuid)
-puts "#{Conversation.count} conversations, #{Message.count} messages."
+
+channel = Messaging::CreateConversation.channel(creator: registered_manager, title: "#north-team", participants: carers)
+Messaging::SendMessage.call(conversation: channel, sender: registered_manager, broadcast: true,
+                            body: "Reminder: supervision sign-off is due Friday. Tap to acknowledge.", client_message_id: SecureRandom.uuid)
+puts "#{Conversation.count} conversations (#{Conversation.where(kind: :channel).count} channels), #{Message.count} messages."
+
+# ---------------------------------------------------------------------------
+# Cover board: a few unfilled published visits in the next few days, one with
+# a pending offer out to a carer.
+# ---------------------------------------------------------------------------
+open_visits = Array.new(4) do |i|
+  start = now.beginning_of_day + (i + 1).days + [ 8, 12, 17, 20 ][i].hours
+  Visit.create!(service_user: ServiceUser.all.sample, scheduled_start: start, scheduled_end: start + 1.hour,
+                status: :published, published_at: Time.current, published_by: registered_manager,
+                notes: [ "Morning call — personal care and breakfast.", "Lunch and welfare check.",
+                        "Tea and evening medication.", "Bedtime settle." ][i])
+end
+CoverOffer.create!(visit: open_visits.first, employee: carers.sample, offered_by: registered_manager, state: "pending")
+puts "#{open_visits.size} unfilled visits on the cover board; #{CoverOffer.count} offers."
+
+# ---------------------------------------------------------------------------
+# Carer requests queue
+# ---------------------------------------------------------------------------
+[
+  { kind: "swap",     summary: "Swap Friday 08:00 visit with a colleague", detail: "Happy for anyone trained on the client to take it.", payload: { day: "Friday", time: "08:00" } },
+  { kind: "leave",    summary: "Annual leave 12–16 August", detail: "Five weekday visits fall in this window.", payload: { from: "12 Aug", to: "16 Aug", visits_affected: 5 } },
+  { kind: "overtime", summary: "Available for extra weekend hours", detail: "Up to 8 extra hours this weekend.", payload: { extra_hours: 8 } },
+  { kind: "drop",     summary: "Drop Thursday 20:00 visit", detail: "Can no longer make the Thursday bedtime call.", payload: { day: "Thursday", time: "20:00" } }
+].each_with_index do |r, i|
+  CarerRequest.create!(employee: carers[i % carers.size], state: "pending", **r)
+end
+puts "#{CarerRequest.pending.count} carer requests waiting."
+
+# ---------------------------------------------------------------------------
+# Audit trail — record events for the seeded actions, mirroring what the
+# controllers write in real use, so the Audit page runs on real data.
+# ---------------------------------------------------------------------------
+Events::Record.call(aggregate: Setting.instance, actor: registered_manager, event_type: "settings.updated",
+                    payload: { changed: %w[late_grace_minutes geofence_radius_m] }, occurred_at: 2.days.ago)
+
+VisitAssignment.assigned.includes(:visit, :employee).limit(5).each_with_index do |va, i|
+  Events::Record.call(aggregate: va, actor: registered_manager, event_type: "assignment.created",
+                      payload: { visit_id: va.visit_id, employee_id: va.employee_id, employee_name: va.employee&.full_name },
+                      occurred_at: (i + 1).hours.ago)
+end
+
+if (done_va = VisitAssignment.completed.first)
+  Events::Record.call(aggregate: done_va, actor: registered_manager, event_type: "clock.corrected",
+                      payload: { kind: "clock_out", reason: "Carer confirmed by phone; battery died" }, occurred_at: 90.minutes.ago)
+end
+
+Events::Record.call(aggregate: period, actor: finance_admin, event_type: "timesheet.approved",
+                    payload: { starts_on: period.starts_on, ends_on: period.ends_on }, occurred_at: 3.hours.ago)
+
+if (offer = CoverOffer.first)
+  Events::Record.call(aggregate: offer.visit, actor: registered_manager, event_type: "cover.offered",
+                      payload: { employee_id: offer.employee_id, employee_name: offer.employee&.full_name }, occurred_at: 40.minutes.ago)
+end
+
+puts "#{Event.count} audit events recorded."
 
 # ---------------------------------------------------------------------------
 # Summary + credentials

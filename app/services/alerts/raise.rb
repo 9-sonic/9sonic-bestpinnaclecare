@@ -12,6 +12,7 @@ module Alerts
     def self.call(subject:, alert_type:, severity: "normal")
       alert = Alert.create!(subject: subject, alert_type: alert_type, severity: severity, state: :open)
       notify(alert)
+      Messaging::PostSystemMessage.broadcast_alert(alert)   # into auto_post channels
       alert
     rescue ActiveRecord::RecordNotUnique
       Alert.where(subject: subject, alert_type: alert_type, state: :open).first

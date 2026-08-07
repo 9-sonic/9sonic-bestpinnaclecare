@@ -2,11 +2,14 @@ module Api
   module V1
     module Admin
       class EmployeesController < BaseController
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) },          only: :create
+        include AvatarManagement
+
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) },          only: %i[create avatar remove_avatar]
         before_action -> { authorize_role!(:registered_manager, :manager, :coordinator, :finance) }, only: :update
 
         def index
-          render json: Employee.order(:last_name, :first_name).map { |e| serialize(e) }
+          stats = ::Staff::Stats.call
+          render json: Employee.order(:last_name, :first_name).map { |e| serialize(e).merge(stats[e.id] || {}) }
         end
 
         def show
@@ -17,6 +20,19 @@ module Api
         def availability
           render json: Employee.find(params[:id]).employee_availabilities.order(:weekday, :slot)
                                .map { |a| EmployeeAvailabilitySerializer.call(a) }
+        end
+
+        # POST /api/v1/admin/employees/:id/avatar  (multipart: avatar)
+        def avatar
+          employee = Employee.find(params[:id])
+          render json: serialize(employee) if attach_avatar_or_422(employee)
+        end
+
+        # DELETE /api/v1/admin/employees/:id/avatar
+        def remove_avatar
+          employee = Employee.find(params[:id])
+          employee.avatar.purge_later
+          render json: serialize(employee)
         end
 
         # POST /api/v1/admin/employees — invite a carer

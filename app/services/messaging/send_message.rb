@@ -3,13 +3,15 @@ module Messaging
   # writes delivery receipts for the other participants, and fans out an in-app
   # notification (chat produces a notification, never an alert — §7).
   class SendMessage
-    def self.call(conversation:, sender:, body:, client_message_id:)
+    def self.call(conversation:, sender:, body:, client_message_id:, broadcast: false, visit_id: nil, files: nil)
       existing = Message.find_by(client_message_id: client_message_id)
       return existing if existing
 
       message = nil
       Conversation.transaction do
-        message = conversation.messages.create!(sender: sender, body: body, client_message_id: client_message_id)
+        message = conversation.messages.create!(sender: sender, body: body, client_message_id: client_message_id,
+                                                broadcast: broadcast || false, visit_id: visit_id)
+        message.files.attach(files) if files.present?
         others = conversation.conversation_participants.active
                              .where.not(participant_type: sender.class.name, participant_id: sender.id)
                              .map(&:participant)

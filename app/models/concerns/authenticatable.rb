@@ -15,6 +15,8 @@ module Authenticatable
     has_many :conversation_participants, as: :participant
     has_many :webauthn_credentials,      as: :owner, dependent: :destroy
 
+    has_one_attached :avatar
+
     scope :active, -> { where(active: true) }
 
     # Defined on the class (not the module) so it overrides Devise's lockable
