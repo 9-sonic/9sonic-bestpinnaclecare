@@ -530,3 +530,15 @@
   --chart-bar: #1d4d58;
   --chart-bar-weekend: #4a2231;
 }
+
+/* The two panels peeking out behind the featured visit card. Taken from the
+   board, which uses the brand cyan at 20% and 30% over the page. */
+:root {
+  --deck-near: #9fe6ee;
+  --deck-far: #c7f0f5;
+}
+
+:root[data-theme='dark'] {
+  --deck-near: #14555f;
+  --deck-far: #0f3d45;
+}

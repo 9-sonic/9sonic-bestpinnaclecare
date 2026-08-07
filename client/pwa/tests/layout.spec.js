@@ -102,9 +102,12 @@ test.describe('home screen', () => {
     await expect(page.locator('.fvisit__tile')).toHaveCount(2);
     await expect(page.locator('.fvisit__call')).toBeVisible();
 
-    // The week: hours as a ring, then the two counts beside it.
+    // The week: hours as a ring, then the counts beside it. Each tile carries
+    // a figure and a label — a bare number in a box was what made this row
+    // read as padding rather than information.
     await expect(page.locator('.hours-ring')).toBeVisible();
-    await expect(page.locator('.ministat')).toHaveCount(2);
+    await expect(page.locator('.ministat')).toHaveCount(3);
+    await expect(page.locator('.ministat__label').first()).not.toBeEmpty();
 
     // The ring must actually be drawn, not left at zero length. A ring showing
     // nothing looks identical to one that failed to render.

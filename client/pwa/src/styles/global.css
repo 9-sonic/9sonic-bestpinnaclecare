@@ -11212,3 +11212,175 @@ body:has(.drawer-backdrop) .app-content {
   flex-shrink: 0;
   margin-top: 2px;
 }
+
+/* ===========================================================================
+   Home: density.
+
+   Read off the Penpot board rather than guessed. The board puts the hours
+   card at 159x181 and the two beside it at 194x86 and 190x78 — short cards,
+   not two halves of a stretched column. Ours were on 1fr rows, so each grew
+   to half the height of the ring card and held one number in a lot of air.
+
+   Three changes: the rows size to their content, each tile carries an icon
+   and a sub-line so it says something, and a third tile fills the column.
+   =========================================================================== */
+
+.home-stats {
+  grid-template-columns: 1.05fr 1fr;
+  align-items: start;
+}
+
+.home-stats__col {
+  grid-template-rows: auto auto auto;
+  gap: var(--space-2);
+}
+
+/* -- the hours ring ------------------------------------------------------- */
+
+/* The label, the ring and the sub-line were spread down a tall box. Pulled
+   together so the card is the height of its contents. */
+.hours-ring {
+  padding: var(--space-3) var(--space-2) var(--space-4);
+  gap: 4px;
+}
+
+.hours-ring__dial {
+  width: 116px;
+  height: 116px;
+}
+
+.hours-ring__sub {
+  margin-top: 2px;
+}
+
+/* -- the tiles beside it -------------------------------------------------- */
+
+.ministat {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  min-height: 62px;
+  text-align: left;
+}
+
+.ministat__icon {
+  flex-shrink: 0;
+}
+
+.ministat__figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+}
+
+.ministat__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+/* The unit, trailing the figure in a lighter weight so the number still
+   reads first. */
+.ministat__sub {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ministat__label {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+
+/* -- the featured card as the top of a pile ------------------------------- */
+
+/* Two narrower panels peeking out behind the card, as in the design. They are
+   decoration, so they are drawn with pseudo-elements rather than markup and
+   are hidden from assistive tech by default.
+
+   Only applied when there is more than one visit left: a stack that implies
+   work which is not there is worse than a plain card. */
+.fdeck {
+  position: relative;
+}
+
+.fdeck--stacked::before,
+.fdeck--stacked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+}
+
+/* The nearer panel. */
+.fdeck--stacked::after {
+  top: -9px;
+  width: calc(100% - 22px);
+  height: 40px;
+  background: var(--deck-near);
+}
+
+/* The further one, narrower and fainter. */
+.fdeck--stacked::before {
+  top: -18px;
+  width: calc(100% - 52px);
+  height: 40px;
+  background: var(--deck-far);
+}
+
+.fdeck .fvisit {
+  position: relative;
+  z-index: 1;
+}
+
+/* The deck layers were positioned above the card with negative offsets, so an
+   ancestor clipped them. The wrapper now reserves the space itself and the
+   panels sit inside its own box. */
+.fdeck--stacked {
+  padding-top: 20px;
+}
+
+.fdeck--stacked::before {
+  top: 0;
+  width: calc(100% - 56px);
+  height: 44px;
+  background: var(--deck-far);
+}
+
+.fdeck--stacked::after {
+  top: 10px;
+  width: calc(100% - 26px);
+  height: 44px;
+  background: var(--deck-near);
+}
+
+/* The ring was small inside a tall card, which is where the remaining empty
+   space on this screen was coming from. Sized to fill the card instead, with
+   the label and the sub-line tight against it. */
+.hours-ring {
+  padding: var(--space-3) var(--space-2);
+  gap: 2px;
+  justify-content: center;
+}
+
+.hours-ring__dial {
+  width: 100%;
+  max-width: 148px;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.hours-ring__value {
+  font-size: var(--text-2xl);
+}

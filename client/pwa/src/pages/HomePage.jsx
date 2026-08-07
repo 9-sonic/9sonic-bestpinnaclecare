@@ -124,12 +124,25 @@ function HoursRing({ worked, target, loading }) {
   );
 }
 
-// The two figures beside the ring.
-function MiniStat({ value, label, loading, onClick }) {
+// The two figures beside the ring. The sub-line matters: a bare number in a
+// box is what made this row look like padding rather than information.
+function MiniStat({ value, label, sub, icon, tint, loading, onClick }) {
   return (
     <button type="button" className="ministat" onClick={() => { tapFeedback(); onClick?.(); }}>
-      {loading ? <Skeleton w="40%" h={24} /> : <span className="ministat__value">{value}</span>}
-      <span className="ministat__label">{label}</span>
+      <span className={`ministat__icon tile-icon tile-icon--${tint}`}>
+        <Icon name={icon} size={15} />
+      </span>
+      <span className="ministat__figures">
+        {loading ? (
+          <Skeleton w="60%" h={22} />
+        ) : (
+          <span className="ministat__value">
+            {value}
+            {sub && <span className="ministat__sub">{sub}</span>}
+          </span>
+        )}
+        <span className="ministat__label">{label}</span>
+      </span>
     </button>
   );
 }
@@ -250,13 +263,19 @@ export default function HomePage() {
             </button>
           </div>
 
-          <FeaturedVisit
-            shift={focus}
-            live={clock.clockedIn}
-            onNavigate={() => { tapFeedback(); navigate(`/navigate/${focus.id}`); }}
-            onProfile={() => { tapFeedback(); navigate(`/shifts/${focus.id}`); }}
-            onCall={() => { tapFeedback(); navigate('/messages'); }}
-          />
+          {/* The design stacks two narrower cards behind the featured one, so
+              the card reads as the top of a pile rather than a lone panel.
+              Only drawn when there really are more visits queued, otherwise it
+              would promise a stack that is not there. */}
+          <div className={`fdeck${remaining > 1 ? ' fdeck--stacked' : ''}`}>
+            <FeaturedVisit
+              shift={focus}
+              live={clock.clockedIn}
+              onNavigate={() => { tapFeedback(); navigate(`/navigate/${focus.id}`); }}
+              onProfile={() => { tapFeedback(); navigate(`/shifts/${focus.id}`); }}
+              onCall={() => { tapFeedback(); navigate('/messages'); }}
+            />
+          </div>
         </section>
       )}
 
@@ -266,15 +285,30 @@ export default function HomePage() {
         <div className="home-stats__col">
           <MiniStat
             value={week?.shifts ?? 0}
+            sub="this week"
             label="Shifts"
+            icon="calendar"
+            tint="blue"
             loading={loading}
             onClick={() => navigate('/shifts')}
           />
           <MiniStat
             value={week?.clients ?? 0}
+            sub="active"
             label="Clients"
+            icon="users"
+            tint="green"
             loading={loading}
             onClick={() => navigate('/shifts')}
+          />
+          <MiniStat
+            value={week?.miles ?? 0}
+            sub="mi"
+            label="Travel"
+            icon="trend"
+            tint="purple"
+            loading={loading}
+            onClick={() => navigate('/timesheet')}
           />
         </div>
       </section>
