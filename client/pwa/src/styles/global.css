@@ -11384,3 +11384,318 @@ body:has(.drawer-backdrop) .app-content {
 .hours-ring__value {
   font-size: var(--text-2xl);
 }
+
+/* ===========================================================================
+   Applying the export's typography.
+
+   Sizes and weights below are the export's own. Colours still go through the
+   tokens rather than the raw hexes, so dark mode keeps working: the export is
+   a single-mode artefact and hard-coding #0f172a would make every heading
+   invisible on a dark surface.
+   =========================================================================== */
+
+body {
+  font-family: var(--font-body);
+}
+
+/* Section headings are Outfit, and lighter than they were. The export has
+   "May 2026" at 22/500 and "Upcoming" at 18/400 — noticeably less bold than
+   the 800 weights this app had been using. */
+.screen-header__title-large,
+.cal__title,
+.section-head__title,
+.greet__hello,
+.chist__title,
+.ov-sub {
+  font-family: var(--font-display);
+}
+
+.cal__title {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.section-head__title {
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+/* Client name on a visit card. */
+.vcard__name,
+.fvisit__name,
+.chist__name {
+  font-family: var(--font-name);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Times. Figtree at 14/600, with the date under it at 11/600. */
+.vcard__range,
+.fvisit__time,
+.clockstat__value,
+.chist__time {
+  font-family: var(--font-time);
+  font-weight: 600;
+}
+
+.vcard__range {
+  font-size: 14px;
+  color: var(--color-text-strong, var(--color-text));
+}
+
+.vcard__day {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* ===========================================================================
+   Cards and the calendar, to the export's measurements.
+   =========================================================================== */
+
+/* Every card in the export carries a hairline as well as a shadow. Without it
+   a white card on a near-white page has no edge at all. */
+.vcard,
+.cal,
+.chist__card,
+.ov-tile,
+.hours-ring,
+.ministat,
+.thread-row,
+.range-card,
+.chart-card,
+.clockstats {
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 0 0 1px var(--card-line),
+    var(--shadow-xs);
+}
+
+/* -- the visit card ------------------------------------------------------- */
+
+/* The export puts the avatar at 46px with the initials at 13.5/700. */
+.vcard__avatar .avatar,
+.vcard__avatar .avatar--initials {
+  width: 46px;
+  height: 46px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+/* Status pill: 78x26 at radius 12, 9px letterspaced caps. Small, and quiet
+   next to the client name rather than competing with it. */
+.badge {
+  min-width: 78px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.badge--upcoming {
+  background: var(--brand-tint);
+  color: var(--brand-text);
+}
+
+/* Address and note, both quieter than they were. */
+.vcard__addr {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.vcard__note {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* -- the calendar --------------------------------------------------------- */
+
+.cal__dow {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.cal__day {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cal__day--outside .cal__num {
+  color: var(--color-text-faint);
+}
+
+/* A day carrying visits gets a faint grey disc, so the month reads as a
+   pattern of working days before any colour is involved. */
+.cal__day--marked:not(.cal__day--selected):not(.cal__day--late):not(.cal__day--missed) {
+  background: rgba(149, 164, 185, 0.09);
+}
+
+/* The export's own three: teal for the selection, pink for a missed visit,
+   amber for a late one. Flat fills, not gradients. */
+.cal__day--selected {
+  background: var(--cal-selected);
+  color: #fff;
+}
+
+.cal__day--selected .cal__num {
+  font-weight: 700;
+}
+
+.cal__day--missed {
+  background: var(--cal-missed);
+}
+
+.cal__day--late {
+  background: var(--cal-late);
+}
+
+.cal__dot--care { background: var(--cal-selected); }
+.cal__dot--missed { background: var(--cal-missed); }
+.cal__dot--late { background: var(--cal-late); }
+
+.cal-legend {
+  border-top: 1px solid var(--card-line);
+}
+
+.cal-legend__item {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.cal-legend__swatch--care { background: var(--cal-legend-care); }
+.cal-legend__swatch--missed { background: var(--cal-missed); }
+.cal-legend__swatch--late { background: var(--cal-late); }
+
+/* -- the tab bar ---------------------------------------------------------- */
+
+/* Geometry untouched, as agreed. This is the export's elevation only: the bar
+   sits higher off the page than a card, which is what separates it from the
+   content scrolling underneath. */
+.bottom-nav {
+  box-shadow:
+    inset 0 0 0 1px var(--card-line),
+    var(--shadow-nav);
+}
+
+/* The month heading is .page-title__text, not .cal__title — the earlier rule
+   named a class that does not exist. The export has it at Outfit 22/500,
+   which is a good deal lighter than the 800 it was rendering at. */
+.page-title__text {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+/* ===========================================================================
+   Calendar day discs.
+
+   The export draws a 34px disc inside a 47px cell. Ours painted the whole
+   button, which is 44px for the tap target, so the discs nearly touched and
+   the selected day read as a balloon.
+
+   The fill moves to a pseudo-element at the export's size. The button keeps
+   its 44px so the tap target is unaffected — the thing you can hit and the
+   thing you can see are allowed to be different sizes, and on a calendar they
+   should be.
+   =========================================================================== */
+
+.cal__day {
+  position: relative;
+  background: none;
+  box-shadow: none;
+}
+
+.cal__day::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background var(--dur) var(--ease);
+}
+
+/* The numeral and the dot sit above the disc. */
+.cal__num,
+.cal__dot {
+  position: relative;
+  z-index: 1;
+}
+
+.cal__day--marked::before {
+  background: rgba(149, 164, 185, 0.09);
+}
+
+/* Flat fills, no glow. The export has none, and a glowing day next to six
+   plain ones reads as an error state rather than a selection. */
+.cal__day--selected::before {
+  background: var(--cal-selected);
+}
+
+.cal__day--missed::before {
+  background: var(--cal-missed);
+}
+
+.cal__day--late::before {
+  background: var(--cal-late);
+}
+
+.cal__day--selected,
+.cal__day--missed,
+.cal__day--late {
+  background: none;
+  box-shadow: none;
+}
+
+/* Today, when it is not otherwise filled: a ring rather than a disc. */
+.cal__day--today:not(.cal__day--selected):not(.cal__day--missed):not(.cal__day--late)::before {
+  box-shadow: inset 0 0 0 1.5px var(--cal-selected);
+}
+
+/* An earlier rule in this pass painted the marked-day disc on the button
+   itself. It is four classes deep, so the `.cal__day { background: none }`
+   reset above could not beat it and the grey discs stayed button-sized while
+   the selected one had already shrunk to 34px. Matched here so the fill is
+   the pseudo-element's job in every state. */
+.cal__day--marked:not(.cal__day--selected):not(.cal__day--late):not(.cal__day--missed) {
+  background: none;
+}
+
+/* Centred on the cell rather than pinned to the top, so the numeral sits in
+   the middle of the disc and the event dot rides its lower edge. */
+.cal__day::before {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cal__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.cal__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  position: relative;
+  inset: auto;
+  margin: 0;
+}

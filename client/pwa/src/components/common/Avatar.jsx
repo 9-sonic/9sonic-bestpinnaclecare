@@ -33,7 +33,13 @@ function tintFor(name = '') {
   return TINTS[hash];
 }
 
-export default function Avatar({ name = '', src, size = 44, ring = false }) {
+// `varied` picks a colour from the name, which is useful in a chat list where
+// several people appear together and the colour helps tell rows apart.
+//
+// It is off by default. The export draws every client avatar in the same pale
+// teal, and on a shifts list the hashed colours were doing no work: one client
+// per card, so the colour distinguished nothing and just made the page noisy.
+export default function Avatar({ name = '', src, size = 44, ring = false, varied = false }) {
   const style = { width: size, height: size };
   if (src) {
     return (
@@ -46,11 +52,11 @@ export default function Avatar({ name = '', src, size = 44, ring = false }) {
       />
     );
   }
-  const tint = tintFor(name);
+  const tint = varied ? tintFor(name) : { bg: 'var(--avatar-bg)', fg: 'var(--avatar-fg)' };
   return (
     <span
       className={`avatar avatar--initials${ring ? ' avatar--ring' : ''}`}
-      style={{ ...style, background: tint.bg, color: tint.fg, fontSize: size * 0.36 }}
+      style={{ ...style, background: tint.bg, color: tint.fg, fontSize: size * 0.29 }}
       aria-hidden="true"
     >
       {initialsOf(name)}

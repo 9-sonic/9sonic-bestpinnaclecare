@@ -86,7 +86,11 @@ export default function ShiftCard({
 
       <div className="vcard__head">
         <div className="vcard__avatar">
-          <Avatar name={shift.client} size={40} />
+          {/* 46px, per the export. Avatar sizes itself with an inline style,
+              so this has to be the prop — a stylesheet cannot win against it
+              without !important, and reaching for that here would be fighting
+              the component rather than configuring it. */}
+          <Avatar name={shift.client} size={46} />
           {/* A finished visit is marked rather than dimmed: greying the whole
               card made it look broken instead of done. */}
           {done && (

@@ -542,3 +542,85 @@
   --deck-near: #14555f;
   --deck-far: #0f3d45;
 }
+
+/* ---------------------------------------------------------------------------
+   Typography and elevation, from the Penpot React export.
+
+   The export names four families, and the app was loading none of them. Every
+   screen has been rendering in the Segoe UI fallback, which is why the type
+   never quite matched the boards no matter how the sizes were tuned.
+
+     Plus Jakarta Sans   the interface: labels, body, figures, badges
+     Outfit              section headings ("May 2026", "Upcoming")
+     Raleway             client names on a visit card
+     Figtree             times ("09:00 - 11:00")
+
+   Raleway and Figtree are used in exactly one place each. They are kept as
+   their own tokens rather than folded into the others so that if Athaliah
+   drops them, one value changes here instead of a hunt through the sheet.
+
+   The shadows are the export's own two-layer values. A single soft shadow
+   reads as blur; two layers, one tight and one wide, is what gives these
+   cards their edge.
+--------------------------------------------------------------------------- */
+:root {
+  --font-body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-name: 'Raleway', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-time: 'Figtree', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+
+  /* Cards. */
+  --shadow-xs:
+    0 4px 12px -2px rgba(11, 18, 32, 0.08),
+    0 2px 4px -2px rgba(11, 18, 32, 0.05);
+  --shadow:
+    0 4px 12px -2px rgba(11, 18, 32, 0.08),
+    0 2px 4px -2px rgba(11, 18, 32, 0.05);
+  /* The floating tab bar sits higher off the page than a card does. */
+  --shadow-nav:
+    0 12px 28px -8px rgba(11, 18, 32, 0.14),
+    0 4px 10px -4px rgba(11, 18, 32, 0.08);
+  /* The hairline the export draws as an inset stroke on every card. */
+  --card-line: rgba(11, 18, 32, 0.06);
+
+  --radius-lg: 20px;
+}
+
+:root[data-theme='dark'] {
+  /* Shadow does almost nothing on a dark surface, so dark mode separates
+     cards with a lifted background and a visible hairline instead. */
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-nav: 0 12px 28px -8px rgba(0, 0, 0, 0.6);
+  --card-line: rgba(255, 255, 255, 0.08);
+}
+
+/* Calendar day states, the export's own flat fills. Teal for the selection,
+   pink for a missed visit, amber for a late arrival. The legend's care dot is
+   a brighter cyan than the selected day in the export, so it keeps its own
+   token rather than being assumed identical. */
+:root {
+  --cal-selected: #00a3ac;
+  --cal-missed: #ec6da0;
+  --cal-late: #f0923f;
+  --cal-legend-care: #00cbd5;
+}
+
+:root[data-theme='dark'] {
+  --cal-selected: #17b3bd;
+  --cal-missed: #e05c93;
+  --cal-late: #e0872f;
+  --cal-legend-care: #2ed3dd;
+}
+
+/* Client avatar. The export uses one pale teal disc with a deep teal monogram
+   everywhere a client appears. */
+:root {
+  --avatar-bg: #d6f3f5;
+  --avatar-fg: #00838c;
+}
+
+:root[data-theme='dark'] {
+  --avatar-bg: #14444c;
+  --avatar-fg: #7fdde5;
+}

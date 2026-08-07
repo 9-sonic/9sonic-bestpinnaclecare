@@ -127,6 +127,10 @@ export default function Calendar({ selected, onSelect, markedDates = [], onMonth
                   cell.outside && 'cal__day--outside',
                   isToday && 'cal__day--today',
                   isSelected && 'cal__day--selected',
+                  // Any day carrying visits gets a faint disc, so the month
+                  // reads as a pattern of working days before colour is
+                  // involved at all.
+                  mark && 'cal__day--marked',
                   // Filled only when something went wrong; an ordinary day of
                   // care visits shows a dot instead.
                   !isSelected && mark && mark.tone !== 'care' && `cal__day--${mark.tone}`,

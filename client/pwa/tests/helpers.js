@@ -11,6 +11,13 @@ export async function signIn(page) {
   // Waiting for the URL alone races the first paint, so wait for the shell to
   // exist before anything measures it.
   await page.locator('.app-content').waitFor({ state: 'visible', timeout: 20000 });
+
+  // And wait for the webfonts. The app loads four families with display=swap,
+  // so text is first laid out in the fallback and reflows when they land.
+  // Anything measuring a control's size in that window gets the fallback's
+  // metrics, which is a different number — it made the tap-target test fail
+  // only under parallel load, where the font request is slowest.
+  await page.evaluate(() => document.fonts.ready).catch(() => {});
 }
 
 // Every route the carer can reach, with something on each that proves the page
