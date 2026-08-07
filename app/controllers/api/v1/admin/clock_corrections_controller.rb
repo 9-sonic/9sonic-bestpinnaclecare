@@ -19,6 +19,16 @@ module Api
             corrects_id:     correction_params[:corrects_id]
           )
 
+          Events::Record.call(
+            aggregate: va, actor: current_admin, event_type: "clock.corrected",
+            payload: {
+              kind:        correction_params[:kind],
+              reason:      correction_params[:reason],
+              occurred_at: correction_params[:occurred_at],
+              corrects_id: correction_params[:corrects_id]
+            }.compact
+          )
+
           render json: {
             clock_event:     ClockEventSerializer.call(res.clock_event),
             lifecycle_state: res.lifecycle_state

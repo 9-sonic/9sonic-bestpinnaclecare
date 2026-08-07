@@ -8,6 +8,7 @@ class EmployeeSerializer
       last_name:                 employee.last_name,
       full_name:                 employee.full_name,
       phone:                     employee.phone,
+      avatar_url:                AttachmentUrl.for(employee.avatar),
       role:                      employee.role,
       employee_reference:        employee.employee_reference,
       contracted_hours_per_week: employee.contracted_hours_per_week&.to_f,

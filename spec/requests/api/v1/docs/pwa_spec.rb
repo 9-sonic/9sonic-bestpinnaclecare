@@ -73,6 +73,22 @@ RSpec.describe "Carer PWA + auth", type: :request do
   end
 
   path "/api/v1/staff/mileage" do
+    get("List own mileage claims") do
+      tags "Carer"; produces "application/json"; security [ bearerAuth: [] ]
+      description "The carer's own claims, newest first. Optional from/to (inclusive) filter on travel_date."
+      parameter name: :from, in: :query, required: false, schema: { type: :string, format: :date }
+      parameter name: :to,   in: :query, required: false, schema: { type: :string, format: :date }
+      response(200, "claims") do
+        schema type: :array, items: { type: :object, properties: {
+          id: { type: :integer }, travel_date: { type: :string, format: :date }, miles: { type: :number },
+          from_label: { type: :string, nullable: true }, to_label: { type: :string, nullable: true },
+          source: { type: :string }, state: { type: :string }, visit_assignment_id: { type: :integer, nullable: true }
+        } }
+        let(:from) { nil }; let(:to) { nil }
+        run_test!
+      end
+    end
+
     post("Claim mileage") do
       tags "Carer"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :body, in: :body, schema: {
@@ -122,6 +138,21 @@ RSpec.describe "Carer PWA + auth", type: :request do
     get("List conversations (names + unread + preview)") do
       tags "Chat"; produces "application/json"; security [ bearerAuth: [] ]
       response(200, "conversations") { run_test! }
+    end
+
+    post("Open or create a conversation") do
+      tags "Chat"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "kind: direct (dedupes on the two people), group or channel (title + participants). Each participant is { type: 'Admin'|'Employee', id }."
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: {
+          kind: { type: :string, enum: %w[direct group channel] },
+          title: { type: :string, description: "Required for group/channel." },
+          participant: { type: :object, properties: { type: { type: :string }, id: { type: :integer } }, description: "For kind=direct." },
+          participants: { type: :array, items: { type: :object, properties: { type: { type: :string }, id: { type: :integer } } }, description: "For group/channel." }
+        }, required: %w[kind]
+      }
+      let(:other) { create(:admin) }
+      response(201, "conversation") { let(:body) { { kind: "direct", participant: { type: "Admin", id: other.id } } }; run_test! }
     end
   end
 end

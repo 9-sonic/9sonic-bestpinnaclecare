@@ -46,4 +46,44 @@ RSpec.describe "Admin visits & scheduling", type: :request do
     post "/api/v1/admin/visits/generate", params: { from: monday.iso8601, to: monday.iso8601 }, headers: auth, as: :json
     expect(response.parsed_body["created"]).to eq(0)
   end
+
+  describe "PATCH /admin/visits/:id — retime (audited, honest record protected)" do
+    let(:su)    { create(:service_user) }
+    let(:visit) { create(:visit, service_user: su, scheduled_start: 1.day.from_now.change(hour: 9), scheduled_end: 1.day.from_now.change(hour: 10)) }
+
+    it "retimes a visit and appends a visit.rescheduled audit event with the reason" do
+      new_start = 1.day.from_now.change(hour: 11)
+      new_end   = 1.day.from_now.change(hour: 12)
+      expect do
+        patch "/api/v1/admin/visits/#{visit.id}",
+              params: { scheduled_start: new_start.iso8601, scheduled_end: new_end.iso8601, reason: "Client asked for a later call" },
+              headers: auth, as: :json
+      end.to change { Event.where(aggregate: visit, event_type: "visit.rescheduled").count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(Time.zone.parse(response.parsed_body["scheduled_start"])).to be_within(1.second).of(new_start)
+      event = Event.where(aggregate: visit, event_type: "visit.rescheduled").last
+      expect(event.actor).to eq(admin)
+      expect(event.payload["reason"]).to eq("Client asked for a later call")
+      expect(event.payload.dig("from", "scheduled_start")).to be_present
+    end
+
+    it "requires a reason (422)" do
+      patch "/api/v1/admin/visits/#{visit.id}",
+            params: { scheduled_start: 1.day.from_now.change(hour: 11).iso8601 }, headers: auth, as: :json
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("reason_required")
+    end
+
+    it "refuses to retime once a carer has clocked in (protects the original record)" do
+      va = create(:visit_assignment, visit: visit, employee: create(:employee))
+      va.update!(actual_start: Time.current, lifecycle_state: :in_progress)
+      expect do
+        patch "/api/v1/admin/visits/#{visit.id}",
+              params: { scheduled_start: 1.day.from_now.change(hour: 11).iso8601, reason: "too late" }, headers: auth, as: :json
+      end.not_to(change { visit.reload.scheduled_start })
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("visit_started")
+    end
+  end
 end

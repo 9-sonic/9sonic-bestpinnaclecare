@@ -1,0 +1,141 @@
+/* Design shell — fonts, hover behaviour, and the design-system tokens the admin
+   redesign is built on.
+
+   Retuned to the uploaded Best Pinnacle manager-console design (9Sonic / Lovable):
+   cool neutral surfaces, brand teal/cyan primary (the company blue), magenta and
+   lime reserved for data/status. Values are oklch to match the source. Tokens are
+   prefixed --d- to stay clear of the older --color-* set in variables.css.
+
+   Structural neutrals are themed for light and dark. Status tokens (ok/warn/info/
+   danger) carry a soft background + readable ink and are themed too, so a "late"
+   or "on shift" badge holds up in either mode. */
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Neutral surfaces */
+  --d-bg: oklch(0.965 0.008 226);
+  --d-card: oklch(1 0 0);
+  --d-card-hover: oklch(0.985 0.006 226);
+  --d-panel: oklch(0.968 0.009 228);
+  --d-panel2: oklch(0.95 0.011 233);
+  --d-sage: oklch(0.952 0.013 224);      /* recessed tiles, avatars, bubbles */
+  --d-field: oklch(0.966 0.009 228);
+  --d-ink: oklch(0.2 0.032 258);
+  --d-ink2: oklch(0.36 0.03 255);
+  --d-muted: oklch(0.51 0.026 251);
+  --d-faint: oklch(0.63 0.022 250);
+  --d-border: oklch(0.912 0.011 240);
+  --d-track: oklch(0.9 0.012 235);
+
+  /* Brand — teal/cyan primary is the app's "blue"; used for primary buttons and
+     the active nav pill. */
+  --d-primary: oklch(0.6 0.11 200.5);
+  --d-primary-deep: oklch(0.44 0.082 202);
+  --d-primary-soft: oklch(0.94 0.031 197);
+  --d-primary-ink: oklch(0.995 0.004 200);
+  --d-magenta: oklch(0.56 0.2 341);
+  --d-lime: oklch(0.72 0.17 129);
+
+  /* Primary pill (CTA + active rail) */
+  --d-pill: oklch(0.6 0.11 200.5);
+  --d-pill-ink: oklch(0.995 0.004 200);
+  --d-pill-hover: oklch(0.54 0.1 201);
+
+  /* Status: soft background + ink */
+  --d-ok-bg: oklch(0.93 0.06 158);
+  --d-ok-ink: oklch(0.5 0.13 158);
+  --d-warn-bg: oklch(0.94 0.06 88);
+  --d-warn-ink: oklch(0.5 0.1 66);
+  --d-warn-icon: oklch(0.86 0.1 84);
+  --d-warn-dot: oklch(0.7 0.14 72);
+  --d-info-bg: oklch(0.93 0.05 240);
+  --d-info-ink: oklch(0.5 0.12 252);
+  --d-danger-bg: oklch(0.92 0.06 22);
+  --d-danger-bg2: oklch(0.88 0.08 22);
+  --d-danger-ink: oklch(0.52 0.16 22);
+  --d-danger-dot: oklch(0.55 0.18 25);
+  --d-note-bg: oklch(0.95 0.025 205);
+  --d-note-ink: oklch(0.44 0.045 210);
+}
+
+:root[data-theme='dark'] {
+  --d-bg: oklch(0.175 0.024 254);
+  --d-card: oklch(0.225 0.026 254);
+  --d-card-hover: oklch(0.258 0.028 254);
+  --d-panel: oklch(0.205 0.025 254);
+  --d-panel2: oklch(0.19 0.024 254);
+  --d-sage: oklch(0.275 0.03 254);
+  --d-field: oklch(0.25 0.028 254);
+  --d-ink: oklch(0.96 0.006 240);
+  --d-ink2: oklch(0.82 0.012 245);
+  --d-muted: oklch(0.66 0.02 250);
+  --d-faint: oklch(0.5 0.02 250);
+  --d-border: oklch(0.32 0.026 250);
+  --d-track: oklch(0.32 0.026 250);
+
+  --d-primary: oklch(0.72 0.12 200);
+  --d-primary-deep: oklch(0.55 0.1 201);
+  --d-primary-soft: oklch(0.3 0.045 210);
+  --d-primary-ink: oklch(0.16 0.03 220);
+  --d-magenta: oklch(0.68 0.2 341);
+  --d-lime: oklch(0.78 0.16 129);
+
+  --d-pill: oklch(0.7 0.12 200);
+  --d-pill-ink: oklch(0.16 0.03 220);
+  --d-pill-hover: oklch(0.64 0.12 200);
+
+  --d-ok-bg: oklch(0.32 0.06 158);
+  --d-ok-ink: oklch(0.82 0.13 158);
+  --d-warn-bg: oklch(0.33 0.06 76);
+  --d-warn-ink: oklch(0.84 0.11 82);
+  --d-warn-icon: oklch(0.45 0.08 76);
+  --d-warn-dot: oklch(0.72 0.13 74);
+  --d-info-bg: oklch(0.3 0.05 250);
+  --d-info-ink: oklch(0.82 0.1 250);
+  --d-danger-bg: oklch(0.32 0.08 22);
+  --d-danger-bg2: oklch(0.38 0.09 22);
+  --d-danger-ink: oklch(0.84 0.13 22);
+  --d-danger-dot: oklch(0.66 0.18 25);
+  --d-note-bg: oklch(0.27 0.035 210);
+  --d-note-ink: oklch(0.82 0.035 210);
+}
+
+body {
+  background: var(--d-bg);
+}
+
+.hv {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.hv:hover {
+  background: var(--hbg) !important;
+}
+
+/* Rota grid: reveal the per-cell "add visit" affordance on hover, and a subtle
+   press feedback on draggable blocks (mirrors the design's .pressable). */
+.pressable {
+  transition: transform 0.08s ease;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+.rota-cell:hover .rota-add,
+.rota-add:focus-visible {
+  opacity: 1 !important;
+}
+
+/* Outfit for display numerals / titles opt-in */
+.d-num {
+  font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Rail nav scrolls when there are more sections than fit; hide the scrollbar. */
+.rail-nav {
+  scrollbar-width: none;
+}
+.rail-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

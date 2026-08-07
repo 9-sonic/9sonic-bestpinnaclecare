@@ -7,6 +7,7 @@ class VisitSerializer
       scheduled_end:   visit.scheduled_end&.iso8601,
       status:          visit.status,
       staff_required:  visit.staff_required,
+      notes:           visit.notes,
       published_at:    visit.published_at&.iso8601
     }
     payload[:service_user] = ServiceUserSerializer.call(visit.service_user) if include_service_user

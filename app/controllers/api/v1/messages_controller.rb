@@ -3,18 +3,34 @@ module Api
     class MessagesController < SharedController
       # GET /api/v1/conversations/:conversation_id/messages?before=<iso8601>
       def index
-        scope = conversation.messages.visible.order(created_at: :desc)
+        scope = conversation.messages.visible.includes(:message_receipts).order(created_at: :desc)
         scope = scope.where("created_at < ?", Time.zone.parse(params[:before])) if params[:before].present?
         render json: scope.limit(50).map { |m| MessageSerializer.call(m) }
       end
 
-      # POST /api/v1/conversations/:conversation_id/messages { body, client_message_id }
+      # POST /api/v1/conversations/:conversation_id/messages { body, client_message_id, broadcast?, visit_id? }
       def create
         message = Messaging::SendMessage.call(
           conversation: conversation, sender: current_identity,
-          body: params[:body], client_message_id: params.require(:client_message_id)
+          body: params[:body], client_message_id: params.require(:client_message_id),
+          broadcast: ActiveModel::Type::Boolean.new.cast(params[:broadcast]),
+          visit_id: params[:visit_id], files: params[:files]
         )
         render json: MessageSerializer.call(message), status: :created
+      end
+
+      # POST /api/v1/conversations/:conversation_id/messages/:id/pin
+      def pin
+        message = conversation.messages.find(params[:id])
+        message.update!(pinned_at: Time.current, pinned_by: current_identity)
+        render json: MessageSerializer.call(message)
+      end
+
+      # DELETE /api/v1/conversations/:conversation_id/messages/:id/pin
+      def unpin
+        message = conversation.messages.find(params[:id])
+        message.update!(pinned_at: nil, pinned_by: nil)
+        render json: MessageSerializer.call(message)
       end
 
       private

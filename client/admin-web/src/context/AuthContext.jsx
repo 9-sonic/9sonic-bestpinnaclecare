@@ -73,6 +73,10 @@ export function AuthProvider({ children }) {
     setAdmin(null);
   }, []);
 
+  const refreshAdmin = useCallback(async () => {
+    setAdmin(await apiFns.fetchCurrentAdmin());
+  }, []);
+
   const value = useMemo(
     () => ({
       admin,
@@ -85,8 +89,9 @@ export function AuthProvider({ children }) {
       submitMfa,
       cancelMfa: () => setMfaToken(null),
       logout,
+      refreshAdmin,
     }),
-    [admin, loading, mfaToken, login, submitMfa, logout]
+    [admin, loading, mfaToken, login, submitMfa, logout, refreshAdmin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

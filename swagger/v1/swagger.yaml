@@ -50,6 +50,10 @@ components:
         full_name:
           type: string
           example: Reg Manager
+        avatar_url:
+          type: string
+          nullable: true
+          description: Absolute URL of the uploaded avatar, or null.
         role:
           type: string
           enum:
@@ -66,6 +70,8 @@ components:
           example: true
     Employee:
       type: object
+      description: Private fields (emergency contact) appear only with include_private
+        (self/office); pay fields only with include_pay (self/finance).
       properties:
         id:
           type: integer
@@ -83,6 +89,14 @@ components:
         full_name:
           type: string
           example: Cara Erikson
+        phone:
+          type: string
+          nullable: true
+          example: 07700 900000
+        avatar_url:
+          type: string
+          nullable: true
+          description: Absolute URL of the uploaded avatar, or null.
         role:
           type: string
           enum:
@@ -91,12 +105,32 @@ components:
         employee_reference:
           type: string
           nullable: true
+        contracted_hours_per_week:
+          type: number
+          nullable: true
+          example: 37.5
         active:
           type: boolean
           example: true
         mfa_enabled:
           type: boolean
           example: false
+        emergency_contact_name:
+          type: string
+          nullable: true
+          description: Only with include_private.
+        emergency_contact_phone:
+          type: string
+          nullable: true
+          description: Only with include_private.
+        hourly_rate_pence:
+          type: integer
+          nullable: true
+          description: Only with include_pay.
+        mileage_rate_pence:
+          type: integer
+          nullable: true
+          description: Only with include_pay.
     ServiceUser:
       type: object
       properties:
@@ -111,7 +145,16 @@ components:
         reference:
           type: string
           nullable: true
+        phone:
+          type: string
+          nullable: true
         address_line1:
+          type: string
+          nullable: true
+        address_line2:
+          type: string
+          nullable: true
+        city:
           type: string
           nullable: true
         postcode:
@@ -154,9 +197,18 @@ components:
           - cancelled
         staff_required:
           type: integer
+        notes:
+          type: string
+          nullable: true
         published_at:
           type: string
           nullable: true
+        service_user:
+          allOf:
+          - "$ref": "#/components/schemas/ServiceUser"
+          nullable: true
+          description: Nested only when the endpoint sets include_service_user (e.g.
+            visit list, visit detail).
     VisitAssignment:
       type: object
       properties:
@@ -181,6 +233,16 @@ components:
           - cancelled
         assignment_status:
           type: string
+        actual_start:
+          type: string
+          format: date-time
+          nullable: true
+          description: Clock-in time.
+        actual_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: Clock-out time.
         worked_minutes:
           type: integer
           nullable: true
@@ -191,6 +253,455 @@ components:
         visit:
           "$ref": "#/components/schemas/Visit"
 paths:
+  "/api/v1/admin/admins":
+    get:
+      summary: List office users
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: admins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Admin"
+    post:
+      summary: Invite an office user (registered manager only)
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: invited
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Admin"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                  - registered_manager
+                  - manager
+                  - coordinator
+                  - finance
+                  - auditor
+                phone:
+                  type: string
+              required:
+              - email
+              - first_name
+              - last_name
+              - role
+  "/api/v1/admin/admins/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Show an office user
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Admin"
+    patch:
+      summary: Update an office user (registered manager only)
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Admin"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                role:
+                  type: string
+                active:
+                  type: boolean
+  "/api/v1/admin/employees/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Show a carer
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: carer
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+    patch:
+      summary: Update a carer
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      description: Pay rates (hourly_rate_pence, mileage_rate_pence) are ignored unless
+        the caller is finance or registered manager.
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                phone:
+                  type: string
+                role:
+                  type: string
+                active:
+                  type: boolean
+                contracted_hours_per_week:
+                  type: number
+                hourly_rate_pence:
+                  type: integer
+                mileage_rate_pence:
+                  type: integer
+  "/api/v1/admin/employees/{id}/availability":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: A carer's weekly availability pattern
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: availability
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    weekday:
+                      type: integer
+                      description: 0=Monday .. 6=Sunday
+                    slot:
+                      type: string
+                      enum:
+                      - morning
+                      - afternoon
+                      - evening
+                      - night
+                    available:
+                      type: boolean
+  "/api/v1/admin/care_package_slots/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Edit a recurring call
+      tags:
+      - Office — Care Packages
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                start_time:
+                  type: string
+                end_time:
+                  type: string
+                recurrence:
+                  type: string
+                staff_required:
+                  type: integer
+                break_minutes:
+                  type: integer
+                active:
+                  type: boolean
+  "/api/v1/admin/service_users/{service_user_id}/care_plan_items/{id}":
+    parameters:
+    - name: service_user_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Edit a care plan item
+      tags:
+      - Office — Care Plan
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                label:
+                  type: string
+                detail:
+                  type: string
+                position:
+                  type: integer
+    delete:
+      summary: Remove a care plan item (soft-delete)
+      tags:
+      - Office — Care Plan
+      security:
+      - bearerAuth: []
+      description: 'Sets active: false; the item and its history are kept.'
+      responses:
+        '204':
+          description: removed
+  "/api/v1/admin/alerts/{id}/acknowledge":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Acknowledge an alert
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: acknowledged
+  "/api/v1/admin/alerts/{id}/resolve":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Resolve an alert (optional note)
+      tags:
+      - Office — Monitoring
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: resolved
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution_note:
+                  type: string
+  "/api/v1/admin/timesheet_disputes":
+    get:
+      summary: Open timesheet disputes (newest first)
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: disputes
+  "/api/v1/admin/timesheet_disputes/{id}/resolve":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Resolve a timesheet dispute
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: resolved
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution_note:
+                  type: string
+  "/api/v1/admin/timesheet_exports/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Export a period (CSV or XLSX)
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      description: type=csv (default) or type=xlsx. Streams a file for payroll.
+      parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - csv
+          - xlsx
+      responses:
+        '200':
+          description: file
+  "/api/v1/admin/timesheet_periods/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Show a period with its lines
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: period + lines
+  "/api/v1/admin/timesheet_periods/{id}/approve":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Approve a period (blocked by unconfirmed lines)
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      description: '422 { error: ''unconfirmed_lines'' } if any line is auto-closed
+        or its visit is still pending review.'
+      responses:
+        '200':
+          description: approved
+  "/api/v1/admin/timesheet_periods/{id}/lock":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Lock a period (final; payroll exported)
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: locked
+  "/api/v1/admin/visit_assignments/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    delete:
+      summary: Withdraw an assignment (for reassignment)
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      description: Marks the assignment withdrawn + cancelled and appends an assignment.withdrawn
+        audit event. The original record is kept.
+      responses:
+        '204':
+          description: withdrawn
   "/api/v1/admin/auth/login":
     post:
       summary: Admin login
@@ -398,6 +909,600 @@ paths:
                   type: string
                 emergency_contact_phone:
                   type: string
+  "/api/v1/admin/audit":
+    get:
+      summary: Audit trail (append-only event log)
+      tags:
+      - Office — Audit
+      security:
+      - bearerAuth: []
+      description: Who did what, when and why. Read-only; entries are never altered.
+      parameters:
+      - name: event_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: aggregate_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: before
+        in: query
+        required: false
+        description: ISO8601 cursor
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: events, newest first
+  "/api/v1/admin/reports":
+    get:
+      summary: Clocking performance aggregates
+      tags:
+      - Office — Reports
+      security:
+      - bearerAuth: []
+      description: Attendance, punctuality, hours and exceptions over a date range.
+        Defaults to the last 7 days.
+      parameters:
+      - name: from
+        in: query
+        required: false
+        description: ISO8601
+        schema:
+          type: string
+      - name: to
+        in: query
+        required: false
+        description: ISO8601
+        schema:
+          type: string
+      responses:
+        '200':
+          description: aggregates
+  "/api/v1/admin/cover":
+    get:
+      summary: Cover board — unfilled visits and their offers
+      tags:
+      - Office — Cover
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: open shifts + counts
+  "/api/v1/admin/cover_offers":
+    post:
+      summary: Offer an unfilled visit to a carer
+      tags:
+      - Office — Cover
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: offer created
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                visit_id:
+                  type: integer
+                employee_id:
+                  type: integer
+                note:
+                  type: string
+              required:
+              - visit_id
+              - employee_id
+  "/api/v1/admin/cover_offers/{id}/accept":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Accept an offer — fills the visit and creates the assignment
+      tags:
+      - Office — Cover
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: accepted
+  "/api/v1/admin/cover_offers/{id}/decline":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Decline an offer
+      tags:
+      - Office — Cover
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: declined
+  "/api/v1/admin/requests":
+    get:
+      summary: Carer requests queue (pending first)
+      tags:
+      - Office — Requests
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        description: swap|drop|overtime|availability|leave
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: requests
+  "/api/v1/admin/requests/{id}/approve":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Approve a carer request
+      tags:
+      - Office — Requests
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: approved
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+  "/api/v1/admin/requests/{id}/decline":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Decline a carer request
+      tags:
+      - Office — Requests
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: declined
+  "/api/v1/staff/requests":
+    post:
+      summary: Carer raises a request
+      tags:
+      - Carer — Requests
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: created
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - swap
+                  - drop
+                  - overtime
+                  - availability
+                  - leave
+                summary:
+                  type: string
+                detail:
+                  type: string
+              required:
+              - kind
+              - summary
+  "/api/v1/notifications":
+    get:
+      summary: List notifications (newest first)
+      tags:
+      - Notifications
+      security:
+      - bearerAuth: []
+      description: unseen=true limits to unread; before=<iso8601> paginates backwards;
+        limit (1..200, default 50).
+      parameters:
+      - name: unseen
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: before
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    notification_type:
+                      type: string
+                    title:
+                      type: string
+                    body:
+                      type: string
+                      nullable: true
+                    channel:
+                      type: string
+                    status:
+                      type: string
+                    seen_at:
+                      type: string
+                      nullable: true
+                    created_at:
+                      type: string
+  "/api/v1/notifications/{id}/seen":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Mark one notification read
+      tags:
+      - Notifications
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: seen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  seen_at:
+                    type: string
+                    nullable: true
+  "/api/v1/notification_preferences":
+    get:
+      summary: Read notification preferences
+      tags:
+      - Notifications
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: preferences
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    notification_type:
+                      type: string
+                    in_app:
+                      type: boolean
+                    push:
+                      type: boolean
+                    email:
+                      type: boolean
+    patch:
+      summary: Update one channel preference (upserts)
+      tags:
+      - Notifications
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notification_type:
+                    type: string
+                  in_app:
+                    type: boolean
+                  push:
+                    type: boolean
+                  email:
+                    type: boolean
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notification_type:
+                  type: string
+                in_app:
+                  type: boolean
+                push:
+                  type: boolean
+                email:
+                  type: boolean
+              required:
+              - notification_type
+  "/api/v1/conversations/{conversation_id}/messages":
+    parameters:
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    get:
+      summary: Messages in a conversation (newest first, 50)
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      description: before=<iso8601> paginates backwards. A non-participant gets 404.
+        Each message carries read_count / recipient_count from delivery receipts.
+      parameters:
+      - name: before
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    conversation_id:
+                      type: integer
+                    sender_type:
+                      type: string
+                    sender_id:
+                      type: integer
+                    body:
+                      type: string
+                      nullable: true
+                    broadcast:
+                      type: boolean
+                    client_message_id:
+                      type: string
+                    read_count:
+                      type: integer
+                    recipient_count:
+                      type: integer
+                    created_at:
+                      type: string
+    post:
+      summary: Send a message (idempotent on client_message_id)
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      description: A replay with the same client_message_id returns the original message,
+        never a duplicate.
+      parameters: []
+      responses:
+        '201':
+          description: sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  conversation_id:
+                    type: integer
+                  body:
+                    type: string
+                  client_message_id:
+                    type: string
+                  created_at:
+                    type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                client_message_id:
+                  type: string
+                  format: uuid
+                broadcast:
+                  type: boolean
+              required:
+              - body
+              - client_message_id
+  "/api/v1/messages/{id}/receipts":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Mark a message read
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: integer
+                  read_at:
+                    type: string
+                    nullable: true
+  "/api/v1/conversations/{id}/mute":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Mute / unmute a conversation
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  muted:
+                    type: boolean
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                muted:
+                  type: boolean
+  "/api/v1/conversations/{id}/chase":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Chase the participants who haven't read the latest message
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: chased count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chased:
+                    type: integer
+  "/api/v1/conversations/{conversation_id}/messages/{id}/pin":
+    parameters:
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Pin a message to the top of a conversation
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: pinned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  pinned_at:
+                    type: string
+                    nullable: true
+    delete:
+      summary: Unpin a message
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: unpinned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  pinned_at:
+                    type: string
+                    nullable: true
   "/api/v1/admin/mfa":
     post:
       summary: Begin TOTP enrolment
@@ -607,6 +1712,21 @@ paths:
               - category
               - label
   "/api/v1/admin/care_package_slots":
+    get:
+      summary: List care packages (optionally filtered by service user)
+      tags:
+      - Office — Care Packages
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: service_user_id
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: slots
     post:
       summary: Create a recurring call
       tags:
@@ -740,6 +1860,49 @@ paths:
               required:
               - from
               - to
+  "/api/v1/admin/visits/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Retime a visit (audited; refused once clocked in)
+      tags:
+      - Office — Rota
+      security:
+      - bearerAuth: []
+      description: 'Reschedule a visit before it happens. A reason is required and
+        appended to the audit trail (visit.rescheduled). 422 { error: ''visit_started''
+        } once a carer has clocked in — the original record is never rewritten; 422
+        { error: ''reason_required'' } without a reason.'
+      parameters: []
+      responses:
+        '200':
+          description: retimed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Visit"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+                reason:
+                  type: string
+              required:
+              - reason
   "/api/v1/admin/visits/{id}/publish":
     parameters:
     - name: id
@@ -887,6 +2050,32 @@ paths:
               - occurred_at
               - reason
   "/api/v1/admin/timesheet_periods":
+    get:
+      summary: List attendance periods (newest first)
+      tags:
+      - Office — Timesheets
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    starts_on:
+                      type: string
+                      format: date
+                    ends_on:
+                      type: string
+                      format: date
+                    status:
+                      type: string
     post:
       summary: Build/refresh an attendance period
       tags:
@@ -909,6 +2098,23 @@ paths:
               required:
               - starts_on
   "/api/v1/admin/employees":
+    get:
+      summary: List carers (with clocking stats)
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      description: Each carer merged with Staff::Stats — hours this week, punctuality,
+        dominant capture method. Pay fields only for finance / registered manager.
+      responses:
+        '200':
+          description: carers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Employee"
     post:
       summary: Invite a carer
       tags:
@@ -1137,6 +2343,57 @@ paths:
                       items:
                         type: object
   "/api/v1/staff/mileage":
+    get:
+      summary: List own mileage claims
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: The carer's own claims, newest first. Optional from/to (inclusive)
+        filter on travel_date.
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: claims
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    travel_date:
+                      type: string
+                      format: date
+                    miles:
+                      type: number
+                    from_label:
+                      type: string
+                      nullable: true
+                    to_label:
+                      type: string
+                      nullable: true
+                    source:
+                      type: string
+                    state:
+                      type: string
+                    visit_assignment_id:
+                      type: integer
+                      nullable: true
     post:
       summary: Claim mileage
       tags:
@@ -1262,6 +2519,531 @@ paths:
       responses:
         '200':
           description: conversations
+    post:
+      summary: Open or create a conversation
+      tags:
+      - Chat
+      security:
+      - bearerAuth: []
+      description: 'kind: direct (dedupes on the two people), group or channel (title
+        + participants). Each participant is { type: ''Admin''|''Employee'', id }.'
+      parameters: []
+      responses:
+        '201':
+          description: conversation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - direct
+                  - group
+                  - channel
+                title:
+                  type: string
+                  description: Required for group/channel.
+                participant:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    id:
+                      type: integer
+                  description: For kind=direct.
+                participants:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      id:
+                        type: integer
+                  description: For group/channel.
+              required:
+              - kind
+  "/api/v1/staff/visits":
+    get:
+      summary: The carer's own visits (defaults to a 7-day window)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Backs the shift list, clock status and Home screen. Without from/to
+        it returns today .. today+6. Each item is a VisitAssignment with its Visit
+        and nested service_user.
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: visits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/VisitAssignment"
+  "/api/v1/staff/timesheet":
+    get:
+      summary: The carer's own timesheet lines
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Attendance lines, newest first. Optional period=<timesheet_period_id>
+        filters to one period.
+      parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  "/api/v1/staff/timesheet_periods":
+    get:
+      summary: Periods the carer has lines in
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: So the app can show which week it is viewing and whether it is
+        approved/locked.
+      responses:
+        '200':
+          description: periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    starts_on:
+                      type: string
+                      format: date
+                    ends_on:
+                      type: string
+                      format: date
+                    status:
+                      type: string
+                      enum:
+                      - open
+                      - approved
+                      - locked
+  "/api/v1/staff/disputes":
+    post:
+      summary: Raise a dispute on a timesheet line
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '201':
+          description: dispute raised
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  state:
+                    type: string
+                  reason:
+                    type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timesheet_line_id:
+                  type: integer
+                reason:
+                  type: string
+              required:
+              - timesheet_line_id
+              - reason
+  "/api/v1/staff/visit_assignments/{id}/tasks":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Tick off care-plan tasks
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Marks care-plan tasks done/undone; done stamps completed_at. Returns
+        the full task list.
+      parameters: []
+      responses:
+        '200':
+          description: task list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    label:
+                      type: string
+                    done:
+                      type: boolean
+                    completed_at:
+                      type: string
+                      nullable: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      done:
+                        type: boolean
+  "/api/v1/staff/visit_assignments/{id}/note":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Add a visit note (append-only, idempotent)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Notes append; they are never overwritten. Idempotent on client_note_id
+        so a replay after a dead zone cannot create two notes. supersedes_id links
+        a correction to what it replaces.
+      parameters: []
+      responses:
+        '201':
+          description: note created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  body:
+                    type: string
+                  client_note_id:
+                    type: string
+                  created_at:
+                    type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                client_note_id:
+                  type: string
+                  format: uuid
+                supersedes_id:
+                  type: integer
+              required:
+              - body
+  "/api/v1/staff/visit_assignments/{visit_assignment_id}/break":
+    parameters:
+    - name: visit_assignment_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Start or end a break (via the clock pipeline)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Reuses the clock-event pipeline (idempotent, geofenced, audited)
+        so a real break lands on the timesheet, not the scheduled one. Does not change
+        the visit lifecycle. Idempotent on client_event_id.
+      parameters: []
+      responses:
+        '201':
+          description: break recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                  kind:
+                    type: string
+                  status:
+                    type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                  - start
+                  - end
+                client_event_id:
+                  type: string
+                  format: uuid
+                occurred_at:
+                  type: string
+                  format: date-time
+                lat:
+                  type: number
+                  nullable: true
+                lng:
+                  type: number
+                  nullable: true
+                accuracy_m:
+                  type: integer
+                  nullable: true
+              required:
+              - phase
+              - client_event_id
+  "/api/v1/staff/devices/{fingerprint}":
+    parameters:
+    - name: fingerprint
+      in: path
+      required: true
+      schema:
+        type: string
+    delete:
+      summary: Deregister a device on sign-out
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: Revokes this device so it stops receiving push. Idempotent — an
+        unknown fingerprint still returns 204.
+      responses:
+        '204':
+          description: revoked
+  "/api/v1/staff/webauthn/credentials":
+    get:
+      summary: List the carer's passkeys
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: passkeys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    nickname:
+                      type: string
+                      nullable: true
+                    last_used_at:
+                      type: string
+                      nullable: true
+                    created_at:
+                      type: string
+  "/api/v1/staff/webauthn/credentials/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    delete:
+      summary: Revoke a passkey (e.g. a lost phone)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: revoked
+  "/api/v1/staff/auth/password":
+    post:
+      summary: Request a password reset link
+      tags:
+      - Auth
+      description: Always 202 (never reveals whether the email exists).
+      parameters: []
+      responses:
+        '202':
+          description: accepted
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+              required:
+              - email
+    put:
+      summary: Set a new password with a reset token
+      tags:
+      - Auth
+      description: '204 on success; 422 { error: ''reset_failed'' } if the token is
+        invalid or expired.'
+      parameters: []
+      responses:
+        '422':
+          description: invalid/expired token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+              required:
+              - token
+              - password
+  "/api/v1/staff/me/avatar":
+    post:
+      summary: Upload your avatar (carer)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      description: 'PNG/JPEG/WebP/GIF, up to 5 MB. 422 { error: ''unsupported_type''
+        | ''too_large'' | ''no_file'' } otherwise.'
+      parameters: []
+      responses:
+        '200':
+          description: updated profile
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: string
+              format: binary
+        required: true
+    delete:
+      summary: Remove your avatar (carer)
+      tags:
+      - Carer
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: removed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+  "/api/v1/admin/me/avatar":
+    post:
+      summary: Upload your avatar (office)
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Admin"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: string
+              format: binary
+        required: true
+  "/api/v1/admin/employees/{id}/avatar":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Set a carer's avatar (office)
+      tags:
+      - Office — People
+      security:
+      - bearerAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Employee"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: string
+              format: binary
+        required: true
   "/api/v1/staff/visit_assignments/{visit_assignment_id}/clock":
     parameters:
     - name: visit_assignment_id

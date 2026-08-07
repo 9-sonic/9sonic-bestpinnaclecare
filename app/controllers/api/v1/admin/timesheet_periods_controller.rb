@@ -21,6 +21,10 @@ module Api
         def approve
           result = Timesheets::ApprovePeriod.call(TimesheetPeriod.find(params[:id]), current_admin)
           if result.ok
+            Events::Record.call(
+              aggregate: result.period, actor: current_admin, event_type: "timesheet.approved",
+              payload: { starts_on: result.period.starts_on, ends_on: result.period.ends_on }
+            )
             render json: TimesheetPeriodSerializer.call(result.period)
           else
             render json: { error: result.error }, status: 422
@@ -29,6 +33,10 @@ module Api
 
         def lock
           period = Timesheets::LockPeriod.call(TimesheetPeriod.find(params[:id]), current_admin)
+          Events::Record.call(
+            aggregate: period, actor: current_admin, event_type: "timesheet.locked",
+            payload: { starts_on: period.starts_on, ends_on: period.ends_on }
+          )
           render json: TimesheetPeriodSerializer.call(period)
         end
       end

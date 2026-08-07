@@ -1,17 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import Button from '../components/common/Button.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from '../components/common/Icon.jsx';
+import { s } from '../lib/ui.jsx';
 import env from '../config/env.js';
+import '../styles/design-shell.css';
 
-// Office sign in.
-//
-// Separate from the carer app on purpose: this authenticates against the
-// admins table, and most office accounts have TOTP turned on, so the second
-// step is the normal path rather than an exception.
+// Office sign in. Separate from the carer app on purpose: this authenticates
+// against the admins table, and most office accounts have TOTP turned on, so the
+// second step is the normal path rather than an exception.
+
+const POINTS = [
+  ['target', 'See who is on shift and who is late'],
+  ['calendar', 'Build the rota and assign carers'],
+  ['wallet', 'Check and approve timesheets'],
+];
+
+const inputStyle = {
+  ...s('height:48px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14.5px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid transparent'),
+  fontFamily: 'inherit',
+};
+
+function Field({ label, children }) {
+  return (
+    <label style={s('display:flex;flex-direction:column;gap:7px')}>
+      <span style={s('font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export default function LoginPage() {
   const { login, submitMfa, cancelMfa, mfaRequired, isAuthenticated } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -57,130 +79,106 @@ export default function LoginPage() {
     }
   }
 
+  const primaryPill = (disabled) => ({
+    ...s('height:50px;border-radius:25px;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700;cursor:pointer;width:100%;box-sizing:border-box;border:0'),
+    fontFamily: 'inherit',
+    opacity: disabled ? 0.55 : 1,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  });
+
   return (
-    <div className="auth">
-      <div className="auth__panel">
-        <div className="auth__brand">
-          <img src="/logo.png" alt="" className="auth__logo" />
-          <span>
-            Best Pinnacle Care
-            <b>Office</b>
-          </span>
-        </div>
-
-        <p className="auth__blurb">
-          The live board, the rota and the week&apos;s hours. Sign in with your office account.
-        </p>
-
-        <ul className="auth__points">
-          <li>
-            <Icon name="target" size={16} /> See who is on shift and who is late
-          </li>
-          <li>
-            <Icon name="calendar" size={16} /> Build the rota and assign carers
-          </li>
-          <li>
-            <Icon name="wallet" size={16} /> Check and approve timesheets
-          </li>
-        </ul>
+    <div style={{ ...s('min-height:100vh;background:var(--d-bg);display:flex;align-items:center;justify-content:center;padding:24px;position:relative'), fontFamily: "'Figtree', system-ui, -apple-system, sans-serif" }}>
+      {/* Theme toggle */}
+      <div onClick={toggle} className="hv" title={dark ? 'Switch to light' : 'Switch to dark'}
+        style={{ ...s('position:absolute;top:22px;right:22px;width:44px;height:44px;border-radius:50%;background:var(--d-card);color:var(--d-ink2);display:flex;align-items:center;justify-content:center;cursor:pointer'), '--hbg': 'var(--d-card-hover)' }}>
+        <Icon name={dark ? 'sun' : 'moon'} size={20} />
       </div>
 
-      <div className="auth__form-side">
-        <div className="auth__card">
+      <div style={s('width:100%;max-width:940px;background:var(--d-card);border-radius:32px;overflow:hidden;display:flex;flex-wrap:wrap')}>
+        {/* Brand panel */}
+        <div style={s('flex:1 1 380px;min-width:300px;background:var(--d-panel);padding:40px 38px;display:flex;flex-direction:column;gap:28px')}>
+          <div style={s('display:flex;align-items:center;gap:14px')}>
+            <div style={s('width:52px;height:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;border:1px solid var(--d-border)')}>
+              <img src="/logo.png" alt="" style={s('width:36px;height:36px;object-fit:contain')} />
+            </div>
+            <div style={s('display:flex;flex-direction:column;line-height:1.15')}>
+              <span style={s('font-size:18px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>Best Pinnacle Care</span>
+              <span style={s('font-size:13px;font-weight:600;color:var(--d-muted)')}>Office</span>
+            </div>
+          </div>
+
+          <div style={s('font-size:15px;font-weight:500;color:var(--d-ink2);line-height:1.55')}>
+            The live board, the rota and the week&apos;s hours. Sign in with your office account.
+          </div>
+
+          <div style={s('display:flex;flex-direction:column;gap:14px;margin-top:auto')}>
+            {POINTS.map(([icon, label]) => (
+              <div key={label} style={s('display:flex;align-items:center;gap:12px')}>
+                <div style={s('width:38px;height:38px;border-radius:12px;background:var(--d-sage);display:flex;align-items:center;justify-content:center;flex:none;color:var(--d-ink2)')}><Icon name={icon} size={18} /></div>
+                <span style={s('font-size:13.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Form panel */}
+        <div style={s('flex:1 1 380px;min-width:300px;padding:40px 38px;display:flex;flex-direction:column;justify-content:center')}>
           {mfaRequired ? (
-            <form onSubmit={handleOtp}>
-              <h1 className="auth__title">Enter your code</h1>
-              <p className="auth__sub">
-                Open your authenticator app and enter the six digit code for Best Pinnacle Care.
-              </p>
+            <form onSubmit={handleOtp} style={s('display:flex;flex-direction:column;gap:18px')}>
+              <div>
+                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Enter your code</div>
+                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:6px')}>Open your authenticator app and enter the six digit code for Best Pinnacle Care.</div>
+              </div>
 
-              <label className="field">
-                <span className="field__label">Six digit code</span>
-                <input
-                  className="field__input otp"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="000000"
-                  autoFocus
-                />
-              </label>
+              <Field label="Six digit code">
+                <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" autoFocus
+                  style={{ ...inputStyle, height: '56px', fontSize: '24px', fontWeight: 700, letterSpacing: '0.4em', textAlign: 'center' }} />
+              </Field>
 
-              {error && <p className="error-text">{error}</p>}
+              {error && <div style={s('font-size:13px;font-weight:600;color:var(--d-danger-ink)')}>{error}</div>}
 
-              <Button type="submit" size="lg" block loading={busy} disabled={otp.length < 6}>
-                Confirm
-              </Button>
-              <Button
-                variant="ghost"
-                block
-                onClick={() => {
-                  cancelMfa();
-                  setOtp('');
-                  setError('');
-                }}
-              >
+              <button type="submit" disabled={busy || otp.length < 6} className="hv" style={{ ...primaryPill(busy || otp.length < 6), '--hbg': 'var(--d-pill-hover)' }}>{busy ? 'Checking…' : 'Confirm'}</button>
+              <button type="button" onClick={() => { cancelMfa(); setOtp(''); setError(''); }}
+                style={{ ...s('height:46px;border-radius:23px;background:transparent;color:var(--d-ink2);font-size:13.5px;font-weight:700;cursor:pointer;width:100%;border:0'), fontFamily: 'inherit' }}>
                 Use a different account
-              </Button>
+              </button>
             </form>
           ) : (
-            <form onSubmit={handleSubmit}>
-              <h1 className="auth__title">Sign in</h1>
-              <p className="auth__sub">Office and management accounts only.</p>
+            <form onSubmit={handleSubmit} style={s('display:flex;flex-direction:column;gap:18px')}>
+              <div>
+                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Sign in</div>
+                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:6px')}>Office and management accounts only.</div>
+              </div>
 
               {env.useMock && (
-                <p className="demo-note">
-                  <Icon name="info" size={14} />
-                  Demo mode. Any details work, and the code step accepts anything.
-                </p>
+                <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-sage);border-radius:14px;padding:11px 14px;font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>
+                  <Icon name="info" size={15} /> Demo mode. Any details work, and the code step accepts anything.
+                </div>
               )}
 
-              <label className="field">
-                <span className="field__label">Work email</span>
-                <input
-                  className="field__input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
-                  required
-                />
-              </label>
+              <Field label="Work email">
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required style={inputStyle} />
+              </Field>
 
-              <label className="field">
-                <span className="field__label">Password</span>
-                <span className="field__wrap">
-                  <input
-                    className="field__input"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="field__toggle"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
+              <Field label="Password">
+                <div style={s('position:relative;display:flex;align-items:center')}>
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required style={{ ...inputStyle, paddingRight: '48px' }} />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{ ...s('position:absolute;right:8px;width:36px;height:36px;border-radius:50%;background:transparent;color:var(--d-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;border:0'), fontFamily: 'inherit' }}>
                     <Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
                   </button>
-                </span>
-              </label>
+                </div>
+              </Field>
 
-              {error && <p className="error-text">{error}</p>}
+              {error && <div style={s('font-size:13px;font-weight:600;color:var(--d-danger-ink)')}>{error}</div>}
 
-              <Button type="submit" size="lg" block loading={busy}>
-                Sign in
-              </Button>
+              <button type="submit" disabled={busy} className="hv" style={{ ...primaryPill(busy), '--hbg': 'var(--d-pill-hover)' }}>{busy ? 'Signing in…' : 'Sign in'}</button>
             </form>
           )}
 
-          <p className="auth__foot">
+          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:24px')}>
             Carers use the separate mobile app. This site is for office staff.
-          </p>
+          </div>
         </div>
       </div>
     </div>

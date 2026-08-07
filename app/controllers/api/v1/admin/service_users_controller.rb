@@ -3,7 +3,8 @@ module Api
     module Admin
       class ServiceUsersController < BaseController
         def index
-          render json: ServiceUser.order(:last_name, :first_name).map { |su| ServiceUserSerializer.call(su) }
+          stats = ::ServiceUsers::Stats.call
+          render json: ServiceUser.order(:last_name, :first_name).map { |su| ServiceUserSerializer.call(su).merge(stats[su.id] || {}) }
         end
 
         def show

@@ -1,0 +1,222 @@
+require "swagger_helper"
+
+# Admin (office) routes that existed in the controllers but were missing from the
+# spec — the admin-side equivalent of the PWA gap sweep. Documented from the
+# registered manager's seat (passes every role gate). Each example runs the real
+# endpoint, so the spec cannot drift from the controllers again.
+RSpec.describe "Office (admin) — undocumented routes", type: :request do
+  let(:manager)       { create(:admin, role: :registered_manager) }
+  let(:Authorization) { "Bearer #{jwt_for(manager, :admin)}" }
+  let(:su)            { create(:service_user) }
+  let(:employee)      { create(:employee) }
+  let(:assignment)    { create(:visit_assignment, employee: employee, visit: create(:visit, service_user: su)) }
+
+  # ---- Office users (admins) ----
+  path "/api/v1/admin/admins" do
+    get("List office users") do
+      tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
+      response(200, "admins") { schema type: :array, items: { "$ref" => "#/components/schemas/Admin" }; run_test! }
+    end
+
+    post("Invite an office user (registered manager only)") do
+      tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: {
+          email: { type: :string }, first_name: { type: :string }, last_name: { type: :string },
+          role: { type: :string, enum: %w[registered_manager manager coordinator finance auditor] }, phone: { type: :string }
+        }, required: %w[email first_name last_name role]
+      }
+      response(201, "invited") do
+        schema "$ref" => "#/components/schemas/Admin"
+        let(:body) { { email: "coord@bpc.test", first_name: "Cara", last_name: "Coord", role: "coordinator" } }
+        run_test!
+      end
+    end
+  end
+
+  path "/api/v1/admin/admins/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    get("Show an office user") do
+      tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { create(:admin, role: :coordinator).id }
+      response(200, "admin") { schema "$ref" => "#/components/schemas/Admin"; run_test! }
+    end
+
+    patch("Update an office user (registered manager only)") do
+      tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, schema: { type: :object, properties: { phone: { type: :string }, role: { type: :string }, active: { type: :boolean } } }
+      let(:id) { create(:admin, role: :coordinator).id }
+      response(200, "updated") { schema "$ref" => "#/components/schemas/Admin"; let(:body) { { phone: "0161 555 0111" } }; run_test! }
+    end
+  end
+
+  # ---- Carer detail + availability ----
+  path "/api/v1/admin/employees/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    get("Show a carer") do
+      tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { employee.id }
+      response(200, "carer") { schema "$ref" => "#/components/schemas/Employee"; run_test! }
+    end
+
+    patch("Update a carer") do
+      tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Pay rates (hourly_rate_pence, mileage_rate_pence) are ignored unless the caller is finance or registered manager."
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: {
+          first_name: { type: :string }, last_name: { type: :string }, phone: { type: :string }, role: { type: :string },
+          active: { type: :boolean }, contracted_hours_per_week: { type: :number }, hourly_rate_pence: { type: :integer }, mileage_rate_pence: { type: :integer }
+        }
+      }
+      let(:id) { employee.id }
+      response(200, "updated") { schema "$ref" => "#/components/schemas/Employee"; let(:body) { { phone: "07700 900123" } }; run_test! }
+    end
+  end
+
+  path "/api/v1/admin/employees/{id}/availability" do
+    parameter name: :id, in: :path, type: :integer
+    get("A carer's weekly availability pattern") do
+      tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { employee.id }
+      response(200, "availability") do
+        schema type: :array, items: { type: :object, properties: {
+          weekday: { type: :integer, description: "0=Monday .. 6=Sunday" },
+          slot: { type: :string, enum: %w[morning afternoon evening night] }, available: { type: :boolean }
+        } }
+        run_test!
+      end
+    end
+  end
+
+  # ---- Care package slot edit ----
+  path "/api/v1/admin/care_package_slots/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    patch("Edit a recurring call") do
+      tags "Office — Care Packages"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: {
+          name: { type: :string }, start_time: { type: :string }, end_time: { type: :string },
+          recurrence: { type: :string }, staff_required: { type: :integer }, break_minutes: { type: :integer }, active: { type: :boolean }
+        }
+      }
+      let(:id) { create(:care_package_slot, service_user: su).id }
+      response(200, "updated") { let(:body) { { staff_required: 2 } }; run_test! }
+    end
+  end
+
+  # ---- Care plan item edit / soft-delete ----
+  path "/api/v1/admin/service_users/{service_user_id}/care_plan_items/{id}" do
+    parameter name: :service_user_id, in: :path, type: :integer
+    parameter name: :id, in: :path, type: :integer
+    let(:item) { su.care_plan_items.create!(category: "medication", label: "8am tablets") }
+
+    patch("Edit a care plan item") do
+      tags "Office — Care Plan"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, schema: { type: :object, properties: { category: { type: :string }, label: { type: :string }, detail: { type: :string }, position: { type: :integer } } }
+      let(:service_user_id) { su.id }
+      let(:id) { item.id }
+      response(200, "updated") { let(:body) { { label: "9am tablets" } }; run_test! }
+    end
+
+    delete("Remove a care plan item (soft-delete)") do
+      tags "Office — Care Plan"; security [ bearerAuth: [] ]
+      description "Sets active: false; the item and its history are kept."
+      let(:service_user_id) { su.id }
+      let(:id) { item.id }
+      response(204, "removed") { run_test! }
+    end
+  end
+
+  # ---- Alerts: acknowledge / resolve ----
+  path "/api/v1/admin/alerts/{id}/acknowledge" do
+    parameter name: :id, in: :path, type: :integer
+    post("Acknowledge an alert") do
+      tags "Office — Monitoring"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { Alert.create!(alert_type: "missed_visit", severity: "high", subject: assignment).id }
+      response(200, "acknowledged") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/alerts/{id}/resolve" do
+    parameter name: :id, in: :path, type: :integer
+    post("Resolve an alert (optional note)") do
+      tags "Office — Monitoring"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, required: false, schema: { type: :object, properties: { resolution_note: { type: :string } } }
+      let(:id) { Alert.create!(alert_type: "no_clock_out", subject: assignment).id }
+      let(:body) { { resolution_note: "Carer confirmed clock-out time by phone." } }
+      response(200, "resolved") { run_test! }
+    end
+  end
+
+  # ---- Timesheets: disputes, exports, period lifecycle ----
+  path "/api/v1/admin/timesheet_disputes" do
+    get("Open timesheet disputes (newest first)") do
+      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      response(200, "disputes") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/timesheet_disputes/{id}/resolve" do
+    parameter name: :id, in: :path, type: :integer
+    post("Resolve a timesheet dispute") do
+      tags "Office — Timesheets"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :body, in: :body, required: false, schema: { type: :object, properties: { resolution_note: { type: :string } } }
+      let(:period) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week) }
+      let(:line) { TimesheetLine.create!(employee: employee, visit_assignment: assignment, timesheet_period: period, scheduled_minutes: 60, worked_minutes: 55, work_date: Date.current) }
+      let(:id) { TimesheetDispute.create!(timesheet_line: line, raised_by: employee, reason: "Clocked out early", state: "open").id }
+      let(:body) { { resolution_note: "Adjusted to actual clock-out." } }
+      response(200, "resolved") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/timesheet_exports/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    get("Export a period (CSV or XLSX)") do
+      tags "Office — Timesheets"; produces "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; security [ bearerAuth: [] ]
+      description "type=csv (default) or type=xlsx. Streams a file for payroll."
+      parameter name: :type, in: :query, required: false, schema: { type: :string, enum: %w[csv xlsx] }
+      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
+      let(:type) { "csv" }
+      response(200, "file") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/timesheet_periods/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    get("Show a period with its lines") do
+      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
+      response(200, "period + lines") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/timesheet_periods/{id}/approve" do
+    parameter name: :id, in: :path, type: :integer
+    post("Approve a period (blocked by unconfirmed lines)") do
+      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      description "422 { error: 'unconfirmed_lines' } if any line is auto-closed or its visit is still pending review."
+      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
+      response(200, "approved") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/timesheet_periods/{id}/lock" do
+    parameter name: :id, in: :path, type: :integer
+    post("Lock a period (final; payroll exported)") do
+      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
+      response(200, "locked") { run_test! }
+    end
+  end
+
+  # ---- Withdraw an assignment ----
+  path "/api/v1/admin/visit_assignments/{id}" do
+    parameter name: :id, in: :path, type: :integer
+    delete("Withdraw an assignment (for reassignment)") do
+      tags "Office — Rota"; security [ bearerAuth: [] ]
+      description "Marks the assignment withdrawn + cancelled and appends an assignment.withdrawn audit event. The original record is kept."
+      let(:id) { assignment.id }
+      response(204, "withdrawn") { run_test! }
+    end
+  end
+end

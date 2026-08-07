@@ -13,6 +13,11 @@ module Api
         def update
           setting = Setting.instance
           setting.update!(setting_params)
+          changed = setting.previous_changes.except("updated_at").keys
+          Events::Record.call(
+            aggregate: setting, actor: current_admin, event_type: "settings.updated",
+            payload: { changed: changed }
+          )
           render json: SettingSerializer.call(setting)
         end
 
@@ -27,7 +32,7 @@ module Api
             :overdue_threshold_minutes, :auto_close_after_minutes, :early_leave_tolerance_minutes,
             :clock_skew_tolerance_minutes, :geofence_mode, :geofence_radius_m,
             :timesheet_period, :timesheet_week_starts_on, :timesheet_rounding_minutes,
-            modules_enabled: {}
+            modules_enabled: {}, policy: {}
           )
         end
       end

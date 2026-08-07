@@ -9,5 +9,6 @@ class Employee < ApplicationRecord
   has_many :timesheet_lines
   has_many :raised_disputes, class_name: "TimesheetDispute", foreign_key: :raised_by_employee_id
   has_many :employee_availabilities, dependent: :destroy
+  has_many :carer_requests, dependent: :destroy
   has_many :mileage_claims, dependent: :restrict_with_error
 end

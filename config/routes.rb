@@ -26,7 +26,16 @@ Rails.application.routes.draw do
 
       # Shared chat (participants are Admin or Employee)
       resources :conversations, only: %i[index create] do
-        resources :messages, only: %i[index create]
+        member do
+          patch :mute      # mute/unmute notifications for this conversation
+          post  :chase     # re-notify who hasn't read the latest message
+        end
+        resources :messages, only: %i[index create] do
+          member do
+            post   :pin
+            delete :pin, action: :unpin
+          end
+        end
       end
       post "messages/:id/receipts", to: "message_receipts#create"
 
@@ -38,13 +47,15 @@ Rails.application.routes.draw do
         post "mfa",           to: "mfa#create"          # begin TOTP enrolment
         post "mfa/confirm",   to: "mfa#confirm"          # activate + return backup codes
         get  "me",            to: "me#show"
+        post   "me/avatar",   to: "me#avatar"            # upload own avatar (multipart)
+        delete "me/avatar",   to: "me#remove_avatar"
 
         # Domain: service users, care packages, visits, assignments
         resources :service_users, only: %i[index show create update] do
           resources :care_plan_items, only: %i[index create update destroy]
         end
         resources :care_package_slots, only: %i[index create update]
-        resources :visits, only: %i[index create] do
+        resources :visits, only: %i[index create update] do
           member     { post :publish }
           collection { post :generate }   # generate dated visits from care packages
         end
@@ -52,7 +63,11 @@ Rails.application.routes.draw do
 
         # User management (invitations)
         resources :employees, only: %i[index show create update] do
-          member { get :availability }
+          member do
+            get     :availability
+            post    :avatar          # office sets a carer's avatar (multipart)
+            delete  :avatar, action: :remove_avatar
+          end
         end
         resources :admins,    only: %i[index show create update]
 
@@ -64,6 +79,21 @@ Rails.application.routes.draw do
         # Monitoring + corrections
         get  "live_board",        to: "live_board#index"
         get  "exceptions",        to: "exceptions#index"
+        get  "audit",             to: "audit#index"          # append-only Event log (read-only)
+        get  "reports",           to: "reports#index"        # clocking performance aggregates
+        get  "cover",             to: "cover#index"          # unfilled visits + offers
+        resources :cover_offers, only: %i[create] do
+          member do
+            post :accept
+            post :decline
+          end
+        end
+        resources :requests, only: %i[index] do          # carer requests queue
+          member do
+            post :approve
+            post :decline
+          end
+        end
         post "clock_corrections", to: "clock_corrections#create"
         resources :alerts, only: %i[index] do
           member do
@@ -110,9 +140,12 @@ Rails.application.routes.draw do
         get  "timesheet",         to: "timesheet#show"
         get  "timesheet_periods", to: "timesheet_periods#index"
         post "disputes",          to: "disputes#create"
+        resources :requests, only: %i[index create]   # carer raises swap/drop/overtime/leave
 
         # Profile, availability, summary
-        patch "me",           to: "me#update"
+        patch  "me",          to: "me#update"
+        post   "me/avatar",   to: "me#avatar"           # carer uploads own avatar (multipart)
+        delete "me/avatar",   to: "me#remove_avatar"
         get   "availability", to: "availability#show"
         put   "availability", to: "availability#update"
         get   "summary",      to: "summary#show"

@@ -4,7 +4,7 @@
 const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   appName: import.meta.env.VITE_APP_NAME ?? 'Best Pinnacle Care',
-  useMock: (import.meta.env.VITE_USE_MOCK ?? 'true') !== 'false',
+  useMock: import.meta.env.VITE_USE_MOCK === 'true',
   isDev: import.meta.env.DEV,
 };
 
