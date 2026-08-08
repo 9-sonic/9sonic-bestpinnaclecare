@@ -1,0 +1,16 @@
+# Single-page app fallback.
+#
+# The office console is one HTML file with client-side routing (React Router).
+# When someone opens or refreshes a deep link like /team or /board, Apache would
+# look for a matching file, not find it, and 404. This rewrites any path that is
+# not a real file or directory to index.html so the router can handle it.
+#
+# Real assets (js/css/images) have a matching file on disk, so the !-f check
+# lets them serve normally.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

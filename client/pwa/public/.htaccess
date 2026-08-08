@@ -1,0 +1,17 @@
+# Single-page app fallback.
+#
+# The carer app is one HTML file with client-side routing (React Router). When
+# someone opens or refreshes a deep link like /home, Apache would look for a
+# file called "home", not find it, and 404. This rewrites any path that is not
+# a real file or directory to index.html so the router can handle it.
+#
+# Real assets (js/css/sw.js/images) have a matching file on disk, so the !-f
+# check lets them serve normally — including sw.js, which must stay the worker,
+# not the app shell.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
