@@ -8,7 +8,7 @@ module Api
         def index
           from = params[:from].present? ? Date.parse(params[:from]) : Date.current
           to   = params[:to].present?   ? Date.parse(params[:to])   : from + 6
-          visits = Visit.includes(:service_user)
+          visits = Visit.includes(:service_user, visit_assignments: :employee)
                         .where(scheduled_start: from.beginning_of_day..to.end_of_day)
                         .order(:scheduled_start)
           render json: visits.map { |v| VisitSerializer.call(v, include_service_user: true) }
