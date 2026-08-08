@@ -6,13 +6,14 @@ import { prefetchRoute } from '../../utils/prefetch.js';
 
 // Mobile tab bar. The centre Clock tab is an elevated action button; the other
 // four carry a label and an animated active indicator.
-export default function BottomNav() {
+export default function BottomNav({ messagesUnread = 0 }) {
   const { pathname } = useLocation();
 
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
       {NAV_TABS.map((tab) => {
         const active = pathname.startsWith(tab.to);
+        const badge = tab.to === '/messages' ? messagesUnread : (tab.badge ?? 0);
 
         if (tab.fab) {
           // The raised button is positioned rather than laid out, so it needs
@@ -47,7 +48,7 @@ export default function BottomNav() {
             <span className="bottom-nav__dot" aria-hidden="true" />
             <Icon name={tab.icon} size={20} strokeWidth={active ? 2.1 : 1.7} />
             <span className="bottom-nav__label">{tab.label}</span>
-            {tab.badge > 0 && <span className="bottom-nav__badge">{tab.badge}</span>}
+            {badge > 0 && <span className="bottom-nav__badge">{badge > 9 ? '9+' : badge}</span>}
           </NavLink>
         );
       })}

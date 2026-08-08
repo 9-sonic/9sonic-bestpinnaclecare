@@ -19,7 +19,7 @@ module ApplicationCable
       token = request.params[:token].presence
       return reject_unauthorized_connection unless token
 
-      payload = decode(token)
+      payload = decode_jwt(token)
       return reject_unauthorized_connection if payload.nil?
       return reject_unauthorized_connection if JwtDenylist.exists?(jti: payload["jti"])
 
@@ -29,7 +29,7 @@ module ApplicationCable
       "#{identity.class.name}:#{identity.id}"
     end
 
-    def decode(token)
+    def decode_jwt(token)
       Warden::JWTAuth::TokenDecoder.new.call(token)
     rescue StandardError
       nil

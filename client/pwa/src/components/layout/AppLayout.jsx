@@ -10,6 +10,9 @@ import UpdatePrompt from '../common/UpdatePrompt.jsx';
 import { useQueueSync } from '../../hooks/useQueueSync.js';
 import { useSwipeTabs } from '../../hooks/useSwipeTabs.js';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
+import { useAuth } from '../../hooks/useAuth.js';
+import { listThreads } from '../../api/messages.js';
+import { subscribeInbox } from '../../api/cable.js';
 import { MenuContext } from './MenuContext.js';
 import { prefetchTabs } from '../../utils/prefetch.js';
 
@@ -22,6 +25,18 @@ import { prefetchTabs } from '../../utils/prefetch.js';
 export default function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
+  const { user } = useAuth();
+
+  // Unread message count for the tab-bar badge. Refreshed on navigation (so
+  // reading a thread clears it) and whenever a message arrives over the socket.
+  const [messagesUnread, setMessagesUnread] = useState(0);
+  const refreshUnread = useCallback(() => {
+    listThreads(user)
+      .then((ts) => setMessagesUnread((ts ?? []).reduce((n, t) => n + (t.unread ?? 0), 0)))
+      .catch(() => {});
+  }, [user]);
+  useEffect(() => { refreshUnread(); }, [refreshUnread, pathname]);
+  useEffect(() => subscribeInbox(() => refreshUnread()), [refreshUnread]);
 
   // Pull to refresh re-mounts the routed screen by changing its key, which
   // re-runs whatever it fetches on mount. That keeps the gesture working for
@@ -66,7 +81,7 @@ export default function AppLayout() {
           </main>
           <InstallPrompt />
           <UpdatePrompt />
-          <BottomNav />
+          <BottomNav messagesUnread={messagesUnread} />
         </div>
         <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
       </div>

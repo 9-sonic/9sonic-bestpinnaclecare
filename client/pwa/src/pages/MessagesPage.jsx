@@ -121,7 +121,7 @@ export default function MessagesPage() {
                   {/* Varied here on purpose: a chat list puts many different
                       people in one column, and the colour is what lets a
                       carer find a thread without reading every name. */}
-                  <Avatar name={t.name} size={44} varied />
+                  <Avatar name={t.name} src={t.avatar} size={44} varied />
                   <span className="thread-row__body">
                     <span className="thread-row__top">
                       <span className="thread-row__name">{t.name}</span>
