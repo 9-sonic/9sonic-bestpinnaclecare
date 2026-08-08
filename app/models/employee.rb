@@ -2,7 +2,7 @@
 class Employee < ApplicationRecord
   include Authenticatable
 
-  enum :role, { carer: "carer", senior_carer: "senior_carer" }
+  enum :role, { carer: "carer" }
 
   has_many :visit_assignments, dependent: :restrict_with_error
   has_many :visits, through: :visit_assignments

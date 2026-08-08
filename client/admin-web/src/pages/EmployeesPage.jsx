@@ -6,9 +6,9 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
-import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
+import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 
-const EMPTY = { first_name: '', last_name: '', email: '', phone: '', role: 'carer', employee_reference: '' };
+const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
 const METHOD = { gps: 'App (GPS)', pin: 'PIN tablet', manual_admin: 'Manual', manual: 'Manual' };
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -42,7 +42,6 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [roleFilter, setRoleFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
@@ -64,9 +63,8 @@ export default function EmployeesPage() {
     const q = query.trim().toLowerCase();
     return rows
       .filter((e) => (showInactive ? true : e.active))
-      .filter((e) => (roleFilter === 'all' ? true : e.role === roleFilter))
       .filter((e) => (q ? `${e.full_name} ${e.email} ${e.employee_reference ?? ''}`.toLowerCase().includes(q) : true));
-  }, [rows, query, showInactive, roleFilter]);
+  }, [rows, query, showInactive]);
 
   function validate() {
     const next = {};
@@ -77,7 +75,7 @@ export default function EmployeesPage() {
     return Object.keys(next).length === 0;
   }
   function openInvite() { setForm(EMPTY); setEditing(null); setErrors({}); setModalOpen(true); }
-  function openEdit(e) { setEditing(e); setForm({ first_name: e.first_name, last_name: e.last_name, email: e.email, phone: e.phone ?? '', role: e.role, employee_reference: e.employee_reference ?? '' }); setErrors({}); setModalOpen(true); }
+  function openEdit(e) { setEditing(e); setForm({ first_name: e.first_name, last_name: e.last_name, email: e.email, phone: e.phone ?? '', employee_reference: e.employee_reference ?? '' }); setErrors({}); setModalOpen(true); }
   function closeModal() { setModalOpen(false); setEditing(null); }
 
   async function handleSave() {
@@ -113,11 +111,6 @@ export default function EmployeesPage() {
   const avgPunct = punctVals.length ? Math.round(punctVals.reduce((a, b) => a + b, 0) / punctVals.length) : null;
   const appCount = active.filter((e) => e.capture_method === 'gps').length;
   const mfaOn = active.filter((e) => e.mfa_enabled).length;
-  const roleTabs = [
-    { key: 'all', label: 'All carers', icon: 'users', count: rows.filter((e) => showInactive || e.active).length },
-    { key: 'carer', label: 'Carers', icon: 'user', count: rows.filter((e) => e.role === 'carer' && (showInactive || e.active)).length },
-    { key: 'senior_carer', label: 'Senior', icon: 'star', count: rows.filter((e) => e.role === 'senior_carer' && (showInactive || e.active)).length },
-  ];
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
@@ -140,16 +133,15 @@ export default function EmployeesPage() {
         {canManage && <Button variant="primary" icon="plus" onClick={openInvite}>Invite carer</Button>}
       </div>
 
-      {/* Role filter + table */}
+      {/* Staff table */}
       <div style={s('display:flex;flex-direction:column')}>
-        <SegTabs tabs={roleTabs} active={roleFilter} onSelect={setRoleFilter} />
-        <div style={s('margin-top:12px')}>
+        <div>
           <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
             {filtered.length === 0 ? (
               <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>No carers match.</div>
             ) : (
               <TableWrap minWidth={920}>
-                <thead><tr><Th>Carer</Th><Th>Role &amp; reference</Th><Th>Clocking method</Th><Th align="right">Hours this week</Th><Th>Punctuality</Th><Th>Status</Th>{canManage && <Th align="right">Actions</Th>}</tr></thead>
+                <thead><tr><Th>Carer</Th><Th>Reference</Th><Th>Clocking method</Th><Th align="right">Hours this week</Th><Th>Punctuality</Th><Th>Status</Th>{canManage && <Th align="right">Actions</Th>}</tr></thead>
                 <tbody>
                   {filtered.map((e) => (
                     <Row key={e.id}>
@@ -162,7 +154,7 @@ export default function EmployeesPage() {
                           </span>
                         </span>
                       </Td>
-                      <Td>{e.role === 'senior_carer' ? 'Senior carer' : 'Carer'}<span style={s('font-size:11.5px;color:var(--d-muted);display:block')}>{e.employee_reference ?? '—'}</span></Td>
+                      <Td>{e.employee_reference ?? '—'}</Td>
                       <Td><Tag tone={e.capture_method === 'gps' ? 'primary' : e.capture_method === 'pin' ? 'info' : 'muted'}>{METHOD[e.capture_method] ?? '—'}</Tag></Td>
                       <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{e.hours_this_week != null ? `${e.hours_this_week}h` : '—'}</b></Td>
                       <Td><Meter value={e.punctuality} /></Td>
@@ -213,10 +205,7 @@ export default function EmployeesPage() {
                 <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
               </div>
               <Field label="Work email" error={errors.email} hint={editing ? 'Email is the sign-in name and cannot be changed here.' : undefined}><input style={input(errors.email, !!editing)} type="email" value={form.email} onChange={set('email')} disabled={!!editing} /></Field>
-              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-                <Field label="Mobile"><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
-                <Field label="Role"><select style={input(false)} value={form.role} onChange={set('role')}><option value="carer">Carer</option><option value="senior_carer">Senior carer</option></select></Field>
-              </div>
+              <Field label="Mobile"><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
               <Field label="Staff reference"><input style={input(false)} value={form.employee_reference} onChange={set('employee_reference')} placeholder="EMP-0000" /></Field>
             </div>
             <div style={s('padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px')}>

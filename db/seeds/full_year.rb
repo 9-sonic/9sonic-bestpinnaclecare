@@ -62,12 +62,13 @@ Setting.create!(
 )
 
 # ---------------------------------------------------------------------------
-# Admin (one) — MFA on, pre-enrolled with MFA_SECRET
+# Admin (one) — MFA off for testing (secret retained; set mfa_enabled: true +
+# mfa_confirmed_at to re-enable the two-step login).
 # ---------------------------------------------------------------------------
 manager = Admin.create!(
   email: "manager@bestpinnacle.test", password: PASSWORD, first_name: "Rebecca", last_name: "Hartley",
   role: :registered_manager, active: true, accepted_invite_at: 1.year.ago,
-  mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: MFA_SECRET
+  mfa_enabled: false, mfa_confirmed_at: nil, mfa_secret: MFA_SECRET
 )
 
 # ---------------------------------------------------------------------------
@@ -81,9 +82,9 @@ CARER_NAMES = [
 carers = CARER_NAMES.each_with_index.map do |(first, last), i|
   Employee.create!(
     email: "#{first.downcase}@bestpinnacle.test", password: PASSWORD,
-    first_name: first, last_name: last, role: (i < 2 ? :senior_carer : :carer),
+    first_name: first, last_name: last, role: :carer,
     employee_reference: "EMP#{1001 + i}", active: true, accepted_invite_at: 1.year.ago,
-    mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: MFA_SECRET,
+    mfa_enabled: false, mfa_confirmed_at: nil, mfa_secret: MFA_SECRET,
     phone: format("07700 9%05d", i), hourly_rate_pence: rand(1150..1550), mileage_rate_pence: 45,
     contracted_hours_per_week: [ 20, 30, 37.5, 40 ].sample,
     emergency_contact_name: "Next of kin", emergency_contact_phone: "0161 555 0#{rand(100..999)}"

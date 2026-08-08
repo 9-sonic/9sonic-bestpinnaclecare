@@ -5,6 +5,7 @@ import AdminLayout from './components/layout/AdminLayout.jsx';
 import Spinner from './components/common/Spinner.jsx';
 
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
+const SetPasswordPage = lazy(() => import('./pages/SetPasswordPage.jsx'));
 const LiveBoardPage = lazy(() => import('./pages/LiveBoardPage.jsx'));
 const RotaPage = lazy(() => import('./pages/RotaPage.jsx'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage.jsx'));
@@ -19,12 +20,16 @@ const CoverPage = lazy(() => import('./pages/CoverPage.jsx'));
 const RequestsPage = lazy(() => import('./pages/RequestsPage.jsx'));
 const AuditPage = lazy(() => import('./pages/AuditPage.jsx'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
+const TeamPage = lazy(() => import('./pages/TeamPage.jsx'));
 
 export default function App() {
   return (
     <Suspense fallback={<Spinner fullscreen />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Onboarding + recovery — public; reached from the emailed invite / reset link. */}
+        <Route path="/accept-invite" element={<SetPasswordPage mode="invite" />} />
+        <Route path="/reset-password" element={<SetPasswordPage mode="reset" />} />
 
         <Route
           element={
@@ -52,6 +57,7 @@ export default function App() {
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/team" element={<TeamPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

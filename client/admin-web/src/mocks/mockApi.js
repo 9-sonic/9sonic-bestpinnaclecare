@@ -162,6 +162,30 @@ export async function requestPasswordReset() {
   return null;
 }
 
+export async function setPassword() {
+  await delay(400);
+  return null;
+}
+
+export async function listAdmins() {
+  await delay(300);
+  return [
+    { id: 1, email: 'reg.manager@bestpinnacle.test', first_name: 'Reg', last_name: 'Manager', full_name: 'Reg Manager', avatar_url: null, role: 'registered_manager', active: true, mfa_enabled: true, invited_at: '2026-01-04T09:00:00Z', accepted_invite_at: '2026-01-04T09:20:00Z' },
+    { id: 2, email: 'coordinator@bestpinnacle.test', first_name: 'Casey', last_name: 'Ops', full_name: 'Casey Ops', avatar_url: null, role: 'coordinator', active: true, mfa_enabled: true, invited_at: '2026-02-10T09:00:00Z', accepted_invite_at: '2026-02-10T10:00:00Z' },
+    { id: 3, email: 'finance@bestpinnacle.test', first_name: 'Fran', last_name: 'Ledger', full_name: 'Fran Ledger', avatar_url: null, role: 'finance', active: true, mfa_enabled: false, invited_at: '2026-08-01T09:00:00Z', accepted_invite_at: null },
+  ];
+}
+
+export async function inviteAdmin(attrs) {
+  await delay(300);
+  return { id: Date.now(), full_name: `${attrs.first_name} ${attrs.last_name}`, avatar_url: null, active: true, mfa_enabled: false, invited_at: new Date().toISOString(), accepted_invite_at: null, ...attrs };
+}
+
+export async function updateAdmin(id, payload) {
+  await delay(300);
+  return { id, ...payload };
+}
+
 /* ------------------------------ Monitoring -------------------------------- */
 
 export async function getDashboard() {

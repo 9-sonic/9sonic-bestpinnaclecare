@@ -71,14 +71,15 @@ Setting.create!(
 )
 
 # ---------------------------------------------------------------------------
-# Admin (one) — MFA on, pre-enrolled with DEMO_MFA_SECRET
+# Admin (one) — MFA off for testing (secret retained; set mfa_enabled: true +
+# mfa_confirmed_at to re-enable the two-step login).
 # ---------------------------------------------------------------------------
 admins = {
   registered_manager: [ "Rebecca", "Hartley", "manager@bestpinnacle.test" ]
 }.map do |role, (first, last, email)|
   Admin.create!(email: email, password: DEMO_PASSWORD, first_name: first, last_name: last,
                 role: role, active: true, accepted_invite_at: 30.days.ago,
-                mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: DEMO_MFA_SECRET)
+                mfa_enabled: false, mfa_confirmed_at: nil, mfa_secret: DEMO_MFA_SECRET)
 end
 registered_manager = admins.first
 finance_admin = admins.find(&:finance?) || registered_manager
@@ -91,9 +92,9 @@ carers = [
 ].each_with_index.map do |(first, last), i|
   Employee.create!(
     email: "#{first.downcase}@bestpinnacle.test", password: DEMO_PASSWORD,
-    first_name: first, last_name: last, role: (i.zero? ? :senior_carer : :carer),
+    first_name: first, last_name: last, role: :carer,
     employee_reference: "EMP#{1001 + i}", active: true, accepted_invite_at: 25.days.ago,
-    mfa_enabled: true, mfa_confirmed_at: Time.current, mfa_secret: DEMO_MFA_SECRET,
+    mfa_enabled: false,
     phone: "07700 9000#{i}#{i}", hourly_rate_pence: rand(1150..1450), mileage_rate_pence: 45,
     contracted_hours_per_week: [ 30, 37.5, 40 ].sample,
     emergency_contact_name: "Next of kin", emergency_contact_phone: "0161 555 0#{rand(100..999)}"

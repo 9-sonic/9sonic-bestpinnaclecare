@@ -43,6 +43,17 @@ export const requestPasswordReset = pick(mock.requestPasswordReset, (email) =>
   api.post('/admin/auth/password', { email }, { auth: false })
 );
 
+// Set a password from an invite or reset token — the same PUT serves both.
+export const setPassword = pick(mock.setPassword, ({ token, password }) =>
+  api.put('/admin/auth/password', { token, password }, { auth: false })
+);
+
+/* ---------------------------- Team (office admins) ------------------------ */
+
+export const listAdmins = pick(mock.listAdmins, () => api.get('/admin/admins'));
+export const inviteAdmin = pick(mock.inviteAdmin, (attrs) => api.post('/admin/admins', attrs));
+export const updateAdmin = pick(mock.updateAdmin, (id, payload) => api.patch(`/admin/admins/${id}`, payload));
+
 /* ------------------------------ Monitoring -------------------------------- */
 
 export const getDashboard = pick(mock.getDashboard, () => api.get('/admin/dashboard'));

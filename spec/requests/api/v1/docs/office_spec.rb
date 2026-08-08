@@ -233,8 +233,8 @@ RSpec.describe "Office (admin)", type: :request do
 
     post("Invite a carer") do
       tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      parameter name: :body, in: :body, schema: { type: :object, properties: { email: { type: :string }, first_name: { type: :string }, last_name: { type: :string }, role: { type: :string, enum: %w[carer senior_carer] } }, required: %w[email first_name last_name] }
-      response(201, "invited") { schema "$ref" => "#/components/schemas/Employee"; let(:body) { { email: "new@bpc.test", first_name: "New", last_name: "Carer", role: "carer" } }; run_test! }
+      parameter name: :body, in: :body, schema: { type: :object, properties: { email: { type: :string }, first_name: { type: :string }, last_name: { type: :string } }, required: %w[email first_name last_name] }
+      response(201, "invited") { schema "$ref" => "#/components/schemas/Employee"; let(:body) { { email: "new@bpc.test", first_name: "New", last_name: "Carer" } }; run_test! }
     end
   end
 

@@ -4,6 +4,7 @@ import { listConversations, listMessages, sendMessage, createChannel, createGrou
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
+import { subscribeInbox } from '../lib/cable.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { formatTime, fullName } from '../api/format.js';
@@ -69,6 +70,23 @@ export default function MessagesPage() {
   useEffect(() => { loadMessages(activeId); setBroadcast(false); }, [activeId, loadMessages]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages]);
 
+  // Live over the WebSocket: append to the open thread (dedupe by id) + bump the list.
+  const activeIdRef = useRef(activeId);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  useEffect(() => {
+    const off = subscribeInbox((payload) => {
+      if (payload?.type !== 'message' || !payload.message) return;
+      const m = payload.message;
+      if (m.conversation_id === activeIdRef.current) {
+        setMessages((xs) => (xs.some((x) => x.id === m.id) ? xs : [...xs, m]));
+      }
+      setConvos((cs) => cs.map((c) => (c.id === m.conversation_id
+        ? { ...c, last_message_preview: m.body || 'Attachment', last_message_at: m.created_at || new Date().toISOString() }
+        : c)));
+    });
+    return off;
+  }, []);
+
   const active = useMemo(() => convos.find((c) => c.id === activeId), [convos, activeId]);
   const mine = (m) => m.sender_type === 'Admin' && m.sender_id === admin?.id;
 
@@ -77,7 +95,7 @@ export default function MessagesPage() {
     if ((!body && files.length === 0) || sending || !active) return;
     setSending(true);
     try {
-      const saved = await sendMessage(activeId, body, `c-${Date.now()}`, broadcast && active.kind === 'channel', null, files.length ? files : null);
+      const saved = await sendMessage(activeId, body, crypto.randomUUID(), broadcast && active.kind === 'channel', null, files.length ? files : null);
       setMessages((xs) => [...xs, saved]); setDraft(''); setFiles([]);
       setConvos((cs) => cs.map((c) => (c.id === activeId ? { ...c, last_message_preview: body || `${files.length} attachment${files.length === 1 ? '' : 's'}`, last_message_at: new Date().toISOString() } : c)));
     } catch (e) { toast.error(e.message || 'Could not send'); } finally { setSending(false); }

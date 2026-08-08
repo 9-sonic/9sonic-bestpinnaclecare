@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getThread, sendMessage, markRead } from '../api/messages.js';
+import { subscribeInbox } from '../api/cable.js';
 import { useAuth } from '../hooks/useAuth.js';
 import Avatar from '../components/common/Avatar.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -68,6 +69,19 @@ export default function ChatPage() {
     return () => {
       active = false;
     };
+  }, [threadId, user]);
+
+  // Live: when a message lands for this thread, refetch so it renders in the
+  // app's shape (the socket only signals that the thread changed).
+  useEffect(() => {
+    const off = subscribeInbox((payload) => {
+      if (payload?.type !== 'message' || !payload.message) return;
+      if (String(payload.message.conversation_id) !== String(threadId)) return;
+      getThread(threadId, user)
+        .then((t) => { setThread(t); markRead(t.messages?.[t.messages.length - 1]?.id); })
+        .catch(() => { /* ignore */ });
+    });
+    return off;
   }, [threadId, user]);
 
   // Pin to the newest message whenever the thread grows.
