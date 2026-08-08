@@ -149,6 +149,10 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || vars.VITE_API_URL }}
           # Explicit, so a deployed carer app can never serve mock shifts.
           VITE_USE_MOCK: 'false'
+          # Google Maps JS key for the carer navigation screen. This is inlined
+          # into the client bundle (public by design) — keep it locked down with
+          # HTTP-referrer restrictions in Google Cloud, not hidden.
+          VITE_MAPS_API_KEY: ${{ vars.VITE_MAPS_API_KEY }}
         run: |
           set -euo pipefail
           if [ ! -f package.json ]; then
