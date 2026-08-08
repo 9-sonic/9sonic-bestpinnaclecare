@@ -101,25 +101,28 @@ carers.each do |c|
 end
 
 # ---------------------------------------------------------------------------
-# Service users (people we support) — homes around south/central Manchester
+# Service users (people we support) — real homes around south Manchester.
+# Addresses, postcodes and coordinates are genuine (reverse-geocoded from
+# OpenStreetMap), so the carer navigation and geofence point at real places.
+# Fictional people, real addresses — do not replace these with invented ones.
 # ---------------------------------------------------------------------------
 HOMES = [
-  [ "Ada",    "Whitfield", "14 Elm Grove",      "Didsbury",    "M20 2XY", 53.4109, -2.2310 ],
-  [ "Bert",   "Holloway",  "3 Oak Lane",        "Chorlton",    "M21 9PQ", 53.4426, -2.2790 ],
-  [ "Cora",   "Bassett",   "27 Birch Road",     "Withington",  "M20 4LP", 53.4330, -2.2280 ],
-  [ "Dennis", "Ng",        "5 Maple Close",     "Fallowfield", "M14 6RT", 53.4420, -2.2190 ],
-  [ "Edith",  "Ramsay",    "41 Cedar Avenue",   "Burnage",     "M19 1AA", 53.4270, -2.2010 ],
-  [ "Frank",  "Osei",      "8 Willow Terrace",  "Levenshulme", "M19 3PP", 53.4400, -2.1900 ],
-  [ "Gloria", "Pemberton", "12 Sycamore Drive", "Heaton Moor", "SK4 4AB", 53.4180, -2.1770 ],
-  [ "Harold", "Mensah",    "9 Ash Street",      "Rusholme",    "M14 5TG", 53.4500, -2.2230 ],
-  [ "Iris",   "Cavendish", "22 Poplar Way",     "Whalley Range", "M16 8FT", 53.4460, -2.2560 ],
-  [ "Joseph", "Ali",       "7 Rowan Court",     "Old Trafford", "M16 0DZ", 53.4560, -2.2810 ],
-  [ "Kathleen", "Byrne",   "31 Hazel Grove",    "Stretford",   "M32 8QT", 53.4470, -2.3080 ],
-  [ "Leonard", "Fitzgerald", "4 Beech Mount",   "Sale",        "M33 3AA", 53.4250, -2.3220 ],
-  [ "Mabel",  "Okafor",    "18 Alder Close",    "Northenden",  "M22 4BX", 53.4020, -2.2610 ],
-  [ "Norman", "Sutcliffe", "6 Hawthorn Rise",   "Gatley",      "SK8 4NB", 53.3910, -2.2340 ],
-  [ "Olive",  "Chukwu",    "25 Linden Avenue",  "Sale Moor",   "M33 2GH", 53.4180, -2.3090 ],
-  [ "Percy",  "Hardcastle", "10 Chestnut Walk", "Cheadle",     "SK8 1AA", 53.3960, -2.2110 ]
+  [ "Ada",      "Whitfield",  "844 Wilmslow Road",   "Didsbury",      "M20 2RN", 53.4107410, -2.2309700 ],
+  [ "Bert",     "Holloway",   "605 Wilbraham Road",  "Chorlton",      "M21 9AS", 53.4424109, -2.2789659 ],
+  [ "Cora",     "Bassett",    "4 Parsonage Road",    "Withington",    "M20 4PB", 53.4331673, -2.2280529 ],
+  [ "Dennis",   "Ng",         "262 Wilmslow Road",   "Fallowfield",   "M14 6NW", 53.4419425, -2.2188598 ],
+  [ "Edith",    "Ramsay",     "Fair Oak Road",       "Burnage",       "M19 1DT", 53.4267193, -2.2011330 ],
+  [ "Frank",    "Osei",       "10 Griffin Grove",    "Levenshulme",   "M19 2QQ", 53.4400244, -2.1899599 ],
+  [ "Gloria",   "Pemberton",  "Heathcote Avenue",    "Heaton Moor",   "SK4 2QF", 53.4180485, -2.1769913 ],
+  [ "Harold",   "Mensah",     "Wilmslow Road",       "Rusholme",      "M14 6HQ", 53.4504848, -2.2222548 ],
+  [ "Iris",     "Cavendish",  "90 Brantingham Road", "Whalley Range", "M16 8LZ", 53.4461675, -2.2559952 ],
+  [ "Joseph",   "Ali",        "Ayres Road",          "Old Trafford",  "M16 0NL", 53.4564362, -2.2810609 ],
+  [ "Kathleen", "Byrne",      "Jackson Street",      "Stretford",     "M32 8AY", 53.4468368, -2.3080009 ],
+  [ "Leonard",  "Fitzgerald", "Springfield Road",    "Sale",          "M33 7XS", 53.4242132, -2.3228662 ],
+  [ "Mabel",    "Okafor",     "Crombie Avenue",      "Northenden",    "M22 4SG", 53.4020314, -2.2608277 ],
+  [ "Norman",   "Sutcliffe",  "Elm Road",            "Gatley",        "SK8 4LY", 53.3910016, -2.2341278 ],
+  [ "Olive",    "Chukwu",     "Marsland Road",       "Sale Moor",     "M33 3JA", 53.4178932, -2.3089646 ],
+  [ "Percy",    "Hardcastle", "Queens Gardens",      "Cheadle",       "SK8 2BA", 53.3956486, -2.2107985 ]
 ].first([ SU_COUNT, 16 ].min).freeze
 
 service_users = HOMES.map do |first, last, addr, city, pc, lat, lng|
