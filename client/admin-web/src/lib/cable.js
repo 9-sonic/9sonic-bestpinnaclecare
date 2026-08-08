@@ -1,10 +1,12 @@
 import env from '../config/env.js';
 import { getToken } from '../utils/storage.js';
+import { createConsumer } from '@rails/actioncable';
 
-// Minimal ActionCable client. Browsers can't set headers on a WebSocket, so the
-// JWT rides as a query param (?token=...) — the server decodes it the same way
-// as an HTTP request. Subscribes to InboxChannel and calls onMessage(payload)
-// for each broadcast. Reconnects with backoff. No @rails/actioncable dependency.
+// Realtime inbox over ActionCable, using the official @rails/actioncable client
+// so the subscribe / welcome / ping framing matches the server exactly (the
+// hand-rolled socket got the protocol subtly wrong and the server rejected the
+// command as nil). The JWT rides as a query param because browsers can't set
+// headers on a WebSocket; the server decodes it like any HTTP request.
 
 function cableUrl() {
   const httpBase = (env.apiBaseUrl || window.location.origin).replace(/\/api\/v1\/?$/, '');
@@ -17,39 +19,20 @@ function cableUrl() {
   return u.toString();
 }
 
-// subscribeInbox(onMessage) -> unsubscribe(). onMessage receives the raw payload
-// broadcast by the server, e.g. { type: 'message', conversation_id, message }.
+// subscribeInbox(onMessage) -> unsubscribe(). onMessage receives the payload the
+// server broadcasts, e.g. { type: 'message', conversation_id, message }.
 export function subscribeInbox(onMessage) {
-  // Mock mode has no backend, so a socket would only fail its handshake and log
-  // a console error (which the layout tests treat as a failure). Do nothing.
-  if (env.useMock) return () => {};
+  // Mock mode has no backend to connect to.
+  if (env.useMock || !getToken()) return () => {};
 
-  const IDENTIFIER = JSON.stringify({ channel: 'InboxChannel' });
-  let ws = null;
-  let closed = false;
-  let retries = 0;
+  const consumer = createConsumer(cableUrl());
+  const subscription = consumer.subscriptions.create(
+    { channel: 'InboxChannel' },
+    { received: (payload) => { if (payload) onMessage(payload); } }
+  );
 
-  function open() {
-    if (closed || !getToken()) return;
-    try { ws = new WebSocket(cableUrl()); } catch { schedule(); return; }
-    ws.onmessage = (ev) => {
-      let data;
-      try { data = JSON.parse(ev.data); } catch { return; }
-      if (data.type === 'welcome') { ws.send(JSON.stringify({ command: 'subscribe', identifier: IDENTIFIER })); return; }
-      if (data.type === 'ping' || data.type === 'confirm_subscription' || data.type === 'reject_subscription') return;
-      if (data.message) onMessage(data.message);
-    };
-    ws.onopen = () => { retries = 0; };
-    ws.onclose = () => { if (!closed) schedule(); };
-    ws.onerror = () => { try { ws.close(); } catch { /* noop */ } };
-  }
-
-  function schedule() {
-    const delay = Math.min(1000 * 2 ** retries, 15000);
-    retries += 1;
-    setTimeout(open, delay);
-  }
-
-  open();
-  return () => { closed = true; try { if (ws) ws.close(); } catch { /* noop */ } };
+  return () => {
+    try { subscription.unsubscribe(); } catch { /* noop */ }
+    try { consumer.disconnect(); } catch { /* noop */ }
+  };
 }
