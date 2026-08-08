@@ -21,6 +21,7 @@ const RequestsPage = lazy(() => import('./pages/RequestsPage.jsx'));
 const AuditPage = lazy(() => import('./pages/AuditPage.jsx'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 
 export default function App() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/team" element={<TeamPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -6,6 +6,7 @@ class AdminSerializer
       first_name:  admin.first_name,
       last_name:   admin.last_name,
       full_name:   admin.full_name,
+      phone:       admin.phone,
       avatar_url:  AttachmentUrl.for(admin.avatar),
       role:        admin.role,
       active:      admin.active,

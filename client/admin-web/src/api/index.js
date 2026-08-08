@@ -129,6 +129,7 @@ export const listEmployees = pick(mock.listEmployees, () => api.get('/admin/empl
 // Avatars (multipart). avatar_url comes back on the serialized identity.
 export const uploadMyAvatar = (file) => { const fd = new FormData(); fd.append('avatar', file); return apiUpload('/admin/me/avatar', fd); };
 export const removeMyAvatar = () => api.delete('/admin/me/avatar');
+export const updateMyProfile = pick(mock.updateMyProfile ?? ((patch) => Promise.resolve(patch)), (patch) => api.patch('/admin/me', patch));
 export const uploadEmployeeAvatar = (id, file) => { const fd = new FormData(); fd.append('avatar', file); return apiUpload(`/admin/employees/${id}/avatar`, fd); };
 export const removeEmployeeAvatar = (id) => api.delete(`/admin/employees/${id}/avatar`);
 export const getEmployee = pick(mock.getEmployee, (id) => api.get(`/admin/employees/${id}`));

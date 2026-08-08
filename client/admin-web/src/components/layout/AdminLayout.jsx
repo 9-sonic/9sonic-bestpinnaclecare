@@ -170,6 +170,9 @@ export default function AdminLayout() {
 
             {menuOpen && (
               <div style={s('position:absolute;top:54px;right:0;width:214px;background:var(--d-card);border-radius:18px;border:1px solid var(--d-border);box-shadow:0 20px 50px rgba(0,0,0,0.22);padding:8px;display:flex;flex-direction:column;gap:2px;z-index:60')}>
+                <div onClick={() => { setMenuOpen(false); navigate('/profile'); }} className="hv" style={menuRow}>
+                  <Icon name="user" size={18} /><span>My profile</span>
+                </div>
                 <div onClick={() => { setMenuOpen(false); navigate('/settings'); }} className="hv" style={menuRow}>
                   <Icon name="settings" size={18} /><span>Settings</span>
                 </div>

@@ -47,6 +47,7 @@ Rails.application.routes.draw do
         post "mfa",           to: "mfa#create"          # begin TOTP enrolment
         post "mfa/confirm",   to: "mfa#confirm"          # activate + return backup codes
         get  "me",            to: "me#show"
+        patch  "me",          to: "me#update"           # update own profile (name, phone)
         post   "me/avatar",   to: "me#avatar"            # upload own avatar (multipart)
         delete "me/avatar",   to: "me#remove_avatar"
 
