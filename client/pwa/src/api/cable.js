@@ -20,6 +20,10 @@ function cableUrl() {
 // subscribeInbox(onMessage) -> unsubscribe(). onMessage receives the raw payload
 // broadcast by the server, e.g. { type: 'message', conversation_id, message }.
 export function subscribeInbox(onMessage) {
+  // Mock mode has no backend, so a socket would only fail its handshake and log
+  // a console error (which the layout tests treat as a failure). Do nothing.
+  if (env.useMock) return () => {};
+
   const IDENTIFIER = JSON.stringify({ channel: 'InboxChannel' });
   let ws = null;
   let closed = false;
