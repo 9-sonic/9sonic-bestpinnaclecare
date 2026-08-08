@@ -159,7 +159,7 @@ export function toUser(employee) {
     staffId: employee.employee_reference ?? String(employee.id),
     active: employee.active,
     mfaEnabled: employee.mfa_enabled,
-    avatar: null,
+    avatar: employee.avatar_url ?? null,
 
     // PATCH /staff/me accepts these two, so the carer can set them. They are
     // not in the documented Employee schema, so whether they come back on a
@@ -238,6 +238,9 @@ export function toThread(convo, { viewerType, viewerId, nameFor } = {}) {
   return {
     id: String(convo.id),
     name: title,
+    // The other person's picture for a direct thread (initials fall back in
+    // the Avatar). Channels/groups use the first other member as a stand-in.
+    avatar: others[0]?.avatar_url ?? null,
     kind,
     subtitle,
     pinned: !!convo.pinned,
@@ -269,7 +272,13 @@ export function toMessage(m, { viewerType, viewerId } = {}) {
   };
 }
 
-export const toMessages = (list = [], ctx) => list.map((m) => toMessage(m, ctx));
+// The API returns the newest 50 messages descending; a chat reads oldest-top,
+// newest-bottom, and optimistic/realtime sends are appended at the end — so
+// flip to ascending here to keep everything in one consistent order.
+export const toMessages = (list = [], ctx) =>
+  [...list]
+    .sort((a, b) => new Date(a.created_at ?? a.at ?? 0) - new Date(b.created_at ?? b.at ?? 0))
+    .map((m) => toMessage(m, ctx));
 
 // ---------------------------------------------------------------------------
 // Availability.

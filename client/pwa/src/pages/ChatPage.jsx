@@ -198,7 +198,7 @@ export default function ChatPage() {
         </button>
 
         <div className="chat__peer">
-          <Avatar name={thread?.name ?? ''} size={30} />
+          <Avatar name={thread?.name ?? ''} src={thread?.avatar} size={30} />
           <span className="chat__peer-name">{thread?.name}</span>
           {thread?.role && <span className="chat__peer-role">{thread.role}</span>}
         </div>

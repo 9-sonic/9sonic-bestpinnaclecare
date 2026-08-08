@@ -46,7 +46,6 @@ export default function MessagesPage() {
   const [members, setMembers] = useState([]);
   const [files, setFiles] = useState([]);
   const scrollRef = useRef(null);
-  const fileRef = useRef(null);
 
   const reload = useCallback(async () => {
     const cs = (await listConversations()) ?? [];
@@ -284,8 +283,6 @@ export default function MessagesPage() {
                 </div>
               )}
               <div style={s('display:flex;align-items:center;gap:10px')}>
-                <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => { setFiles((xs) => [...xs, ...Array.from(e.target.files)]); e.target.value = ''; }} />
-                <div onClick={() => fileRef.current?.click()} className="hv" title="Attach a file" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-field);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="file" size={17} /></div>
                 <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={broadcast ? 'Write a broadcast…' : `Message ${active.kind === 'direct' ? convoTitle(active, admin?.id) : `#${convoTitle(active, admin?.id).replace(/^#/, '')}`}`} style={{ ...s('flex:1;height:44px;border-radius:22px;background:var(--d-field);padding:0 18px;border:1.5px solid transparent;outline:none;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
                 <div onClick={send} className="hv" title="Send" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'), '--hbg': 'var(--d-pill-hover)', opacity: sending || (!draft.trim() && files.length === 0) ? 0.5 : 1 }}><Icon name="send" size={18} /></div>
               </div>
