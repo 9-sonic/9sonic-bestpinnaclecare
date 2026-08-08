@@ -54,7 +54,14 @@ Rails.application.configure do
   # for our domain — no external SMTP provider or credentials needed. Delivery
   # happens in the background (Solid Queue) via deliver_later.
   config.action_mailer.delivery_method       = :smtp
-  config.action_mailer.smtp_settings         = { address: "localhost", port: 25 }
+  # localhost:25 is the on-box Postfix relay. Do NOT attempt STARTTLS: modern
+  # net-smtp/mail default to opportunistic STARTTLS *with* certificate
+  # verification (mail 2.9's smtp_starttls falls back to :auto), and Postfix's
+  # certificate never matches the name "localhost" — every delivery then dies
+  # with "certificate verify failed (hostname mismatch)". This hop is
+  # loopback-only, so encryption adds nothing; Postfix DKIM-signs and handles
+  # TLS to the outside world itself.
+  config.action_mailer.smtp_settings         = { address: "localhost", port: 25, enable_starttls: false }
   config.action_mailer.perform_deliveries    = true
   config.action_mailer.raise_delivery_errors = true
 
