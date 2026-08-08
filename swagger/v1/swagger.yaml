@@ -68,6 +68,15 @@ components:
         mfa_enabled:
           type: boolean
           example: true
+        invited_at:
+          type: string
+          format: date-time
+          nullable: true
+        accepted_invite_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null until the invite link has been used to set a password.
     Employee:
       type: object
       description: Private fields (emergency contact) appear only with include_private
@@ -101,7 +110,6 @@ components:
           type: string
           enum:
           - carer
-          - senior_carer
         employee_reference:
           type: string
           nullable: true
@@ -2141,11 +2149,6 @@ paths:
                   type: string
                 last_name:
                   type: string
-                role:
-                  type: string
-                  enum:
-                  - carer
-                  - senior_carer
               required:
               - email
               - first_name

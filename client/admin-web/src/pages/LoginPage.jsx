@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import env from '../config/env.js';
+import { requestPasswordReset } from '../api/index.js';
 import '../styles/design-shell.css';
 
 // Office sign in. Separate from the carer app on purpose: this authenticates
@@ -43,6 +44,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const from = location.state?.from?.pathname || '/';
 
@@ -77,6 +80,14 @@ export default function LoginPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleForgot(e) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try { await requestPasswordReset(email); } catch { /* never reveal whether the email exists */ }
+    finally { setBusy(false); setSent(true); }
   }
 
   const primaryPill = (disabled) => ({
@@ -143,6 +154,31 @@ export default function LoginPage() {
                 Use a different account
               </button>
             </form>
+          ) : forgot ? (
+            <form onSubmit={handleForgot} style={s('display:flex;flex-direction:column;gap:18px')}>
+              <div>
+                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Reset your password</div>
+                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:6px')}>Enter your work email and we&apos;ll send a link to set a new one.</div>
+              </div>
+
+              {sent ? (
+                <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-ok-bg);border-radius:14px;padding:12px 14px;font-size:12.5px;font-weight:600;color:var(--d-ok-ink)')}>
+                  <Icon name="check" size={15} /> If that email has an account, a reset link is on its way.
+                </div>
+              ) : (
+                <>
+                  <Field label="Work email">
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required style={inputStyle} />
+                  </Field>
+                  <button type="submit" disabled={busy || !email} className="hv" style={{ ...primaryPill(busy || !email), '--hbg': 'var(--d-pill-hover)' }}>{busy ? 'Sending…' : 'Send reset link'}</button>
+                </>
+              )}
+
+              <button type="button" onClick={() => { setForgot(false); setSent(false); setError(''); }}
+                style={{ ...s('height:46px;border-radius:23px;background:transparent;color:var(--d-ink2);font-size:13.5px;font-weight:700;cursor:pointer;width:100%;border:0'), fontFamily: 'inherit' }}>
+                Back to sign in
+              </button>
+            </form>
           ) : (
             <form onSubmit={handleSubmit} style={s('display:flex;flex-direction:column;gap:18px')}>
               <div>
@@ -169,6 +205,13 @@ export default function LoginPage() {
                   </button>
                 </div>
               </Field>
+
+              <div style={s('display:flex;justify-content:flex-end;margin-top:-8px')}>
+                <button type="button" onClick={() => { setForgot(true); setError(''); }}
+                  style={{ ...s('background:transparent;border:0;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--d-primary)'), fontFamily: 'inherit' }}>
+                  Forgot password?
+                </button>
+              </div>
 
               {error && <div style={s('font-size:13px;font-weight:600;color:var(--d-danger-ink)')}>{error}</div>}
 

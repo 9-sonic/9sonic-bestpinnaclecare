@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listThreads } from '../api/messages.js';
+import { subscribeInbox } from '../api/cable.js';
 import { useAuth } from '../hooks/useAuth.js';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Avatar from '../components/common/Avatar.jsx';
@@ -25,6 +26,14 @@ export default function MessagesPage() {
       active = false;
     };
   }, []);
+
+  // Live: refetch the thread list whenever any message arrives over the socket.
+  useEffect(() => {
+    const off = subscribeInbox((payload) => {
+      if (payload?.type === 'message') listThreads(user).then(setThreads).catch(() => { /* ignore */ });
+    });
+    return off;
+  }, [user]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

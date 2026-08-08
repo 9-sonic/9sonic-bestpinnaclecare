@@ -55,7 +55,7 @@ module Api
         end
 
         def employee_params
-          permitted = params.permit(:email, :first_name, :last_name, :phone, :role, :employee_reference, :active,
+          permitted = params.permit(:email, :first_name, :last_name, :phone, :employee_reference, :active,
                                     :hourly_rate_pence, :mileage_rate_pence, :contracted_hours_per_week)
           # Only finance / registered manager may set pay rates.
           permitted = permitted.except(:hourly_rate_pence, :mileage_rate_pence) unless pay_editor?

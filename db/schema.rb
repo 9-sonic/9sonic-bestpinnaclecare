@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_07_150544) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -23,7 +23,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_07_150544) do
   create_enum "availability_slot", ["morning", "afternoon", "evening", "night"]
   create_enum "clock_kind", ["clock_in", "clock_out", "break_start", "break_end"]
   create_enum "conversation_kind", ["direct", "group", "channel"]
-  create_enum "employee_role", ["carer", "senior_carer"]
+  create_enum "employee_role", ["carer"]
   create_enum "geofence_result", ["pass", "fail", "no_fix", "not_checked"]
   create_enum "lifecycle_state", ["scheduled", "check_in_window", "grace_period", "late", "in_progress", "overdue", "pending_review", "completed", "missed", "cancelled"]
   create_enum "shift_status", ["draft", "published", "cancelled"]

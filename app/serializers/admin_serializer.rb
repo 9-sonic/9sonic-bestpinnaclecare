@@ -9,7 +9,9 @@ class AdminSerializer
       avatar_url:  AttachmentUrl.for(admin.avatar),
       role:        admin.role,
       active:      admin.active,
-      mfa_enabled: admin.mfa_enabled
+      mfa_enabled: admin.mfa_enabled,
+      invited_at:         admin.invited_at,
+      accepted_invite_at: admin.accepted_invite_at
     }
   end
 end

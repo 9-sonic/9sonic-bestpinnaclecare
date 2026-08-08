@@ -18,9 +18,22 @@ module Messaging
         others.each { |person| MessageReceipt.create!(message: message, recipient: person, delivered_at: Time.current) }
         notify(message, others)
       end
+      fan_out(message)
       message
     rescue ActiveRecord::RecordNotUnique
       Message.find_by(client_message_id: client_message_id)
+    end
+
+    # Push the new message over ActionCable to every participant's inbox stream
+    # (including the sender, for multi-device). Best-effort: a socket problem must
+    # never fail an already-committed send.
+    def self.fan_out(message)
+      payload = { type: "message", conversation_id: message.conversation_id, message: MessageSerializer.call(message) }
+      message.conversation.conversation_participants.active.find_each do |cp|
+        ActionCable.server.broadcast("inbox:#{cp.participant_type}:#{cp.participant_id}", payload)
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[cable] message broadcast failed: #{e.message}")
     end
 
     def self.notify(message, recipients)

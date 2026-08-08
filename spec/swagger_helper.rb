@@ -47,7 +47,9 @@ RSpec.configure do |config|
               avatar_url:  { type: :string, nullable: true, description: 'Absolute URL of the uploaded avatar, or null.' },
               role:        { type: :string, enum: %w[registered_manager manager coordinator finance auditor] },
               active:      { type: :boolean, example: true },
-              mfa_enabled: { type: :boolean, example: true }
+              mfa_enabled: { type: :boolean, example: true },
+              invited_at:         { type: :string, format: 'date-time', nullable: true },
+              accepted_invite_at: { type: :string, format: 'date-time', nullable: true, description: 'Null until the invite link has been used to set a password.' }
             }
           },
           Employee: {
@@ -61,7 +63,7 @@ RSpec.configure do |config|
               full_name:                 { type: :string, example: 'Cara Erikson' },
               phone:                     { type: :string, nullable: true, example: '07700 900000' },
               avatar_url:                { type: :string, nullable: true, description: 'Absolute URL of the uploaded avatar, or null.' },
-              role:                      { type: :string, enum: %w[carer senior_carer] },
+              role:                      { type: :string, enum: %w[carer] },
               employee_reference:        { type: :string, nullable: true },
               contracted_hours_per_week: { type: :number, nullable: true, example: 37.5 },
               active:                    { type: :boolean, example: true },
