@@ -105,7 +105,7 @@ export default function LoginPage() {
         <Icon name={dark ? 'sun' : 'moon'} size={20} />
       </div>
 
-      <div style={s('width:100%;max-width:940px;background:var(--d-card);border-radius:32px;overflow:hidden;display:flex;flex-wrap:wrap')}>
+      <div style={s('width:100%;max-width:940px;background:var(--d-card);border:1px solid var(--d-border);box-shadow:0 24px 60px rgba(2,6,23,0.10);border-radius:32px;overflow:hidden;display:flex;flex-wrap:wrap')}>
         {/* Brand panel */}
         <div style={s('flex:1 1 380px;min-width:300px;background:var(--d-panel);padding:40px 38px;display:flex;flex-direction:column;gap:28px')}>
           <div style={s('display:flex;align-items:center;gap:14px')}>
