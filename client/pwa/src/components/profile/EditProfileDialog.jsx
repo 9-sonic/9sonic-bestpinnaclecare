@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Modal from '../common/Modal.jsx';
 import Button from '../common/Button.jsx';
 import Avatar from '../common/Avatar.jsx';
 import Icon from '../common/Icon.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
-import { updateProfile } from '../../api/auth.js';
+import { updateProfile, uploadAvatar } from '../../api/auth.js';
 
 // Edit the fields a carer is allowed to change themselves. Staff ID and role
 // are set by the office, so they are shown read only.
@@ -22,8 +22,26 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef(null);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  async function onPickPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const updated = await uploadAvatar(file);
+      onSaved?.(updated); // refresh the user everywhere (header, hero, chats)
+      toast.success('Photo updated');
+    } catch (err) {
+      toast.error(err.message || 'Could not update your photo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   function validate() {
     const next = {};
@@ -67,9 +85,21 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
       <form onSubmit={handleSave} className="form-stack">
         <div className="edit-photo">
           <Avatar name={form.name} src={user?.avatar} size={68} />
-          <button type="button" className="edit-photo__btn">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            hidden
+            onChange={onPickPhoto}
+          />
+          <button
+            type="button"
+            className="edit-photo__btn"
+            onClick={() => fileRef.current?.click()}
+            disabled={photoBusy}
+          >
             <Icon name="camera" size={15} />
-            Change photo
+            {photoBusy ? 'Uploading…' : 'Change photo'}
           </button>
         </div>
 
