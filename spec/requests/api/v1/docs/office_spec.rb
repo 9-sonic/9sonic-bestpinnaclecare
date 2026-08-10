@@ -140,6 +140,11 @@ RSpec.describe "Office (admin)", type: :request do
       tags "Office — Rota"; produces "application/json"; security [ bearerAuth: [] ]
       let(:id) { create(:visit, service_user: su).id }
       response(200, "published") { schema "$ref" => "#/components/schemas/Visit"; run_test! }
+      response(422, "start is in the past") do
+        schema "$ref" => "#/components/schemas/Error"
+        let(:id) { create(:visit, service_user: su, scheduled_start: 2.hours.ago, scheduled_end: 1.hour.ago).id }
+        run_test!
+      end
     end
   end
 

@@ -847,10 +847,13 @@ paths:
       - Auth
       security:
       - bearerAuth: []
-      description: Denylists the presented bearer token.
+      description: Denylists the presented bearer token. Requires a valid admin or
+        employee token.
       responses:
         '204':
           description: logged out
+        '401':
+          description: unauthenticated
   "/api/v1/admin/me":
     get:
       summary: Current admin
@@ -1931,6 +1934,12 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/Visit"
+        '422':
+          description: start is in the past
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
   "/api/v1/admin/visit_assignments":
     post:
       summary: Assign a carer to a visit
@@ -3295,12 +3304,6 @@ paths:
                   options:
                     type: object
                     description: PublicKeyCredentialRequestOptions for navigator.credentials.get()
-        '404':
-          description: no passkey enrolled
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/Error"
       requestBody:
         content:
           application/json:

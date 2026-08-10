@@ -47,6 +47,13 @@ module Api
         # POST /api/v1/admin/visits/:id/publish
         def publish
           visit = Visit.find(params[:id])
+          # A visit can't be published once its start time has passed — publishing
+          # is a forward-looking act, and back-dating it would let invalid data
+          # into the rota (breaking scheduling, payroll and care delivery).
+          if visit.scheduled_start.present? && visit.scheduled_start.past?
+            return render json: { error: "visit_in_past" }, status: 422
+          end
+
           visit.update!(status: :published, published_at: Time.current, published_by: current_admin)
           render json: VisitSerializer.call(visit)
         end

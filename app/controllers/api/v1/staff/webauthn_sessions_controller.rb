@@ -8,11 +8,18 @@ module Api
         # POST /api/v1/staff/webauthn/authentication/options { email }
         def create_options
           employee = Employee.find_for_authentication(email: params[:email].to_s.downcase)
-          unless employee&.webauthn_credentials&.exists?
-            return render json: { error: "no_passkey" }, status: :not_found
-          end
 
-          options = Webauthn::AuthenticationOptions.call(employee)
+          # Always answer with the same shape and status. For an unknown email
+          # (or an account without a passkey) we return a decoy challenge, so the
+          # response can't reveal which staff addresses are registered. A later
+          # authentication attempt against a decoy simply fails.
+          options =
+            if employee&.webauthn_credentials&.exists?
+              Webauthn::AuthenticationOptions.call(employee)
+            else
+              Webauthn::AuthenticationOptions.decoy
+            end
+
           render json: {
             challenge_token: Webauthn::ChallengeToken.issue(options.challenge, :auth),
             options: options.as_json

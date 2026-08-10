@@ -15,12 +15,14 @@ RSpec.describe "Admin visits & scheduling", type: :request do
                    recurrence: "daily", effective_from: Date.current.iso8601 }, headers: auth, as: :json
     expect(response).to have_http_status(:created)
 
+    # Generate a future window so the visit we publish hasn't already started
+    # (publishing a past visit is refused — see the dedicated example below).
     post "/api/v1/admin/visits/generate",
-         params: { from: Date.current.iso8601, to: (Date.current + 2).iso8601 }, headers: auth, as: :json
+         params: { from: (Date.current + 1).iso8601, to: (Date.current + 3).iso8601 }, headers: auth, as: :json
     expect(response).to have_http_status(:created)
     expect(response.parsed_body["created"]).to eq(3)
 
-    get "/api/v1/admin/visits", params: { from: Date.current.iso8601, to: (Date.current + 2).iso8601 }, headers: auth
+    get "/api/v1/admin/visits", params: { from: (Date.current + 1).iso8601, to: (Date.current + 3).iso8601 }, headers: auth
     expect(response.parsed_body.size).to eq(3)
     visit_id = response.parsed_body.first["id"]
 
@@ -45,6 +47,15 @@ RSpec.describe "Admin visits & scheduling", type: :request do
     monday = Date.current.next_occurring(:monday)
     post "/api/v1/admin/visits/generate", params: { from: monday.iso8601, to: monday.iso8601 }, headers: auth, as: :json
     expect(response.parsed_body["created"]).to eq(0)
+  end
+
+  it "refuses to publish a visit whose start is already in the past (422)" do
+    past = create(:visit, service_user: create(:service_user),
+                          scheduled_start: 2.hours.ago, scheduled_end: 1.hour.ago, status: :draft)
+    post "/api/v1/admin/visits/#{past.id}/publish", headers: auth
+    expect(response).to have_http_status(422)
+    expect(response.parsed_body["error"]).to eq("visit_in_past")
+    expect(past.reload.status).to eq("draft")
   end
 
   describe "PATCH /admin/visits/:id — retime (audited, honest record protected)" do

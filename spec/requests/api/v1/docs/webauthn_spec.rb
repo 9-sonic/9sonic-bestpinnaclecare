@@ -81,12 +81,9 @@ RSpec.describe "WebAuthn (carer passkeys)", type: :request do
         let(:body) { { email: employee.email } }
         run_test!
       end
-
-      response(404, "no passkey enrolled") do
-        schema "$ref" => "#/components/schemas/Error"
-        let(:body) { { email: "ghost@bestpinnacle.test" } }
-        run_test!
-      end
+      # NB: an unknown email deliberately returns the same 200 + shape (a decoy
+      # challenge) so the endpoint can't enumerate registered staff. Covered by
+      # spec/requests/api/v1/staff/webauthn_spec.rb.
     end
   end
 
