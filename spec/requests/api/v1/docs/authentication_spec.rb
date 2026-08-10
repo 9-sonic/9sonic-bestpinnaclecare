@@ -103,10 +103,16 @@ RSpec.describe "Authentication", type: :request do
     delete("Log out (revoke token)") do
       tags "Auth"
       security [ bearerAuth: [] ]
-      description "Denylists the presented bearer token."
+      description "Denylists the presented bearer token. Requires a valid admin or employee token."
       response(204, "logged out") do
         let(:admin) { create(:admin) }
         let(:Authorization) { "Bearer #{jwt_for(admin, :admin)}" }
+        run_test!
+      end
+
+      response(401, "unauthenticated") do
+        schema "$ref" => "#/components/schemas/Error"
+        let(:Authorization) { "" }
         run_test!
       end
     end

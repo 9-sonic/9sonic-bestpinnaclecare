@@ -38,9 +38,13 @@ RSpec.describe "WebAuthn passkeys (staff)", type: :request, webauthn: true do
     expect(response.parsed_body.dig("employee", "email")).to eq("carer@bpc.test")
   end
 
-  it "returns no_passkey for an unknown email" do
+  it "returns 200 request options for an unknown email (no account enumeration)" do
     post "/api/v1/staff/webauthn/authentication/options", params: { email: "ghost@bpc.test" }, as: :json
-    expect(response).to have_http_status(:not_found)
+    # Same status + shape as a real account, so the endpoint can't be used to
+    # discover which staff emails are registered.
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["challenge_token"]).to be_present
+    expect(response.parsed_body.dig("options", "challenge")).to be_present
   end
 
   it "rejects a garbage/expired challenge token on registration" do

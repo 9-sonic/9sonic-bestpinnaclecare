@@ -27,4 +27,9 @@ RSpec.describe "Sessions (me + logout)", type: :request do
     get "/api/v1/admin/me", headers: { "Authorization" => "Bearer #{token}" }
     expect(response).to have_http_status(:unauthorized)
   end
+
+  it "DELETE /api/v1/auth/logout is unauthorized without a token" do
+    delete "/api/v1/auth/logout"
+    expect(response).to have_http_status(:unauthorized)
+  end
 end
