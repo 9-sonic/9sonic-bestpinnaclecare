@@ -1,7 +1,7 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { setRefreshToken, setTokenExpiry } from '../utils/storage.js';
+import { setRefreshToken, setTokenExpiry, getToken } from '../utils/storage.js';
 import { toUser, toAvailabilityDays, toAvailabilityEntries } from './adapters.js';
 
 // Carer authentication. The API keeps admins and employees in separate tables
@@ -89,6 +89,36 @@ export async function updateProfile(patch) {
   };
 
   return toUser(await api.patch('/staff/me', body));
+}
+
+// Profile photo — POST /staff/me/avatar (multipart). Uses a raw fetch so the
+// browser sets the multipart boundary (the JSON client would force
+// application/json and drop the file). Returns the refreshed user.
+export async function uploadAvatar(file) {
+  if (env.useMock) return toUser(await mock.fetchCurrentUser());
+
+  const fd = new FormData();
+  fd.append('avatar', file);
+  const res = await fetch(`${env.apiBaseUrl}/staff/me/avatar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: fd,
+  });
+  if (!res.ok) {
+    let err;
+    try { err = await res.json(); } catch { /* non-json */ }
+    const msg = err?.error === 'too_large' ? 'That image is too large (max 5 MB).'
+      : err?.error === 'unsupported_type' ? 'Please choose a PNG, JPG, WEBP or GIF.'
+      : 'Could not upload the photo.';
+    throw new Error(msg);
+  }
+  return toUser(await res.json());
+}
+
+// DELETE /staff/me/avatar — falls back to initials.
+export async function removeAvatar() {
+  if (env.useMock) return toUser(await mock.fetchCurrentUser());
+  return toUser(await api.delete('/staff/me/avatar'));
 }
 
 // ---------------------------------------------------------------------------
