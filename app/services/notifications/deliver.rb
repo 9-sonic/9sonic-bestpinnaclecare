@@ -4,7 +4,11 @@ module Notifications
   # channel (in_app = the live bell; push/email = queued for their sender jobs).
   # Idempotency and the actual push/email transport are follow-ups.
   class Deliver
-    CHANNEL_DEFAULTS = { "in_app" => true, "push" => true, "email" => false }.freeze
+    # Email is on by default so people don't miss things; a recipient can still
+    # opt out per type via their NotificationPreference. Only channels that a
+    # caller actually requests are considered (per-DM messages don't request
+    # :email, so they never generate a per-message email).
+    CHANNEL_DEFAULTS = { "in_app" => true, "push" => true, "email" => true }.freeze
     CRITICAL_CATEGORIES = %w[missed_visit no_clock_out].freeze
 
     def self.call(recipients:, category:, title:, body: nil, channels: %w[in_app push], alert: nil, subject: nil, kind: nil)
@@ -12,7 +16,7 @@ module Notifications
         channels.filter_map do |channel|
           next unless enabled?(recipient, category, channel)
 
-          Notification.create!(
+          notification = Notification.create!(
             recipient:         recipient,
             notification_type: kind || (alert ? "alert" : "system"),
             alert:             alert,
@@ -22,6 +26,10 @@ module Notifications
             channel:           channel,
             status:            "queued"
           )
+          # in_app is read live off the row; email is actually sent (and the row
+          # marked sent/failed) by its own background job.
+          Notifications::EmailNotificationJob.perform_later(notification.id) if channel == "email"
+          notification
         end
       end
     end
