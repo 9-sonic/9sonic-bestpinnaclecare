@@ -111,6 +111,9 @@ Rails.application.routes.draw do
           end
         end
         get "timesheet_exports/:id", to: "timesheet_exports#show"
+        get "report_exports",        to: "report_exports#show"
+        get "audit_exports",         to: "audit_exports#show"
+        get "rota_exports",          to: "rota_exports#show"
         resources :timesheet_disputes, only: %i[index] do
           member { post :resolve }
         end

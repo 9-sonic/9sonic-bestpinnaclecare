@@ -247,6 +247,51 @@ export async function exportTimesheetPeriod(id, type = 'csv') {
   URL.revokeObjectURL(url);
 }
 
+// Streams the report pack file (CSV or XLSX) and triggers a download.
+export async function exportReportPack(from, to, type = 'csv') {
+  const qs = new URLSearchParams({ from, to, type }).toString();
+  const res = await fetch(`${env.apiBaseUrl}/admin/report_exports?${qs}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Could not generate the report pack');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `report-pack.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Streams the audit log file (CSV or XLSX) and triggers a download.
+export async function exportAuditLog(params = {}, type = 'csv') {
+  const qs = new URLSearchParams({ ...params, type }).toString();
+  const res = await fetch(`${env.apiBaseUrl}/admin/audit_exports?${qs}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Could not generate the audit export');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `audit-log.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Streams the rota file (CSV or XLSX) and triggers a download.
+export async function exportRota(from, to, type = 'csv') {
+  const qs = new URLSearchParams({ from, to, type }).toString();
+  const res = await fetch(`${env.apiBaseUrl}/admin/rota_exports?${qs}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Could not generate the rota export');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `rota.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const resolveDispute = pick(mock.resolveDispute, (id, note) =>
   api.post(`/admin/timesheet_disputes/${id}/resolve`, { resolution_note: note })
 );

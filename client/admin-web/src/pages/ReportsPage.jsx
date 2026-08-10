@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { getReports } from '../api/index.js';
+import { getReports, exportReportPack } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, LineChart, BarChart, StackedBars, DonutChart, CHART, SegTabs } from '../ds/console.jsx';
 
@@ -12,6 +12,7 @@ const SEV_LABEL = { high: 'High', normal: 'Normal' };
 
 export default function ReportsPage() {
   const toast = useToast();
+  const [exporting, setExporting] = useState(false);
   const [range, setRange] = useState('week');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +61,10 @@ export default function ReportsPage() {
             <div style={s('font-size:20px;font-weight:700;color:var(--d-primary-deep);letter-spacing:-0.3px')}>How clocking performed this period</div>
             <div style={s('font-size:13px;font-weight:500;color:var(--d-ink2);margin-top:3px')}>Attendance, punctuality and exceptions across every care visit — from real clock records.</div>
           </div>
-          <Button variant="primary" icon="download" onClick={() => toast.success('Report pack built — ready to download')}>Build report pack</Button>
+          <div style={s('display:flex;gap:8px')}>
+            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { const days = RANGES.find((r) => r.id === range)?.days ?? 7; const to = new Date(); const from = new Date(to.getTime() - days * 86400000); await exportReportPack(from.toISOString(), to.toISOString(), 'csv'); toast.success('CSV report pack downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
+            <Button variant="primary" icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { const days = RANGES.find((r) => r.id === range)?.days ?? 7; const to = new Date(); const from = new Date(to.getTime() - days * 86400000); await exportReportPack(from.toISOString(), to.toISOString(), 'xlsx'); toast.success('XLSX report pack downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Building…' : 'Export report pack'}</Button>
+          </div>
         </div>
       </Panel>
 

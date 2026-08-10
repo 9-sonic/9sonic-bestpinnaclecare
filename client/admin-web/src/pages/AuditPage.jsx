@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
-import { listAudit } from '../api/index.js';
+import { useToast } from '../context/ToastContext.jsx';
+import { listAudit, exportAuditLog } from '../api/index.js';
 import { formatDate, formatTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'Everything', icon: 'menu', test: () => true },
@@ -51,9 +52,11 @@ function mapEvent(e) {
 }
 
 export default function AuditPage() {
+  const toast = useToast();
   const [entries, setEntries] = useState(null); // null = loading
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -81,9 +84,13 @@ export default function AuditPage() {
       <div style={s('display:flex;flex-direction:column')}>
         <SegTabs tabs={FILTERS.map((f) => ({ key: f.id, label: f.label, count: entries.filter(f.test).length }))} active={filter} onSelect={setFilter} />
         <div style={s('display:flex;flex-direction:column;gap:14px;margin-top:12px')}>
-          <div style={s('height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
-            <Icon name="search" size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search author, record or reason" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+          <div style={s('display:flex;gap:10px;align-items:center;flex-wrap:wrap')}>
+            <div style={s('flex:1;min-width:200px;height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
+              <Icon name="search" size={16} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search author, record or reason" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+            </div>
+            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({ event_type: filter !== 'all' ? undefined : undefined }, 'csv'); toast.success('Audit CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
+            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({}, 'xlsx'); toast.success('Audit XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'XLSX'}</Button>
           </div>
 
           {dates.length === 0 ? (
