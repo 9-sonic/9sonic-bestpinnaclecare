@@ -7,8 +7,8 @@ RSpec.describe "Staff clock-in/out (geofenced)", type: :request do
   let(:va)           { create(:visit_assignment, visit: visit, employee: employee) }
   let(:auth)         { { "Authorization" => "Bearer #{jwt_for(employee, :employee)}" } }
 
-  def clock(kind:, lat:, lng:, occurred_at: Time.current, cid: SecureRandom.uuid)
-    post "/api/v1/staff/visit_assignments/#{va.id}/clock",
+  def clock(kind:, lat:, lng:, occurred_at: Time.current, cid: SecureRandom.uuid, assignment: va)
+    post "/api/v1/staff/visit_assignments/#{assignment.id}/clock",
          params: { kind: kind, client_event_id: cid, occurred_at: occurred_at.iso8601, lat: lat, lng: lng, accuracy_m: 5 },
          headers: auth, as: :json
   end
@@ -36,6 +36,22 @@ RSpec.describe "Staff clock-in/out (geofenced)", type: :request do
     expect(Alert.where(subject: va, alert_type: "geo_anomaly", state: "open")).to exist
   end
 
+  it "rejects clocking in before the check-in window opens (422 too_early, no event)" do
+    future = create(:visit, service_user: service_user, scheduled_start: 3.hours.from_now, scheduled_end: 4.hours.from_now)
+    fva    = create(:visit_assignment, visit: future, employee: employee)
+
+    expect do
+      post "/api/v1/staff/visit_assignments/#{fva.id}/clock",
+           params: { kind: "clock_in", client_event_id: SecureRandom.uuid, occurred_at: Time.current.iso8601,
+                     lat: 53.4808, lng: -2.2426, accuracy_m: 5 }, # on-site: proves it's the time gate, not geofence
+           headers: auth, as: :json
+    end.not_to change(ClockEvent, :count)
+
+    expect(response).to have_http_status(422)
+    expect(response.parsed_body["error"]).to eq("too_early")
+    expect(fva.reload.lifecycle_state).to eq("scheduled")
+  end
+
   it "is idempotent on client_event_id (replay -> 200, single event)" do
     cid = SecureRandom.uuid
     clock(kind: "clock_in", lat: 53.4808, lng: -2.2426, cid: cid)
@@ -45,11 +61,15 @@ RSpec.describe "Staff clock-in/out (geofenced)", type: :request do
   end
 
   it "records worked minutes on clock-out" do
-    clock(kind: "clock_in",  lat: 53.4808, lng: -2.2426, occurred_at: 8.minutes.ago)
-    clock(kind: "clock_out", lat: 53.4808, lng: -2.2426, occurred_at: Time.current)
+    # A visit already under way, so clocking in 8 minutes ago is inside the
+    # check-in window (not refused as too-early).
+    started = create(:visit, service_user: service_user, scheduled_start: 20.minutes.ago, scheduled_end: 2.hours.from_now)
+    sva     = create(:visit_assignment, visit: started, employee: employee)
+    clock(kind: "clock_in",  lat: 53.4808, lng: -2.2426, occurred_at: 8.minutes.ago, assignment: sva)
+    clock(kind: "clock_out", lat: 53.4808, lng: -2.2426, occurred_at: Time.current, assignment: sva)
     expect(response).to have_http_status(:created)
-    expect(va.reload.lifecycle_state).to eq("completed")
-    expect(va.worked_minutes).to eq(8)
+    expect(sva.reload.lifecycle_state).to eq("completed")
+    expect(sva.worked_minutes).to eq(8)
   end
 
   it "won't let a carer clock someone else's visit" do

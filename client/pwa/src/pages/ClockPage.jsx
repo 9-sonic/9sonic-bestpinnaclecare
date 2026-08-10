@@ -161,6 +161,13 @@ export default function ClockPage() {
           return;
         }
 
+        // The shift hasn't started yet — clocking in opens shortly before it.
+        if (err.code === 'too_early') {
+          errorFeedback();
+          setError("This shift hasn't started yet. You can clock in shortly before it begins.");
+          return;
+        }
+
         if (!online || err.isNetworkError) {
           enqueue({ visitAssignmentId: shift.id, event });
           warnFeedback();

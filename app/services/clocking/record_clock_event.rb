@@ -40,7 +40,14 @@ module Clocking
         if @kind == "clock_in" && geo.blocked && @on_block == :reject
           return Result.new(status: :blocked, geofence_result: geo.result, distance_m: geo.distance_m, error: "too_far")
         end
-        anomaly = time_anomaly? || geo.result == "no_fix" || geo.result == "fail"
+        # A shift can't be started before its check-in window opens — i.e. more
+        # than Setting.checkin_window_before_start_minutes before scheduled_start.
+        # Live clock-ins are rejected; offline events that turn up early are
+        # flagged for review rather than silently accepted.
+        if @kind == "clock_in" && too_early? && @on_block == :reject
+          return Result.new(status: :blocked, geofence_result: geo.result, distance_m: geo.distance_m, error: "too_early")
+        end
+        anomaly = time_anomaly? || too_early? || geo.result == "no_fix" || geo.result == "fail"
       end
 
       event = nil
@@ -80,6 +87,15 @@ module Clocking
 
     def time_anomaly?
       ((Time.current - @occurred_at).abs / 60.0) > Setting.instance.clock_skew_tolerance_minutes
+    end
+
+    # True when the clock-in is earlier than the visit's check-in window allows.
+    def too_early?
+      return @too_early if defined?(@too_early)
+
+      start = @va.visit.scheduled_start
+      window = Setting.instance.checkin_window_before_start_minutes.to_i
+      @too_early = start.present? && @occurred_at < (start - window.minutes)
     end
 
     def advance_lifecycle(anomaly:)
