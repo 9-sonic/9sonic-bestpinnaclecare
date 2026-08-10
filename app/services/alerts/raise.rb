@@ -25,7 +25,7 @@ module Alerts
         alert:      alert,
         subject:    alert.subject,
         title:      TITLES.fetch(alert.alert_type, alert.alert_type.humanize),
-        channels:   %w[in_app push]
+        channels:   %w[in_app push email]
       )
     end
   end

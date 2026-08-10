@@ -16,7 +16,7 @@ module Messaging
       Notifications::Deliver.call(
         recipients: unread, category: "message", kind: "message",
         title: "Reminder: unread message", body: message.body&.truncate(80),
-        subject: conversation, channels: %w[in_app push]
+        subject: conversation, channels: %w[in_app push email]
       )
       Result.new(chased: unread.size, message: message)
     end
