@@ -219,4 +219,43 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
       response(204, "withdrawn") { run_test! }
     end
   end
+
+  # ---- Exports (rota / audit / reports) — stream a CSV or XLSX file ----
+  path "/api/v1/admin/rota_exports" do
+    get("Export the rota (CSV or XLSX)") do
+      tags "Office — Rota"; produces "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; security [ bearerAuth: [] ]
+      description "Visits + carer assignments for a date range. type=csv (default) or xlsx."
+      parameter name: :from, in: :query, required: false, schema: { type: :string, format: :date }
+      parameter name: :to,   in: :query, required: false, schema: { type: :string, format: :date }
+      parameter name: :type, in: :query, required: false, schema: { type: :string, enum: %w[csv xlsx] }
+      before { create(:visit, service_user: su) }
+      let(:type) { "csv" }
+      response(200, "file") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/audit_exports" do
+    get("Export the audit log (CSV or XLSX)") do
+      tags "Office — Audit"; produces "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; security [ bearerAuth: [] ]
+      description "Append-only Event log as a file. Same filters as /admin/audit (event_type, aggregate_type, limit). type=csv (default) or xlsx."
+      parameter name: :type,           in: :query, required: false, schema: { type: :string, enum: %w[csv xlsx] }
+      parameter name: :event_type,     in: :query, required: false, schema: { type: :string }
+      parameter name: :aggregate_type, in: :query, required: false, schema: { type: :string }
+      parameter name: :limit,          in: :query, required: false, schema: { type: :integer }
+      let(:type) { "csv" }
+      response(200, "file") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/report_exports" do
+    get("Export the report pack (CSV or XLSX)") do
+      tags "Office — Reports"; produces "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; security [ bearerAuth: [] ]
+      description "Clocking-performance aggregates for a date range. type=csv (default) or xlsx."
+      parameter name: :from, in: :query, required: false, schema: { type: :string, format: "date-time" }
+      parameter name: :to,   in: :query, required: false, schema: { type: :string, format: "date-time" }
+      parameter name: :type, in: :query, required: false, schema: { type: :string, enum: %w[csv xlsx] }
+      let(:type) { "csv" }
+      response(200, "file") { run_test! }
+    end
+  end
 end

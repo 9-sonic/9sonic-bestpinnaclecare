@@ -89,7 +89,7 @@ export default function AuditPage() {
               <Icon name="search" size={16} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search author, record or reason" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
             </div>
-            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({ event_type: filter !== 'all' ? undefined : undefined }, 'csv'); toast.success('Audit CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
+            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({}, 'csv'); toast.success('Audit CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
             <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({}, 'xlsx'); toast.success('Audit XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'XLSX'}</Button>
           </div>
 
