@@ -5,7 +5,17 @@ name: 🚀 Deploy
 on:
   push:
     branches: [main]
+  # Manual redeploy. A push deploys only the side whose files changed (paths
+  # filter below); a manual run has no diff, so the filter reports "nothing
+  # changed" and would deploy nothing. `target` lets you force one side — e.g.
+  # re-ship the PWA's static bundle without touching its source.
   workflow_dispatch:
+    inputs:
+      target:
+        description: Which side to force-deploy
+        type: choice
+        options: [all, backend, pwa, admin-web]
+        default: all
 
 # Path-scoped deploys: the Rails API, the carer PWA, and the admin web app each
 # deploy only when their own files change; a change to several deploys several.
@@ -64,7 +74,9 @@ jobs:
   # ---- Deploy the Rails API (repo root) ----
   backend:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: >-
+      needs.changes.outputs.backend == 'true' ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","backend"]'), inputs.target))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -125,7 +137,9 @@ jobs:
   # app is scaffolded (no package.json yet), so it never blocks a backend deploy.
   pwa:
     needs: changes
-    if: needs.changes.outputs.pwa == 'true'
+    if: >-
+      needs.changes.outputs.pwa == 'true' ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","pwa"]'), inputs.target))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -197,7 +211,9 @@ jobs:
   # ---- Deploy the admin web app (client/admin-web -> admin.bestpinnaclecare.co.uk) ----
   admin-web:
     needs: changes
-    if: needs.changes.outputs.admin_web == 'true'
+    if: >-
+      needs.changes.outputs.admin_web == 'true' ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","admin-web"]'), inputs.target))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
