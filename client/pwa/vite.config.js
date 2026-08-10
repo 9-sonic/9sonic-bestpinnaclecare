@@ -16,7 +16,7 @@ export default defineConfig({
       // prompt: we surface our own "new version ready" bar instead of
       // silently swapping the app out from under a carer mid-shift.
       registerType: 'prompt',
-      includeAssets: ['logo.png', 'icons/favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['logo.png', 'pwa-icons/favicon.svg', 'pwa-icons/apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Offline clock-in is a Must — navigation falls back to the cached shell.
@@ -80,19 +80,19 @@ export default defineConfig({
         //
         // Regenerate with scripts/make-icons.mjs after changing the logo.
         icons: [
-          { src: '/icons/icon-48.png', sizes: '48x48', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-72.png', sizes: '72x72', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-96.png', sizes: '96x96', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-256.png', sizes: '256x256', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-48.png', sizes: '48x48', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-72.png', sizes: '72x72', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-96.png', sizes: '96x96', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-256.png', sizes: '256x256', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           // Separate artwork with the logo pulled well inside the safe zone,
           // because Android crops maskable icons to a circle or a squircle.
-          { src: '/icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         // Long-press the installed icon to jump straight to a task.
         shortcuts: [
@@ -101,21 +101,21 @@ export default defineConfig({
             short_name: 'Clock',
             url: '/clock',
             description: 'Open the shift timer',
-            icons: [{ src: '/icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
+            icons: [{ src: '/pwa-icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
           },
           {
             name: "Today's shifts",
             short_name: 'Shifts',
             url: '/shifts',
             description: 'See your rota',
-            icons: [{ src: '/icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
+            icons: [{ src: '/pwa-icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
           },
           {
             name: 'Messages',
             short_name: 'Messages',
             url: '/messages',
             description: 'Talk to your team',
-            icons: [{ src: '/icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
+            icons: [{ src: '/pwa-icons/icon-96.png', sizes: '96x96', type: 'image/png' }],
           },
         ],
       },
