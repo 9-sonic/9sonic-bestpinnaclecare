@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
   assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit, copyRota,
+  exportRota,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -313,6 +314,7 @@ export default function RotaPage() {
   const [creating, setCreating] = useState(null);
   const [detail, setDetail] = useState(null);
   const [selected, setSelected] = useState([]);
+  const [exporting, setExporting] = useState(false);
 
   const range = useMemo(() => weekOf(weekStart), [weekStart]);
 
@@ -407,6 +409,8 @@ export default function RotaPage() {
           <Button icon="refresh" onClick={busy ? undefined : handleGenerate}>{busy ? 'Working…' : 'Generate from care packages'}</Button>
           <Button icon="sync" onClick={busy ? undefined : handleDuplicate}>Duplicate last week</Button>
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
+          <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'csv'); toast.success('Rota CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
+          <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'xlsx'); toast.success('Rota XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'Export rota'}</Button>
           <Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button>
         </div>
       )}
