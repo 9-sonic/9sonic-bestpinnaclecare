@@ -11,6 +11,8 @@ import Modal from '../components/common/Modal.jsx';
 import EmbeddedMap from '../components/nav/EmbeddedMap.jsx';
 import { formatTimeRange } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
+import { getCurrentLocation } from '../utils/geolocation.js';
+import { getDrivingRoute } from '../utils/googleMaps.js';
 
 // Getting to the visit.
 //
@@ -24,6 +26,8 @@ export default function NavigationPage() {
   const [shift, setShift] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chooser, setChooser] = useState(false);
+  // undefined = still calculating, null = unavailable, object = a real route.
+  const [route, setRoute] = useState(undefined);
 
   useEffect(() => {
     let active = true;
@@ -35,6 +39,32 @@ export default function NavigationPage() {
     };
   }, [shiftId]);
 
+  // Real driving ETA + distance from the carer's position to the visit. No key,
+  // no coords, no route, or the Directions API isn't enabled -> null, and the
+  // card shows a dash rather than an invented figure.
+  useEffect(() => {
+    const dest = shift?.geo;
+    if (dest?.lat == null || dest?.lng == null) {
+      setRoute(dest === undefined ? undefined : null);
+      return undefined;
+    }
+    let active = true;
+    setRoute(undefined);
+    (async () => {
+      try {
+        const origin = await getCurrentLocation();
+        if (!origin) throw new Error('no_location');
+        const r = await getDrivingRoute(origin, dest);
+        if (active) setRoute(r);
+      } catch {
+        if (active) setRoute(null);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [shift]);
+
   if (loading) return <Spinner fullscreen />;
   if (!shift) {
     return (
@@ -45,10 +75,17 @@ export default function NavigationPage() {
     );
   }
 
-  const arrival = new Date(Date.now() + 8 * 60000).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const eta = route === undefined ? '…' : (route?.durationText ?? '—');
+  const distance = route === undefined ? '…' : (route?.distanceText ?? '—');
+  const arrival =
+    route?.durationSec != null
+      ? new Date(Date.now() + route.durationSec * 1000).toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : route === undefined
+        ? '…'
+        : '—';
 
   const query = encodeURIComponent(shift.address);
 
@@ -100,11 +137,11 @@ export default function NavigationPage() {
         <div className="nav-dest__stats">
           <div className="nav-stat nav-stat--lead">
             <div className="nav-stat__label">ETA</div>
-            <div className="nav-stat__value">{shift.eta ?? '8 min'}</div>
+            <div className="nav-stat__value">{eta}</div>
           </div>
           <div className="nav-stat">
             <div className="nav-stat__label">Distance</div>
-            <div className="nav-stat__value">{shift.distance ?? '2.4 mi'}</div>
+            <div className="nav-stat__value">{distance}</div>
           </div>
           <div className="nav-stat">
             <div className="nav-stat__label">Arrive</div>
