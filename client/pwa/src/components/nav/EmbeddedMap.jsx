@@ -28,12 +28,16 @@ export default function EmbeddedMap({ destination, coords, origin, mode = 'direc
 
     if (env.mapsApiKey) {
       const base = 'https://www.google.com/maps/embed/v1';
-      // Directions only when we have a real starting coordinate. The old code
-      // used origin=My+Location, which never resolves inside an iframe and left
-      // the map blank — so we only draw a route with an actual origin, and
-      // otherwise show the destination as a place (which always renders).
-      if (mode === 'directions' && origin?.latitude != null && origin?.longitude != null) {
-        return `${base}/directions?key=${env.mapsApiKey}&destination=${dest}&origin=${origin.latitude},${origin.longitude}&mode=driving`;
+      // Draw the road line whenever we're navigating. Use the carer's real
+      // coordinates as the origin when we have them; otherwise let the embed
+      // resolve the origin from the viewer's location. Only fall back to a
+      // plain place pin when we're not in directions mode.
+      if (mode === 'directions') {
+        const from =
+          origin?.latitude != null && origin?.longitude != null
+            ? `${origin.latitude},${origin.longitude}`
+            : 'My+Location';
+        return `${base}/directions?key=${env.mapsApiKey}&destination=${dest}&origin=${from}&mode=driving`;
       }
       return `${base}/place?key=${env.mapsApiKey}&q=${dest}&zoom=15`;
     }
