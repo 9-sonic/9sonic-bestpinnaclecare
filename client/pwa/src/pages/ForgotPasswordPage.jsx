@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import WaveHeader from '../components/common/WaveHeader.jsx';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
+import { requestPasswordReset } from '../api/auth.js';
 
 // Requests a reset link. Always reports the same result whether or not the
 // address exists, so the screen cannot be used to discover who has an account.
@@ -21,9 +22,16 @@ export default function ForgotPasswordPage() {
     }
     setError('');
     setBusy(true);
-    await new Promise((r) => setTimeout(r, 700));
-    setBusy(false);
-    setSent(true);
+    try {
+      await requestPasswordReset(email);
+    } catch {
+      // Ignored on purpose: we always show the same "check your email" result so
+      // the screen can't be used to discover which addresses have an account
+      // (the backend responds the same way too).
+    } finally {
+      setBusy(false);
+      setSent(true);
+    }
   }
 
   return (
