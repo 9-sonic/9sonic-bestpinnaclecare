@@ -26,7 +26,7 @@ RSpec.describe "Visits, clocking & sync", type: :request do
 
       let(:employee) { create(:employee) }
       let(:su) { create(:service_user, lat: 53.4808, lng: -2.2426, geofence_radius_m: 150) }
-      let(:visit) { create(:visit, service_user: su) }
+      let(:visit) { create(:visit, service_user: su, scheduled_start: 5.minutes.from_now) }
       let(:va) { create(:visit_assignment, visit: visit, employee: employee) }
       let(:visit_assignment_id) { va.id }
       let(:Authorization) { "Bearer #{jwt_for(employee, :employee)}" }

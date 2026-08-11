@@ -49,6 +49,15 @@ export default function ClockPage() {
     };
   }, [refresh]);
 
+  // Warm up location as soon as the clock screen opens, so the permission
+  // prompt is handled and a fix is cached before the first tap — otherwise the
+  // very first clock-in often goes out with no location.
+  useEffect(() => {
+    let active = true;
+    getCurrentLocation().then((loc) => { if (active && loc) setGps(loc); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   // The shown shift is derived, not stored. The URL wins when it names a shift
   // that still exists; otherwise fall back to whatever the carer most likely
   // wants. Deriving it means arriving here without the query string, or having
@@ -158,6 +167,20 @@ export default function ClockPage() {
               ? `You are about ${away}m from the address. Move closer and try again.`
               : err.message
           );
+          return;
+        }
+
+        // Block mode, but we couldn't get a location — enable it and retry.
+        if (err.code === 'location_required') {
+          errorFeedback();
+          setError('We couldn’t get your location. Turn on location for this app and try again.');
+          return;
+        }
+
+        // The shift hasn't started yet — clocking in opens shortly before it.
+        if (err.code === 'too_early') {
+          errorFeedback();
+          setError("This shift hasn't started yet. You can clock in shortly before it begins.");
           return;
         }
 

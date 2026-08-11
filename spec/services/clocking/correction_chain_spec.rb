@@ -2,7 +2,9 @@ require "rails_helper"
 
 RSpec.describe "Clock correction chain", type: :model do
   let(:su)    { create(:service_user, lat: 53.4808, lng: -2.2426) }
-  let(:va)    { create(:visit_assignment, visit: create(:visit, service_user: su), employee: create(:employee)) }
+  # A visit already in its check-in window, so clock-ins here exercise the
+  # correction/skew logic rather than being refused as too-early.
+  let(:va)    { create(:visit_assignment, visit: create(:visit, service_user: su, scheduled_start: 30.minutes.ago, scheduled_end: 90.minutes.from_now), employee: create(:employee)) }
   let(:admin) { create(:admin) }
 
   def clock(actor:, occurred_at:, corrects_id: nil, method: "gps", reason: nil)
