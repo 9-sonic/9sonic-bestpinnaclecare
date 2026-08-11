@@ -28,6 +28,8 @@ export default function NavigationPage() {
   const [chooser, setChooser] = useState(false);
   // undefined = still calculating, null = unavailable, object = a real route.
   const [route, setRoute] = useState(undefined);
+  // The carer's current position, so the map can draw a real route from it.
+  const [origin, setOrigin] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -52,9 +54,10 @@ export default function NavigationPage() {
     setRoute(undefined);
     (async () => {
       try {
-        const origin = await getCurrentLocation();
-        if (!origin) throw new Error('no_location');
-        const r = await getDrivingRoute(origin, dest);
+        const here = await getCurrentLocation();
+        if (!here) throw new Error('no_location');
+        if (active) setOrigin(here);
+        const r = await getDrivingRoute(here, dest);
         if (active) setRoute(r);
       } catch {
         if (active) setRoute(null);
@@ -75,17 +78,17 @@ export default function NavigationPage() {
     );
   }
 
-  const eta = route === undefined ? '…' : (route?.durationText ?? '—');
-  const distance = route === undefined ? '…' : (route?.distanceText ?? '—');
-  const arrival =
-    route?.durationSec != null
-      ? new Date(Date.now() + route.durationSec * 1000).toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : route === undefined
-        ? '…'
-        : '—';
+  // Real driving figures when there's a route; otherwise fall back to the
+  // scheduled arrival time so the card is never left blank (e.g. no drivable
+  // route between the carer's current country and the visit).
+  const eta = route?.durationText ?? '…';
+  const distance = route?.distanceText ?? '…';
+  const arrival = route?.durationSec != null
+    ? new Date(Date.now() + route.durationSec * 1000).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : new Date(shift.startsAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
   const query = encodeURIComponent(shift.address);
 
@@ -122,7 +125,7 @@ export default function NavigationPage() {
       />
 
       <div className="map-wrap">
-        <EmbeddedMap destination={shift.address} coords={shift.geo} mode="directions" />
+        <EmbeddedMap destination={shift.address} coords={shift.geo} origin={origin} mode="directions" />
       </div>
 
       <Card className="nav-dest">
