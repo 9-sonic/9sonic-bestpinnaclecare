@@ -25,6 +25,7 @@ const PreferencesPage = lazyWithRetry(() => import('./pages/PreferencesPage.jsx'
 const HelpPage = lazyWithRetry(() => import('./pages/HelpPage.jsx'));
 const LegalPage = lazyWithRetry(() => import('./pages/LegalPage.jsx'));
 const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage.jsx'));
+const SetPasswordPage = lazyWithRetry(() => import('./pages/SetPasswordPage.jsx'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage.jsx'));
 
 export default function App() {
@@ -34,6 +35,9 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        {/* Onboarding + recovery — reached from the emailed invite / reset link. */}
+        <Route path="/accept-invite" element={<SetPasswordPage mode="invite" />} />
+        <Route path="/reset-password" element={<SetPasswordPage mode="reset" />} />
 
         {/* Full-screen authenticated screen (chat has its own composer layout) */}
         <Route
