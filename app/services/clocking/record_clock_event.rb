@@ -40,6 +40,15 @@ module Clocking
         if @kind == "clock_in" && geo.blocked && @on_block == :reject
           return Result.new(status: :blocked, geofence_result: geo.result, distance_m: geo.distance_m, error: "too_far")
         end
+        # Block mode requires a real location on a *live* clock-in. Otherwise the
+        # geofence is bypassed by clocking in with location off/denied: no fix ->
+        # no distance -> not "too_far" -> allowed. A device that reached us live
+        # has connectivity, so it can provide GPS. Offline sync (on_block: :flag)
+        # still records no_fix and flags it, so genuine dead-zone clock-ins are
+        # never dropped.
+        if @kind == "clock_in" && @on_block == :reject && geo.result == "no_fix" && block_mode?
+          return Result.new(status: :blocked, geofence_result: geo.result, error: "location_required")
+        end
         # A shift can't be started before its check-in window opens — i.e. more
         # than Setting.checkin_window_before_start_minutes before scheduled_start.
         # Live clock-ins are rejected; offline events that turn up early are
@@ -87,6 +96,10 @@ module Clocking
 
     def time_anomaly?
       ((Time.current - @occurred_at).abs / 60.0) > Setting.instance.clock_skew_tolerance_minutes
+    end
+
+    def block_mode?
+      Setting.instance.geofence_for(@va.visit.service_user)[:mode] == "block"
     end
 
     # True when the clock-in is earlier than the visit's check-in window allows.

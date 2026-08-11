@@ -28,12 +28,12 @@ RSpec.describe "Staff clock-in/out (geofenced)", type: :request do
     expect(response.parsed_body["distance_m"]).to be > 150
   end
 
-  it "allows clock-in with no GPS fix but routes to review + raises an alert" do
-    clock(kind: "clock_in", lat: nil, lng: nil)
-    expect(response).to have_http_status(:created)
-    expect(response.parsed_body["geofence"]).to eq("no_fix")
-    expect(va.reload.lifecycle_state).to eq("pending_review")
-    expect(Alert.where(subject: va, alert_type: "geo_anomaly", state: "open")).to exist
+  it "rejects a live clock-in with no GPS fix in block mode (422 location_required, no event)" do
+    # Otherwise the geofence is bypassable by clocking in with location off.
+    expect { clock(kind: "clock_in", lat: nil, lng: nil) }.not_to change(ClockEvent, :count)
+    expect(response).to have_http_status(422)
+    expect(response.parsed_body["error"]).to eq("location_required")
+    expect(va.reload.lifecycle_state).to eq("scheduled")
   end
 
   it "rejects clocking in before the check-in window opens (422 too_early, no event)" do
