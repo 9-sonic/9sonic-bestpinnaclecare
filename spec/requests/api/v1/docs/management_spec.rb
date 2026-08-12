@@ -101,14 +101,56 @@ RSpec.describe "Office — management", type: :request do
   path "/api/v1/staff/requests" do
     post("Carer raises a request") do
       tags "Carer — Requests"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Carers raise swap/drop/overtime/availability/leave requests. A carer asking to cancel a visit is a `drop` request; the office decides on it in the requests queue."
       parameter name: :body, in: :body, schema: {
         type: :object,
         properties: { kind: { type: :string, enum: %w[swap drop overtime availability leave] }, summary: { type: :string }, detail: { type: :string } },
         required: %w[kind summary]
       }
       let(:Authorization) { "Bearer #{jwt_for(employee, :employee)}" }
-      let(:body) { { kind: "overtime", summary: "Available for weekend hours" } }
+      let(:body) { { kind: "drop", summary: "Please cancel my Friday 14:00 visit — childcare clash" } }
       response(201, "created") { run_test! }
+    end
+  end
+
+  path "/api/v1/admin/visit_assignments/{id}/reassign" do
+    parameter name: :id, in: :path, type: :integer
+    post("Reassign a visit to a different carer") do
+      tags "Office — Assignments"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Atomically moves a visit from its current carer to another: the existing assignment is withdrawn and a new one created in one transaction, so the visit is never left unassigned and a single `assignment.reassigned` audit event is written. A carer already on a time-overlapping visit is hard-blocked with 422 `carer_unavailable` (no double-booking). Returns the new assignment plus soft rest/weekly-hours warnings — those never block."
+      parameter name: :body, in: :body, schema: {
+        type: :object,
+        properties: { employee_id: { type: :integer, description: "The carer to move the visit to" } },
+        required: %w[employee_id]
+      }
+      let(:carer_a) { create(:employee) }
+      let(:carer_b) { create(:employee) }
+      let(:assignment) { create(:visit_assignment, visit: open_visit, employee: carer_a) }
+      let(:id) { assignment.id }
+
+      response(201, "reassigned to the new carer") do
+        schema type: :object, properties: {
+          id: { type: :integer },
+          warnings: { type: :array, items: { type: :object, properties: { code: { type: :string }, message: { type: :string } } } }
+        }
+        let(:body) { { employee_id: carer_b.id } }
+        run_test!
+      end
+
+      response(422, "blocked — same carer, or the carer is double-booked (carer_unavailable)") do
+        schema type: :object, properties: {
+          error: { type: :string, description: "already_assigned | carer_unavailable" },
+          conflict: {
+            type: :object, nullable: true,
+            properties: {
+              visit_id: { type: :integer }, service_user: { type: :string },
+              scheduled_start: { type: :string }, scheduled_end: { type: :string }
+            }
+          }
+        }
+        let(:body) { { employee_id: carer_a.id } }
+        run_test!
+      end
     end
   end
 end
