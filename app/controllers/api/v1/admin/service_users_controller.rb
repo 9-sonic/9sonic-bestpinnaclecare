@@ -37,7 +37,7 @@ module Api
             scope = scope.where("visits.scheduled_start <= ?", Time.zone.parse(params[:to]).end_of_day)
           end
 
-          page     = [params.fetch(:page, 1).to_i, 1].max
+          page     = [ params.fetch(:page, 1).to_i, 1 ].max
           per_page = params.fetch(:per_page, 50).to_i.clamp(1, 100)
           total    = scope.count
           notes    = scope.preload(:author, visit_assignment: %i[visit employee])

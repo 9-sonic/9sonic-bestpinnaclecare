@@ -49,7 +49,7 @@ RSpec.describe "Admin carer 360", type: :request do
 
     get "/api/v1/admin/employees/#{carer.id}/notes", headers: auth
     bodies = response.parsed_body["items"].map { |n| n["body"] }
-    expect(bodies).to eq(["Mine"])
+    expect(bodies).to eq([ "Mine" ])
   end
 
   it "GET clock_events returns this carer's clock history" do

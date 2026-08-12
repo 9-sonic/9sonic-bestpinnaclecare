@@ -46,10 +46,10 @@ RSpec.describe "Admin care-delivery visibility", type: :request do
     VisitNote.create!(visit_assignment: va_b, author: carer_b,  body: "refused breakfast",     client_note_id: SecureRandom.uuid)
 
     get "/api/v1/admin/service_users/#{service_user.id}/notes", params: { q: "lunch" }, headers: auth
-    expect(response.parsed_body["notes"].map { |n| n["body"] }).to eq(["gave lunch, ate well"])
+    expect(response.parsed_body["notes"].map { |n| n["body"] }).to eq([ "gave lunch, ate well" ])
 
     get "/api/v1/admin/service_users/#{service_user.id}/notes", params: { employee_id: carer_b.id }, headers: auth
-    expect(response.parsed_body["notes"].map { |n| n["body"] }).to eq(["refused breakfast"])
+    expect(response.parsed_body["notes"].map { |n| n["body"] }).to eq([ "refused breakfast" ])
   end
 
   it "excludes superseded notes from the service-user journal" do

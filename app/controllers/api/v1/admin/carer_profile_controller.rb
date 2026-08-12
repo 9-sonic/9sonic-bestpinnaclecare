@@ -95,7 +95,7 @@ module Api
 
         # Shared pagination: ?page=&per_page= -> { items:, page:, per_page:, total: }.
         def paginate(scope)
-          page     = [params.fetch(:page, 1).to_i, 1].max
+          page     = [ params.fetch(:page, 1).to_i, 1 ].max
           per_page = params.fetch(:per_page, PER_PAGE).to_i.clamp(1, 100)
           total    = scope.count
           items    = scope.offset((page - 1) * per_page).limit(per_page).map { |r| yield r }
