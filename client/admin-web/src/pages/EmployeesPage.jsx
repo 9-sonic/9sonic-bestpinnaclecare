@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
 import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import CarerProfileDrawer from './CarerProfileDrawer.jsx';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
 const METHOD = { gps: 'App (GPS)', pin: 'PIN tablet', manual_admin: 'Manual', manual: 'Manual' };
@@ -50,6 +51,7 @@ export default function EmployeesPage() {
   const [availFor, setAvailFor] = useState(null);
   const [avail, setAvail] = useState([]);
   const [availLoading, setAvailLoading] = useState(false);
+  const [profileFor, setProfileFor] = useState(null);   // carer 360 drawer
 
   async function load() { setRows(await listEmployees()); }
   async function openAvailability(e) {
@@ -162,6 +164,7 @@ export default function EmployeesPage() {
                       {canManage && (
                         <Td align="right">
                           <span style={s('display:inline-flex;gap:8px;justify-content:flex-end')}>
+                            <Button size="sm" icon="user" onClick={() => setProfileFor(e)}>View</Button>
                             <Button size="sm" icon="calendar" onClick={() => openAvailability(e)}>Availability</Button>
                             <Button size="sm" onClick={() => openEdit(e)}>Edit</Button>
                             <Button size="sm" variant={e.active ? 'danger' : 'ghost'} onClick={() => toggleActive(e)}>{e.active ? 'Deactivate' : 'Reactivate'}</Button>
@@ -247,6 +250,8 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {profileFor && <CarerProfileDrawer carer={profileFor} onClose={() => setProfileFor(null)} />}
     </div>
   );
 }
