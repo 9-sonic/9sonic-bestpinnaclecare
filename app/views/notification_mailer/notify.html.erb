@@ -1,0 +1,20 @@
+<h1 style="margin:0 0 18px;font-size:21px;font-weight:700;color:#04616f;letter-spacing:-0.3px;"><%= @title %></h1>
+
+<p style="margin:0 0 12px;color:#0d3d4a;">Hi <%= @recipient.first_name %>,</p>
+
+<% if @body.present? %>
+  <p style="margin:0 0 26px;color:#0d3d4a;"><%= @body %></p>
+<% end %>
+
+<!-- Bulletproof button (table wrapper so Outlook fills the background) -->
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 26px;">
+  <tr>
+    <td style="border-radius:12px;background:#0eb2c4;background-image:linear-gradient(100deg,#0a8fa3 0%,#12a2b6 100%);">
+      <a href="<%= @url %>" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:12px;">Open Best Pinnacle Care</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0;color:#8aa9ae;font-size:13px;line-height:1.6;">
+  You're receiving this because email notifications are on for your account. You can turn them off per type in your notification settings.
+</p>
