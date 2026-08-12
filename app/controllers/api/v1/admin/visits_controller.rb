@@ -14,6 +14,25 @@ module Api
           render json: visits.map { |v| VisitSerializer.call(v, include_service_user: true) }
         end
 
+        # GET /api/v1/admin/visits/:id  — the office view of one visit's care
+        # delivery: the schedule, the care plan, which tasks were done, and the
+        # carer's notes. Read-only; mirrors what the carer saw and recorded.
+        def show
+          visit = Visit.includes(:service_user, visit_assignments: %i[employee visit_tasks visit_notes]).find(params[:id])
+          su = visit.service_user
+          render json: VisitSerializer.call(visit, include_service_user: true).merge(
+            care_plan: su.care_plan_items.active.map { |c| CarePlanItemSerializer.call(c) },
+            assignments: visit.visit_assignments.map do |va|
+              {
+                id: va.id,
+                employee: va.employee && { id: va.employee.id, name: va.employee.full_name },
+                tasks: va.visit_tasks.map { |t| VisitTaskSerializer.call(t) },
+                notes: va.visit_notes.effective.sort_by(&:created_at).map { |n| VisitNoteSerializer.call(n) }
+              }
+            end
+          )
+        end
+
         # POST /api/v1/admin/visits  (ad-hoc)
         def create
           visit = Visit.create!(visit_params.merge(status: :draft))
