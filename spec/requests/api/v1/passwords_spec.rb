@@ -11,7 +11,9 @@ RSpec.describe "Password reset", type: :request do
 
     mail = ActionMailer::Base.deliveries.last
     expect(mail.to).to eq([ "boss@bpc.test" ])
-    token = mail.body.to_s[/token=([^\s&]+)/, 1]
+    # Read the decoded text part — the mail is multipart (text + html).
+    body = (mail.text_part || mail).body.decoded
+    token = body[/token=([^\s&]+)/, 1]
     expect(token).to be_present
 
     put "/api/v1/admin/auth/password", params: { token: token, password: "newpass99" }, as: :json
