@@ -17,8 +17,27 @@ module Reports
           su = data[:summary]
           csv << [ "attendance_pct", su[:attendance_pct] ]
           csv << [ "on_time_pct", su[:on_time_pct] ]
+          csv << [ "completed", su[:completed] ]
+          csv << [ "missed", su[:missed] ]
+          csv << [ "unresolved", su[:unresolved] ]
           csv << [ "exceptions", su[:exceptions] ]
+          csv << [ "scheduled_hours", su[:scheduled_hours] ]
           csv << [ "verified_hours", su[:verified_hours] ]
+          csv << [ "break_hours", su[:break_hours] ]
+          csv << [ "tasks_done", su[:tasks_done] ]
+          csv << [ "tasks_total", su[:tasks_total] ]
+          csv << [ "tasks_pct", su[:tasks_pct] ]
+          csv << []
+
+          # Location at clock-in (geofence integrity)
+          csv << %w[metric value]
+          loc = data[:location] || {}
+          csv << [ "clock_ins", loc[:clock_ins] ]
+          csv << [ "on_site", loc[:on_site] ]
+          csv << [ "out_of_range", loc[:out_of_range] ]
+          csv << [ "no_gps_fix", loc[:no_gps_fix] ]
+          csv << [ "not_checked", loc[:not_checked] ]
+          csv << [ "needs_review", loc[:needs_review] ]
           csv << []
 
           # Attendance by day

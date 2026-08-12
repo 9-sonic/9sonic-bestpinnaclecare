@@ -16,8 +16,24 @@ module Reports
           sheet.add_row %w[metric value]
           sheet.add_row [ "attendance_pct", su[:attendance_pct] ]
           sheet.add_row [ "on_time_pct", su[:on_time_pct] ]
+          sheet.add_row [ "completed", su[:completed] ]
+          sheet.add_row [ "missed", su[:missed] ]
+          sheet.add_row [ "unresolved", su[:unresolved] ]
           sheet.add_row [ "exceptions", su[:exceptions] ]
+          sheet.add_row [ "scheduled_hours", su[:scheduled_hours] ]
           sheet.add_row [ "verified_hours", su[:verified_hours] ]
+          sheet.add_row [ "break_hours", su[:break_hours] ]
+          sheet.add_row [ "tasks_done", su[:tasks_done] ]
+          sheet.add_row [ "tasks_total", su[:tasks_total] ]
+          sheet.add_row [ "tasks_pct", su[:tasks_pct] ]
+        end
+
+        wb.add_worksheet(name: "Location at Clock-in") do |sheet|
+          loc = data[:location] || {}
+          sheet.add_row %w[metric value]
+          %i[clock_ins on_site out_of_range no_gps_fix not_checked needs_review].each do |k|
+            sheet.add_row [ k.to_s, loc[k] ]
+          end
         end
 
         wb.add_worksheet(name: "Attendance by Day") do |sheet|
