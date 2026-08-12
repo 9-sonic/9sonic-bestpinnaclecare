@@ -134,7 +134,10 @@ module Clocking
       co = @va.effective_clock_out
       return nil unless ci && co
 
-      (((co.occurred_at - ci.occurred_at) / 60.0)).round
+      gross = ((co.occurred_at - ci.occurred_at) / 60.0).round
+      # Deduct recorded breaks — a carer isn't paid for break time. Never let
+      # rounding drive it below zero.
+      [ gross - @va.break_minutes, 0 ].max
     end
 
     def raise_geo_alert(result)

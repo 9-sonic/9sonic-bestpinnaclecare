@@ -9,7 +9,9 @@ class TimesheetLineSerializer
       scheduled_minutes:   l.scheduled_minutes,
       worked_minutes:      l.worked_minutes,
       break_minutes:       l.break_minutes,
-      flags:               l.flags
+      flags:               l.flags,
+      approved_at:         l.approved_at&.iso8601,
+      approved_by:         l.approved_by&.full_name
     }
   end
 end

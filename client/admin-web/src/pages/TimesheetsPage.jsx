@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listTimesheetPeriods, getTimesheetPeriod, approvePeriod, lockPeriod, listDisputes, resolveDispute, exportTimesheetPeriod } from '../api/index.js';
+import { listTimesheetPeriods, getTimesheetPeriod, approvePeriod, approveCarerLines, lockPeriod, listDisputes, resolveDispute, exportTimesheetPeriod } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
@@ -9,6 +9,7 @@ import { fullName, minutesToHours, formatDate } from '../api/format.js';
 import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
 
 const h = (m) => minutesToHours(m ?? 0);
+const initials = (name) => (name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
 
 export default function TimesheetsPage() {
   const toast = useToast();
@@ -39,24 +40,41 @@ export default function TimesheetsPage() {
   async function handleResolveDispute(d) { try { await resolveDispute(d.id, 'Checked against the original clock records'); toast.success('Query resolved'); await load(); } catch (e) { toast.error(e.message); } }
   async function handleExport(type) { try { await exportTimesheetPeriod(selected.id, type); toast.success(`${type.toUpperCase()} export downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); } }
 
-  // Aggregate the period's lines per carer.
+  // Aggregate the period's lines per carer. Keyed by employee_id (the line
+  // carries that); names + per-carer approval state come from the period's
+  // `carers` rollup so a single carer can be approved independently.
   const carers = useMemo(() => {
     const lines = selected?.lines ?? [];
+    const roll = new Map((selected?.carers ?? []).map((c) => [c.employee_id, c]));
     const map = new Map();
     for (const l of lines) {
-      const key = l.employee?.id ?? 'unknown';
-      const g = map.get(key) ?? { employee: l.employee, worked: 0, scheduled: 0, breaks: 0, flagged: 0, lines: [] };
+      const key = l.employee_id ?? 'unknown';
+      const g = map.get(key) ?? { employeeId: key, worked: 0, scheduled: 0, breaks: 0, flagged: 0, lines: [] };
       g.worked += l.worked_minutes ?? 0; g.scheduled += l.scheduled_minutes ?? 0; g.breaks += l.break_minutes ?? 0;
       g.flagged += (l.flags ?? []).length; g.lines.push(l);
       map.set(key, g);
     }
-    const status = selected?.status;
-    return [...map.values()].map((g) => ({
-      ...g,
-      overtime: Math.max(g.worked - g.scheduled, 0),
-      state: status === 'approved' || status === 'locked' ? 'approved' : g.flagged > 0 ? 'blocked' : 'ready',
-    })).sort((a, b) => fullName(a.employee).localeCompare(fullName(b.employee)));
+    // Approval reflects the carer's real line state (c.approved), not the period
+    // status — a period can be 'approved' while a carer's lines aren't. Locked is
+    // final, so it forces approved regardless.
+    const locked = selected?.status === 'locked';
+    return [...map.values()].map((g) => {
+      const c = roll.get(g.employeeId);
+      const approved = locked || !!c?.approved;
+      return {
+        ...g,
+        name: c?.employee_name ?? 'Unknown carer',
+        overtime: Math.max(g.worked - g.scheduled, 0),
+        state: approved ? 'approved' : g.flagged > 0 ? 'blocked' : 'ready',
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [selected]);
+
+  async function approveOne(employeeId) {
+    setBusy(true);
+    try { const r = await approveCarerLines(selected.id, employeeId); toast.success(`Approved ${r.approved_count} line${r.approved_count === 1 ? '' : 's'}`); await load(selected.id); }
+    catch (e) { toast.error(e.message); } finally { setBusy(false); }
+  }
 
   if (loading) return <Spinner fullscreen />;
 
@@ -126,16 +144,21 @@ export default function TimesheetsPage() {
               <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>Nothing in this period.<div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:4px')}>Lines appear once visits are completed.</div></div>
             ) : (
               <TableWrap minWidth={820}>
-                <thead><tr><Th>Carer</Th><Th align="right">Scheduled</Th><Th align="right">Worked</Th><Th align="right">Breaks</Th><Th align="right">Overtime</Th><Th>Status</Th></tr></thead>
+                <thead><tr><Th>Carer</Th><Th align="right">Scheduled</Th><Th align="right">Worked</Th><Th align="right">Breaks</Th><Th align="right">Overtime</Th><Th>Status</Th><Th /></tr></thead>
                 <tbody>
                   {rows.map((c) => (
-                    <Row key={c.employee?.id} onClick={() => setDetail(c)}>
-                      <Td><span style={s('display:inline-flex;align-items:center;gap:11px')}><Avatar initials={(c.employee?.first_name?.[0] ?? '') + (c.employee?.last_name?.[0] ?? '')} size="sm" /><b style={s('font-weight:700;color:var(--d-ink)')}>{fullName(c.employee)}</b></span></Td>
+                    <Row key={c.employeeId} onClick={() => setDetail(c)}>
+                      <Td><span style={s('display:inline-flex;align-items:center;gap:11px')}><Avatar initials={initials(c.name)} size="sm" /><b style={s('font-weight:700;color:var(--d-ink)')}>{c.name}</b></span></Td>
                       <Td align="right" mono>{h(c.scheduled)}</Td>
                       <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{h(c.worked)}</b></Td>
                       <Td align="right" mono>{h(c.breaks)}</Td>
                       <Td align="right" mono>{c.overtime > 0 ? <span style={s('color:var(--d-magenta);font-weight:700')}>{h(c.overtime)}</span> : '–'}</Td>
                       <Td><Tag tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</Tag></Td>
+                      <Td>{canManage && selected.status !== 'locked' && c.state === 'ready' && (
+                        <span onClick={(e) => { e.stopPropagation(); if (!busy) approveOne(c.employeeId); }}>
+                          <Button size="sm" icon="check">Approve</Button>
+                        </span>
+                      )}</Td>
                     </Row>
                   ))}
                 </tbody>
@@ -175,8 +198,8 @@ export default function TimesheetsPage() {
             ) : (
               <div style={s('display:flex;flex-direction:column;gap:8px')}>
                 {carers.filter((c) => c.state === 'blocked').map((c) => (
-                  <div key={c.employee?.id} onClick={() => setDetail(c)} className="hv" style={{ ...s('background:var(--d-danger-bg);border-radius:12px;padding:11px 13px;cursor:pointer'), '--hbg': 'var(--d-danger-bg2)' }}>
-                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-danger-ink)')}>{fullName(c.employee)}</div>
+                  <div key={c.employeeId} onClick={() => setDetail(c)} className="hv" style={{ ...s('background:var(--d-danger-bg);border-radius:12px;padding:11px 13px;cursor:pointer'), '--hbg': 'var(--d-danger-bg2)' }}>
+                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-danger-ink)')}>{c.name}</div>
                     <div style={s('font-size:11px;font-weight:500;color:var(--d-danger-ink);opacity:0.85;margin-top:2px')}>{[...new Set(c.lines.flatMap((l) => l.flags ?? []))].map((f) => f.replace(/_/g, ' ')).join(', ') || 'Unverified entry'}</div>
                   </div>
                 ))}
@@ -199,9 +222,9 @@ export default function TimesheetsPage() {
         <div onClick={() => setDetail(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
           <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
             <div style={s('padding:22px 24px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:center;gap:12px')}>
-              <Avatar initials={(detail.employee?.first_name?.[0] ?? '') + (detail.employee?.last_name?.[0] ?? '')} />
+              <Avatar initials={initials(detail.name)} />
               <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{fullName(detail.employee)}</div>
+                <div style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{detail.name}</div>
                 <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{h(detail.worked)} worked · {detail.lines.length} visits</div>
               </div>
               <div onClick={() => setDetail(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
