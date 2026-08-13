@@ -1,0 +1,23 @@
+<h1 style="margin:0 0 18px;font-size:21px;font-weight:700;color:#04616f;letter-spacing:-0.3px;">You're invited</h1>
+
+<p style="margin:0 0 12px;color:#0d3d4a;">Hi <%= @name %>,</p>
+
+<p style="margin:0 0 26px;color:#0d3d4a;">You've been invited to Best Pinnacle Care. Set your password to get started.</p>
+
+<!-- Bulletproof button (table wrapper so Outlook fills the background) -->
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 26px;">
+  <tr>
+    <td style="border-radius:12px;background:#0eb2c4;background-image:linear-gradient(100deg,#0a8fa3 0%,#12a2b6 100%);">
+      <a href="<%= @accept_url %>" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:12px;">Set your password</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 22px;color:#5a8a92;font-size:13px;line-height:1.6;">
+  If the button doesn't work, copy and paste this link into your browser:<br>
+  <a href="<%= @accept_url %>" style="color:#0a8fa3;word-break:break-all;"><%= @accept_url %></a>
+</p>
+
+<p style="margin:0;color:#8aa9ae;font-size:13px;">
+  If you weren't expecting this, you can safely ignore this email.
+</p>
