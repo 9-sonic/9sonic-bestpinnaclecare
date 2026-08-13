@@ -84,6 +84,17 @@ export default function CarerProfileDrawer({ carer, onClose }) {
           {tab === 'overview' ? (
             !profile ? <Muted>Loading…</Muted> : (
               <>
+                <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:8px')}>
+                  {[
+                    ['Hours this week', profile.employee?.hours_this_week != null ? `${profile.employee.hours_this_week}h` : '—'],
+                    ['Punctuality', profile.employee?.punctuality != null ? `${profile.employee.punctuality}%` : '—'],
+                  ].map(([l, v]) => (
+                    <div key={l} style={s('background:var(--d-panel);border-radius:12px;padding:12px;text-align:center')}>
+                      <div className="d-num" style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{v}</div>
+                      <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:2px')}>{l}</div>
+                    </div>
+                  ))}
+                </div>
                 <div style={s('display:grid;grid-template-columns:repeat(2,1fr);gap:8px')}>
                   {[['Visits', profile.counts?.visits], ['Upcoming', profile.counts?.upcoming], ['Notes', profile.counts?.notes], ['Open requests', profile.counts?.open_requests]].map(([l, v]) => (
                     <div key={l} style={s('background:var(--d-panel);border-radius:12px;padding:12px;text-align:center')}>
