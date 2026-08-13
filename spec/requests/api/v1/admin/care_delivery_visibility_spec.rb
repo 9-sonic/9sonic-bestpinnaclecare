@@ -52,6 +52,13 @@ RSpec.describe "Admin care-delivery visibility", type: :request do
     expect(response.parsed_body["notes"].map { |n| n["body"] }).to eq([ "refused breakfast" ])
   end
 
+  it "ignores a malformed date filter instead of crashing" do
+    VisitNote.create!(visit_assignment: va, author: employee, body: "note", client_note_id: SecureRandom.uuid)
+    get "/api/v1/admin/service_users/#{service_user.id}/notes", params: { from: "not-a-date" }, headers: auth
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["notes"].size).to eq(1) # bad filter simply not applied
+  end
+
   it "excludes superseded notes from the service-user journal" do
     original   = VisitNote.create!(visit_assignment: va, author: employee, body: "First draft", client_note_id: SecureRandom.uuid)
     correction = VisitNote.create!(visit_assignment: va, author: admin, body: "Corrected", client_note_id: SecureRandom.uuid, supersedes: original)

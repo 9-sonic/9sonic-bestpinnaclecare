@@ -30,11 +30,13 @@ module Api
           if params[:employee_id].present?
             scope = scope.where(visit_assignments: { employee_id: params[:employee_id] })
           end
-          if params[:from].present?
-            scope = scope.where("visits.scheduled_start >= ?", Time.zone.parse(params[:from]).beginning_of_day)
+          # parse returns nil on malformed input — guard so a bad ?from=/&to=
+          # filters nothing rather than raising NoMethodError.
+          if (from = safe_time(params[:from]))
+            scope = scope.where("visits.scheduled_start >= ?", from.beginning_of_day)
           end
-          if params[:to].present?
-            scope = scope.where("visits.scheduled_start <= ?", Time.zone.parse(params[:to]).end_of_day)
+          if (to = safe_time(params[:to]))
+            scope = scope.where("visits.scheduled_start <= ?", to.end_of_day)
           end
 
           page     = [ params.fetch(:page, 1).to_i, 1 ].max
@@ -70,6 +72,15 @@ module Api
         end
 
         private
+
+        # Time.zone.parse but nil-safe on blank/garbage input.
+        def safe_time(str)
+          return nil if str.blank?
+
+          Time.zone.parse(str)
+        rescue ArgumentError
+          nil
+        end
 
         def service_user_params
           params.permit(:first_name, :last_name, :reference, :date_of_birth, :phone,

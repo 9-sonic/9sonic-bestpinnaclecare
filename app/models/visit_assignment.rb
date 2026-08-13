@@ -22,11 +22,10 @@ class VisitAssignment < ApplicationRecord
   def effective_clock_in  = clock_events.effective.where(kind: :clock_in).order(:occurred_at).first
   def effective_clock_out = clock_events.effective.where(kind: :clock_out).order(:occurred_at).last
 
-  # Total unpaid break time (minutes), paired from break_start -> break_end
+  # Total unpaid break time in seconds, paired from break_start -> break_end
   # events in chronological order. A break_start with no matching end is ignored
-  # rather than guessed — we never invent an unpaid duration. Rounded to whole
-  # minutes to match worked_minutes.
-  def break_minutes
+  # rather than guessed — we never invent an unpaid duration.
+  def break_seconds
     events = clock_events.effective.where(kind: %i[break_start break_end]).order(:occurred_at)
     seconds = 0.0
     open_start = nil
@@ -38,6 +37,9 @@ class VisitAssignment < ApplicationRecord
         open_start = nil
       end
     end
-    (seconds / 60.0).round
+    seconds
   end
+
+  # Break time rounded to whole minutes (for display / timesheet lines).
+  def break_minutes = (break_seconds / 60.0).round
 end
