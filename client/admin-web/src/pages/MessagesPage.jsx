@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listConversations, listMessages, sendMessage, createChannel, createGroup, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage } from '../api/index.js';
+import { listConversations, listMessages, sendMessage, createChannel, createGroup, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
@@ -61,11 +61,25 @@ export default function MessagesPage() {
     return () => { active = false; };
   }, [reload]);
 
+  // Mark the newest message in a conversation read, then clear its unread badge
+  // locally so it disappears the moment the thread is opened (rather than only
+  // after the next full reload). Newest message id = highest id in the thread.
+  const markConversationRead = useCallback(async (id, msgs) => {
+    const newest = (msgs ?? []).reduce((max, m) => (m.id > max ? m.id : max), 0);
+    if (!newest) return;
+    setConvos((cs) => cs.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)));
+    try { await markMessageRead(newest); } catch { /* receipt is best-effort */ }
+  }, []);
+
   const loadMessages = useCallback(async (id) => {
     if (!id) return;
     setLoadingMsgs(true);
-    try { setMessages(((await listMessages(id)) ?? []).slice().reverse()); } catch { setMessages([]); } finally { setLoadingMsgs(false); }
-  }, []);
+    try {
+      const msgs = ((await listMessages(id)) ?? []).slice().reverse();
+      setMessages(msgs);
+      markConversationRead(id, msgs);
+    } catch { setMessages([]); } finally { setLoadingMsgs(false); }
+  }, [markConversationRead]);
   useEffect(() => { loadMessages(activeId); setBroadcast(false); }, [activeId, loadMessages]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages]);
 
@@ -76,15 +90,25 @@ export default function MessagesPage() {
     const off = subscribeInbox((payload) => {
       if (payload?.type !== 'message' || !payload.message) return;
       const m = payload.message;
-      if (m.conversation_id === activeIdRef.current) {
+      const fromMe = m.sender_type === 'Admin' && m.sender_id === admin?.id;
+      const isOpen = m.conversation_id === activeIdRef.current;
+      if (isOpen) {
         setMessages((xs) => (xs.some((x) => x.id === m.id) ? xs : [...xs, m]));
+        // Thread is open on screen, so it's already been seen — mark it read
+        // and don't raise its badge.
+        if (!fromMe) markMessageRead(m.id).catch(() => {});
       }
       setConvos((cs) => cs.map((c) => (c.id === m.conversation_id
-        ? { ...c, last_message_preview: m.body || 'Attachment', last_message_at: m.created_at || new Date().toISOString() }
+        ? {
+            ...c,
+            last_message_preview: m.body || 'Attachment',
+            last_message_at: m.created_at || new Date().toISOString(),
+            unread_count: isOpen ? 0 : (c.unread_count ?? 0) + (fromMe ? 0 : 1),
+          }
         : c)));
     });
     return off;
-  }, []);
+  }, [admin?.id]);
 
   const active = useMemo(() => convos.find((c) => c.id === activeId), [convos, activeId]);
   const mine = (m) => m.sender_type === 'Admin' && m.sender_id === admin?.id;

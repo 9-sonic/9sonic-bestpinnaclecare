@@ -2,6 +2,11 @@
 require "rubygems"
 require "bundler/setup"
 
-ARGV.unshift("--ensure-latest")
+# NOTE: the Rails-generated default here was `ARGV.unshift("--ensure-latest")`,
+# which makes Brakeman exit non-zero whenever a newer version exists on
+# rubygems — so CI goes red the moment upstream ships a release, unrelated to
+# any code change (this fired when 8.0.6 shipped while we pin 8.0.5). A newer
+# scanner existing is not a security finding, so we don't gate on it. Bump the
+# pinned version deliberately via the Gemfile instead.
 
 load Gem.bin_path("brakeman", "brakeman")

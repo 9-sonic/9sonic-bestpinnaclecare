@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
   assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit, copyRota,
-  exportRota,
+  exportRota, getVisit, reassignAssignment,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -81,11 +81,14 @@ function RulesNote({ su, settings }) {
 }
 
 /* ---------- assign drawer (conflict-aware, real signals) ---------- */
-function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onAssigned }) {
+function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onAssigned, reassignFrom }) {
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState(null);
   if (!visit) return null;
+  // reassignFrom = the current VisitAssignment id when moving a visit to a
+  // different carer (atomic withdraw + assign); null for a fresh assignment.
+  const isReassign = reassignFrom != null;
 
   const day = new Date(visit.scheduled_start);
   const start = toMin(formatTime(visit.scheduled_start).replace(':', ':'));
@@ -110,15 +113,23 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
   async function assign(e) {
     setBusyId(e.id);
     try {
-      const res = await assignEmployee({ visitId: visit.id, employeeId: e.id });
+      const res = isReassign
+        ? await reassignAssignment({ assignmentId: reassignFrom, employeeId: e.id })
+        : await assignEmployee({ visitId: visit.id, employeeId: e.id });
       const w = res.warnings ?? [];
-      if (w.length) toast.warn(`${e.first_name} assigned. ${w.join('. ')}`); else toast.success(`${e.full_name} assigned`);
+      const verb = isReassign ? 'reassigned to' : 'assigned to';
+      if (w.length) toast.warn(`Visit ${verb} ${e.first_name}. ${w.map((x) => x.message ?? x).join('. ')}`);
+      else toast.success(`Visit ${verb} ${e.full_name}`);
       onAssigned(); onClose();
-    } catch (err) { toast.error(err.message || 'Could not assign that carer'); } finally { setBusyId(null); }
+    } catch (err) {
+      const c = err.data?.conflict;
+      const detail = c ? ` (booked with ${c.service_user ?? 'another client'} at ${formatTime(c.scheduled_start)})` : '';
+      toast.error((err.message || (isReassign ? 'Could not reassign the visit' : 'Could not assign that carer')) + detail);
+    } finally { setBusyId(null); }
   }
 
   return (
-    <Drawer title={`Assign carer — ${fullName(visit.service_user)}`}
+    <Drawer title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
       subtitle={`${day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
@@ -137,8 +148,10 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
         {ranked.length === 0 ? (
           <div style={s('padding:26px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>No staff match that search.</div>
         ) : ranked.slice(0, 12).map(({ e, regular, conflict }) => (
-          <button key={e.id} type="button" onClick={() => (busyId ? null : assign(e))}
-            style={{ ...s('width:100%;text-align:left;border-radius:16px;padding:12px 14px;cursor:pointer;background:var(--d-panel);border:1px solid var(--d-border)'), opacity: busyId === e.id ? 0.6 : 1, fontFamily: 'inherit' }}>
+          <button key={e.id} type="button" disabled={!!conflict}
+            onClick={() => (busyId || conflict ? null : assign(e))}
+            title={conflict || undefined}
+            style={{ ...s('width:100%;text-align:left;border-radius:16px;padding:12px 14px;background:var(--d-panel);border:1px solid var(--d-border)'), cursor: conflict ? 'not-allowed' : 'pointer', opacity: conflict ? 0.55 : (busyId === e.id ? 0.6 : 1), fontFamily: 'inherit' }}>
             <div style={s('display:flex;align-items:center;gap:11px')}>
               <Avatar initials={inits(e)} size="sm" />
               <div style={s('flex:1;min-width:0')}>
@@ -210,13 +223,60 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
   );
 }
 
+/* ---------- what the carer actually did on this visit ---------- */
+function VisitDelivery({ delivery }) {
+  if (delivery === undefined) return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Loading care record…</div>;
+  if (delivery === null) return null; // couldn't load — stay quiet rather than shout an error in the drawer
+  const tasks = (delivery.assignments ?? []).flatMap((a) => a.tasks ?? []);
+  const notes = (delivery.assignments ?? []).flatMap((a) => (a.notes ?? []).map((n) => ({ ...n, carer: a.employee?.name })));
+  const done = tasks.filter((t) => t.done).length;
+  if (tasks.length === 0 && notes.length === 0) {
+    return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);background:var(--d-panel);border-radius:12px;padding:12px 14px')}>No tasks or notes recorded for this visit yet.</div>;
+  }
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:12px')}>
+      {tasks.length > 0 && (
+        <div style={s('display:flex;flex-direction:column;gap:8px')}>
+          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Tasks — {done}/{tasks.length} done</div>
+          {tasks.map((t) => (
+            <div key={t.id} style={s('display:flex;align-items:center;gap:9px;background:var(--d-panel);border-radius:12px;padding:10px 13px')}>
+              <span style={s(`width:18px;height:18px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;background:${t.done ? 'var(--d-primary)' : 'var(--d-field)'};color:#fff`)}>{t.done && <Icon name="check" size={12} />}</span>
+              <span style={s(`font-size:13px;font-weight:600;color:var(--d-ink);${t.done ? '' : 'opacity:0.6'}`)}>{t.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {notes.length > 0 && (
+        <div style={s('display:flex;flex-direction:column;gap:8px')}>
+          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Carer notes</div>
+          {notes.map((n) => (
+            <div key={n.id} style={s('background:var(--d-note-bg);border-radius:12px;padding:11px 14px;display:flex;flex-direction:column;gap:5px')}>
+              <div style={s('font-size:13px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>{n.body}</div>
+              <div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{n.author_name ?? n.carer ?? 'Unknown'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- filled-visit editor drawer (retime + real actions) ---------- */
-function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
+function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) {
   const toast = useToast();
   const [start, setStart] = useState(formatTime(visit?.scheduled_start));
   const [end, setEnd] = useState(formatTime(visit?.scheduled_end));
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // Care-delivery record for this visit (care plan + tasks done + carer notes).
+  const [delivery, setDelivery] = useState(undefined); // undefined = loading, null = failed
+  useEffect(() => {
+    if (!visit?.id) return undefined;
+    let active = true;
+    setDelivery(undefined);
+    getVisit(visit.id).then((d) => active && setDelivery(d)).catch(() => active && setDelivery(null));
+    return () => { active = false; };
+  }, [visit?.id]);
   if (!visit) return null;
   const a = visit.assignments?.[0];
   const started = (visit.assignments ?? []).some((x) => x.actual_start);
@@ -244,6 +304,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
       footer={<div style={s('display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap')}>
         {a && <Button icon="close" onClick={withdraw}>Remove carer</Button>}
         <div style={s('display:flex;gap:8px;margin-left:auto')}>
+          {a && !started && <Button icon="user" onClick={() => onReassign(visit, a.id)}>Reassign</Button>}
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
           {!started && <Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save changes'}</Button>}
         </div>
@@ -259,6 +320,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
           <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:6px')}>{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
         </div>
         <RulesNote su={visit.service_user} settings={settings} />
+        <VisitDelivery delivery={delivery} />
         {started ? (
           <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>The carer has already clocked in, so the scheduled time is locked — the original record is never rewritten. Use a clock correction if the actual time is wrong.</div>
         ) : (
@@ -313,6 +375,7 @@ export default function RotaPage() {
   const [assigning, setAssigning] = useState(null);
   const [creating, setCreating] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [reassigning, setReassigning] = useState(null); // { visit, assignmentId }
   const [selected, setSelected] = useState([]);
   const [exporting, setExporting] = useState(false);
 
@@ -544,8 +607,9 @@ export default function RotaPage() {
       )}
 
       {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
+      {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
       {creating && <CreateVisitDrawer preset={creating} serviceUsers={serviceUsers} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
-      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} />}
+      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} onReassign={(visit, assignmentId) => { setDetail(null); setReassigning({ visit, assignmentId }); }} />}
     </div>
   );
 }

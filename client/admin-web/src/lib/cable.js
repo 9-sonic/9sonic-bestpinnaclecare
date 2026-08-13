@@ -22,8 +22,7 @@ function cableUrl() {
 // subscribeInbox(onMessage) -> unsubscribe(). onMessage receives the payload the
 // server broadcasts, e.g. { type: 'message', conversation_id, message }.
 export function subscribeInbox(onMessage) {
-  // Mock mode has no backend to connect to.
-  if (env.useMock || !getToken()) return () => {};
+  if (!getToken()) return () => {};
 
   const consumer = createConsumer(cableUrl());
   const subscription = consumer.subscriptions.create(

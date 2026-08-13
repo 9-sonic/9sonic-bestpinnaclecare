@@ -36,6 +36,22 @@ RSpec.describe "Admin cover", type: :request do
     expect(ids).not_to include(v.id) # filled, so it drops off the board
   end
 
+  it "refuses to accept cover for a carer already on an overlapping visit (no double-booking)" do
+    v = open_visit
+    # the carer is already booked on another visit at the same time
+    clash = create(:visit, service_user: create(:service_user), status: "published",
+                           scheduled_start: v.scheduled_start, scheduled_end: v.scheduled_end)
+    create(:visit_assignment, visit: clash, employee: employee)
+
+    post "/api/v1/admin/cover_offers", params: { visit_id: v.id, employee_id: employee.id }, headers: auth, as: :json
+    offer_id = response.parsed_body["id"]
+
+    post "/api/v1/admin/cover_offers/#{offer_id}/accept", headers: auth
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["error"]).to eq("carer_unavailable")
+    expect(VisitAssignment.where(visit: v, assignment_status: "assigned")).not_to exist # visit stays open
+  end
+
   it "declining records the offer as declined" do
     v = open_visit
     post "/api/v1/admin/cover_offers", params: { visit_id: v.id, employee_id: employee.id }, headers: auth, as: :json

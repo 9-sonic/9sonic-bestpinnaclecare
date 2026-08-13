@@ -24,6 +24,23 @@ module Api
 
         def accept
           offer = CoverOffer.find(params[:id])
+
+          # A carer can't cover a visit that overlaps one they're already on —
+          # same hard block as assign/reassign, so cover can't create a double
+          # booking either. (Policy: confirm double-ups with Best Pinnacle.)
+          clash = Assignments::Validate.conflicting_visit(visit: offer.visit, employee: offer.employee)
+          if clash
+            return render json: {
+              error: "carer_unavailable",
+              conflict: {
+                visit_id: clash.visit_id,
+                service_user: clash.visit.service_user&.full_name,
+                scheduled_start: clash.visit.scheduled_start&.iso8601,
+                scheduled_end: clash.visit.scheduled_end&.iso8601
+              }
+            }, status: :unprocessable_entity
+          end
+
           va = nil
           # Fill the visit and record the audit events atomically — the honest
           # record and the action commit together, or neither does.

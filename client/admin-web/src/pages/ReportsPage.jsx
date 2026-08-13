@@ -32,11 +32,14 @@ export default function ReportsPage() {
 
   const stats = useMemo(() => {
     const su = data?.summary ?? {};
+    const loc = data?.location ?? {};
     return [
       { label: 'Attendance', value: `${su.attendance_pct ?? 0}%`, tone: 'ok', icon: 'check' },
       { label: 'On-time rate', value: `${su.on_time_pct ?? 0}%`, tone: 'primary', icon: 'clock' },
-      { label: 'Exceptions', value: su.exceptions ?? 0, tone: 'magenta', icon: 'alert' },
+      { label: 'On-site clock-ins', value: `${loc.on_site ?? 0}/${loc.clock_ins ?? 0}`, tone: loc.needs_review ? 'magenta' : 'ok', icon: 'location' },
+      { label: 'Unresolved', value: su.unresolved ?? 0, tone: (su.unresolved ?? 0) > 0 ? 'danger' : 'ok', icon: 'alert' },
       { label: 'Verified hours', value: `${su.verified_hours ?? 0}h`, tone: 'info', icon: 'wallet' },
+      { label: 'Care tasks done', value: `${su.tasks_pct ?? 0}%`, tone: (su.tasks_pct ?? 100) < 90 ? 'magenta' : 'ok', icon: 'check' },
     ];
   }, [data]);
 
@@ -46,9 +49,10 @@ export default function ReportsPage() {
   });
   const attendance = (data?.attendance_by_day ?? []).map((d) => ({ label: d.label, segments: [{ value: d.on_time, color: CHART.ok }, { value: d.late, color: CHART.warn }, { value: d.missed, color: CHART.danger }] }));
   const severity = (data?.alerts_by_severity ?? []).map((x) => ({ label: SEV_LABEL[x.severity] ?? x.severity, value: x.count, color: SEV_COLOR[x.severity] ?? CHART.primary }));
-  const hoursByCarer = (data?.hours_by_carer ?? []).map((x) => ({ label: x.name.split(' ')[0], value: x.hours, color: CHART.primary }));
+  // Backend returns the full sorted lists (so exports are complete); cap here for the charts.
+  const hoursByCarer = (data?.hours_by_carer ?? []).slice(0, 8).map((x) => ({ label: x.name.split(' ')[0], value: x.hours, color: CHART.primary }));
   const exceptionsByDay = (data?.exceptions_by_day ?? []).map((x) => ({ label: x.label, value: x.count }));
-  const lateByClient = data?.late_by_client ?? [];
+  const lateByClient = (data?.late_by_client ?? []).slice(0, 6);
 
   if (loading && !data) return <Spinner fullscreen />;
 
@@ -114,6 +118,31 @@ export default function ReportsPage() {
           {exceptionsByDay.length ? <BarChart data={exceptionsByDay} /> : <Empty />}
         </Panel>
       </div>
+
+      <Panel padded={false} style={{ padding: '20px 22px' }}>
+        <PanelTitle hint="Geofence result at clock-in — the location integrity of every arrival">Location at clock-in</PanelTitle>
+        {(() => {
+          const loc = data?.location ?? {};
+          const items = [
+            ['On site', loc.on_site ?? 0, 'ok'],
+            ['Out of range', loc.out_of_range ?? 0, 'danger'],
+            ['No GPS fix', loc.no_gps_fix ?? 0, 'warning'],
+            ['Not checked', loc.not_checked ?? 0, 'muted'],
+          ];
+          if (!loc.clock_ins) return <Empty label="No clock-ins in this period." />;
+          return (
+            <div style={s('display:grid;grid-template-columns:repeat(4,1fr);gap:10px')}>
+              {items.map(([label, value, tone]) => (
+                <div key={label} style={s('background:var(--d-panel);border-radius:14px;padding:14px;text-align:center')}>
+                  <div className="d-num" style={s('font-size:20px;font-weight:700;color:var(--d-ink)')}>{value}</div>
+                  <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:3px')}>{label}</div>
+                  <div style={s('margin-top:6px')}><Tag tone={value > 0 ? tone : 'muted'}>{loc.clock_ins ? Math.round((value / loc.clock_ins) * 100) : 0}%</Tag></div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </Panel>
 
       <Panel padded={false} style={{ padding: '20px 22px' }}>
         <PanelTitle hint="Where lateness clusters — by person">Late arrivals by client</PanelTitle>

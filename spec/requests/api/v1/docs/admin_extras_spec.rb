@@ -200,6 +200,27 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
     end
   end
 
+  path "/api/v1/admin/timesheet_periods/{id}/approve_carer" do
+    parameter name: :id, in: :path, type: :integer
+    post("Approve one carer's lines within a period") do
+      tags "Office — Timesheets"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
+      description "Per-carer sign-off, additive to the period-wide approve — the period stays open. Guards: 422 { error: 'unconfirmed_lines' } if a line is auto-closed / its visit is pending review; 'period_locked' if the period is locked; 'no_lines' if the carer has no lines here."
+      parameter name: :body, in: :body, schema: {
+        type: :object, properties: { employee_id: { type: :integer } }, required: %w[employee_id]
+      }
+      let(:period) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week) }
+      let(:id) { period.id }
+      let(:body) do
+        period.timesheet_lines.create!(employee: employee, visit_assignment: assignment, work_date: Date.current, scheduled_minutes: 60, worked_minutes: 60)
+        { employee_id: employee.id }
+      end
+      response(200, "carer lines approved") do
+        schema type: :object, properties: { employee_id: { type: :integer }, approved_count: { type: :integer } }
+        run_test!
+      end
+    end
+  end
+
   path "/api/v1/admin/timesheet_periods/{id}/lock" do
     parameter name: :id, in: :path, type: :integer
     post("Lock a period (final; payroll exported)") do

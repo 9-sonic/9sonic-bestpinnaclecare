@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_13_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -606,6 +606,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_120000) do
   end
 
   create_table "timesheet_lines", force: :cascade do |t|
+    t.timestamptz "approved_at"
+    t.bigint "approved_by_admin_id"
     t.integer "break_minutes", default: 0, null: false
     t.bigint "employee_id", null: false
     t.text "flags", default: [], null: false, array: true
@@ -614,6 +616,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_120000) do
     t.bigint "visit_assignment_id", null: false
     t.date "work_date", null: false
     t.integer "worked_minutes", null: false
+    t.index ["approved_by_admin_id"], name: "index_timesheet_lines_on_approved_by_admin_id"
     t.index ["employee_id", "work_date"], name: "idx_timesheet_lines_employee"
     t.index ["timesheet_period_id", "visit_assignment_id"], name: "idx_on_timesheet_period_id_visit_assignment_id_57b4ac0514", unique: true
   end
@@ -738,6 +741,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_120000) do
   add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
   add_foreign_key "timesheet_disputes", "employees", column: "raised_by_employee_id"
   add_foreign_key "timesheet_disputes", "timesheet_lines"
+  add_foreign_key "timesheet_lines", "admins", column: "approved_by_admin_id"
   add_foreign_key "timesheet_lines", "employees"
   add_foreign_key "timesheet_lines", "timesheet_periods"
   add_foreign_key "timesheet_lines", "visit_assignments"

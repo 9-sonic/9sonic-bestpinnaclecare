@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
-import env from '../config/env.js';
 import { requestPasswordReset } from '../api/index.js';
 import '../styles/design-shell.css';
 
@@ -38,8 +37,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState(env.useMock ? 'reg.manager@bestpinnacle.test' : '');
-  const [password, setPassword] = useState(env.useMock ? 'secret12' : '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -185,12 +184,6 @@ export default function LoginPage() {
                 <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Sign in</div>
                 <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:6px')}>Office and management accounts only.</div>
               </div>
-
-              {env.useMock && (
-                <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-sage);border-radius:14px;padding:11px 14px;font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>
-                  <Icon name="info" size={15} /> Demo mode. Any details work, and the code step accepts anything.
-                </div>
-              )}
 
               <Field label="Work email">
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required style={inputStyle} />

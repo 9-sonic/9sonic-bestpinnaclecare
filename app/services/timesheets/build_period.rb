@@ -25,13 +25,15 @@ module Timesheets
     end
 
     # Copies the (attendance) figures from a visit assignment onto a line.
+    # worked_minutes is already net of breaks (computed at clock-out); break_minutes
+    # is the recorded break total, shown alongside for transparency/payroll.
     def self.apply(line, va)
       visit = va.visit
       line.employee_id       = va.employee_id
       line.work_date         = visit.scheduled_start.to_date
       line.scheduled_minutes = ((visit.scheduled_end - visit.scheduled_start) / 60).round
       line.worked_minutes    = va.worked_minutes || 0
-      line.break_minutes     = 0
+      line.break_minutes     = va.break_minutes
       line.flags             = va.flags
     end
   end

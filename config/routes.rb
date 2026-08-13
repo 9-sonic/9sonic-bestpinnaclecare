@@ -54,13 +54,16 @@ Rails.application.routes.draw do
         # Domain: service users, care packages, visits, assignments
         resources :service_users, only: %i[index show create update] do
           resources :care_plan_items, only: %i[index create update destroy]
+          member { get :notes }   # the client's visit-note journal across visits
         end
         resources :care_package_slots, only: %i[index create update]
-        resources :visits, only: %i[index create update] do
+        resources :visits, only: %i[index show create update] do
           member     { post :publish }
           collection { post :generate }   # generate dated visits from care packages
         end
-        resources :visit_assignments, only: %i[create destroy]
+        resources :visit_assignments, only: %i[create destroy] do
+          member { post :reassign }   # atomically move a visit to a different carer
+        end
 
         # User management (invitations)
         resources :employees, only: %i[index show create update] do
@@ -69,6 +72,13 @@ Rails.application.routes.draw do
             post    :avatar          # office sets a carer's avatar (multipart)
             delete  :avatar, action: :remove_avatar
           end
+          # Carer 360 — everything the office may view about one carer.
+          get "profile",         to: "carer_profile#profile"
+          get "visits",          to: "carer_profile#visits"
+          get "notes",           to: "carer_profile#notes"
+          get "clock_events",    to: "carer_profile#clock_events"
+          get "timesheet_lines", to: "carer_profile#timesheet_lines"
+          get "requests",        to: "carer_profile#requests"
         end
         resources :admins,    only: %i[index show create update]
 
@@ -107,6 +117,7 @@ Rails.application.routes.draw do
         resources :timesheet_periods, only: %i[index show create] do
           member do
             post :approve
+            post :approve_carer   # approve one carer's lines within the period
             post :lock
           end
         end
