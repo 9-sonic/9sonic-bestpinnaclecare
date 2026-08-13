@@ -3,7 +3,7 @@ module Api
     module Admin
       class TimesheetDisputesController < BaseController
         def index
-          render json: TimesheetDispute.where(state: "open").order(created_at: :desc)
+          render json: TimesheetDispute.where(state: "open").includes(:raised_by).order(created_at: :desc)
                                        .map { |d| TimesheetDisputeSerializer.call(d) }
         end
 

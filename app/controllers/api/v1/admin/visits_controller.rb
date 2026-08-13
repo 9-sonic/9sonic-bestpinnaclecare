@@ -25,7 +25,9 @@ module Api
             assignments: visit.visit_assignments.map do |va|
               {
                 id: va.id,
-                employee: va.employee && { id: va.employee.id, name: va.employee.full_name },
+                # name + full_name: keep the shape uniform with every other
+                # employee object in the API so fullName() works either way.
+                employee: va.employee && { id: va.employee.id, name: va.employee.full_name, full_name: va.employee.full_name },
                 tasks: va.visit_tasks.map { |t| VisitTaskSerializer.call(t) },
                 notes: va.visit_notes.effective.sort_by(&:created_at).map { |n| VisitNoteSerializer.call(n) }
               }
