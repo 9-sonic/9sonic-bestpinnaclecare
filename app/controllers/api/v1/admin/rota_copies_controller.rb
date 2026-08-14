@@ -3,6 +3,7 @@ module Api
     module Admin
       # POST /api/v1/admin/rota_copies  { from_week_start, to_week_start }
       class RotaCopiesController < BaseController
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: :create
         def create
           created = Visits::CopyWeek.call(
             from_week_start: Date.parse(params.require(:from_week_start)),

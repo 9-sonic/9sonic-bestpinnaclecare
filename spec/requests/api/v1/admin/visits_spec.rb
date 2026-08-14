@@ -58,6 +58,53 @@ RSpec.describe "Admin visits & scheduling", type: :request do
     expect(past.reload.status).to eq("draft")
   end
 
+  it "refuses to CREATE a visit whose start is in the past (422)" do
+    su = create(:service_user)
+    expect {
+      post "/api/v1/admin/visits",
+           params: { service_user_id: su.id, scheduled_start: 2.hours.ago.iso8601, scheduled_end: 1.hour.ago.iso8601 },
+           headers: auth, as: :json
+    }.not_to change(Visit, :count)
+    expect(response).to have_http_status(422)
+    expect(response.parsed_body["error"]).to eq("visit_in_past")
+  end
+
+  it "allows creating a future visit" do
+    su = create(:service_user)
+    post "/api/v1/admin/visits",
+         params: { service_user_id: su.id, scheduled_start: 2.hours.from_now.iso8601, scheduled_end: 3.hours.from_now.iso8601 },
+         headers: auth, as: :json
+    expect(response).to have_http_status(:created)
+  end
+
+  describe "POST /admin/visits/:id/cancel — cancel + free the carer" do
+    let(:su)    { create(:service_user) }
+    let(:visit) { create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now, status: :published) }
+    let!(:va)   { create(:visit_assignment, visit: visit, employee: create(:employee)) }
+
+    it "cancels the visit and withdraws (frees) the carer" do
+      post "/api/v1/admin/visits/#{visit.id}/cancel", params: { reason: "client in hospital" }, headers: auth, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(visit.reload.status).to eq("cancelled")
+      expect(visit.cancellation_reason).to eq("client in hospital")
+      expect(va.reload.assignment_status).to eq("withdrawn") # carer freed
+    end
+
+    it "requires a reason" do
+      post "/api/v1/admin/visits/#{visit.id}/cancel", params: {}, headers: auth, as: :json
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("reason_required")
+    end
+
+    it "refuses to cancel once a carer has clocked in (honest record protected)" do
+      va.update!(actual_start: 1.minute.ago, lifecycle_state: :in_progress)
+      post "/api/v1/admin/visits/#{visit.id}/cancel", params: { reason: "x" }, headers: auth, as: :json
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("visit_started")
+      expect(visit.reload.status).not_to eq("cancelled")
+    end
+  end
+
   describe "PATCH /admin/visits/:id — retime (audited, honest record protected)" do
     let(:su)    { create(:service_user) }
     let(:visit) { create(:visit, service_user: su, scheduled_start: 1.day.from_now.change(hour: 9), scheduled_end: 1.day.from_now.change(hour: 10)) }

@@ -61,9 +61,9 @@ RSpec.describe "Staff clock-in/out (geofenced)", type: :request do
   end
 
   it "records worked minutes on clock-out" do
-    # A visit already under way, so clocking in 8 minutes ago is inside the
-    # check-in window (not refused as too-early).
-    started = create(:visit, service_user: service_user, scheduled_start: 20.minutes.ago, scheduled_end: 2.hours.from_now)
+    # A visit under way whose scheduled end is ~now, so clocking out now is on
+    # time (not flagged as an early leave) and the visit completes.
+    started = create(:visit, service_user: service_user, scheduled_start: 20.minutes.ago, scheduled_end: 2.minutes.from_now)
     sva     = create(:visit_assignment, visit: started, employee: employee)
     clock(kind: "clock_in",  lat: 53.4808, lng: -2.2426, occurred_at: 8.minutes.ago, assignment: sva)
     clock(kind: "clock_out", lat: 53.4808, lng: -2.2426, occurred_at: Time.current, assignment: sva)

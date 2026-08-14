@@ -2,13 +2,18 @@ module Api
   module V1
     module Admin
       class ServiceUsersController < BaseController
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create update]
         def index
           stats = ::ServiceUsers::Stats.call
           render json: ServiceUser.order(:last_name, :first_name).map { |su| ServiceUserSerializer.call(su).merge(stats[su.id] || {}) }
         end
 
         def show
-          render json: ServiceUserSerializer.call(ServiceUser.find(params[:id]))
+          su = ServiceUser.find(params[:id])
+          # Merge the same per-client stats the list shows (visits/week, adherence,
+          # regular carers) so the detail page can display them too.
+          stats = ::ServiceUsers::Stats.call(only: su.id)[su.id] || {}
+          render json: ServiceUserSerializer.call(su).merge(stats)
         end
 
         # GET /api/v1/admin/service_users/:id/notes  — the client's visit-note
