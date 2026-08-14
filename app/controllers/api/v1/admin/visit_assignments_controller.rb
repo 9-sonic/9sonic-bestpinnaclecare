@@ -66,6 +66,7 @@ module Api
           )
           head :no_content
         end
+
       end
     end
   end

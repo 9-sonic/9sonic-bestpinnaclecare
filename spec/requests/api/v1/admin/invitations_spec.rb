@@ -14,7 +14,9 @@ RSpec.describe "Invitations", type: :request do
     employee = Employee.find_by(email: "new@bpc.test")
     expect(employee.invited_at).to be_present
 
-    token = ActionMailer::Base.deliveries.last.body.to_s[/token=([^\s&]+)/, 1]
+    # Read the decoded text part — the mail is multipart (text + html).
+    mail = ActionMailer::Base.deliveries.last
+    token = (mail.text_part || mail).body.decoded[/token=([^\s&]+)/, 1]
     expect(token).to be_present
 
     put "/api/v1/staff/auth/password", params: { token: token, password: "newpass99" }, as: :json

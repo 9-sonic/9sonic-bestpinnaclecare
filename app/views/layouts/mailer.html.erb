@@ -1,13 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <style>
-      /* Email styles need to be inline */
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Best Pinnacle Care</title>
   </head>
-
-  <body>
-    <%= yield %>
+  <!-- Palette pulled from the carer PWA brand tokens (variables.css):
+       cyan #2ed3dd, teal #0eb2c4, deep #0a8fa3, ink #04616f, tint #e2f5f8.
+       Table layout + inline styles only — email clients ignore <style>/flex/grid. -->
+  <body style="margin:0;padding:0;background:#e2f5f8;-webkit-font-smoothing:antialiased;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e2f5f8;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 2px 12px rgba(4,97,111,0.10);font-family:'Outfit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <!-- Brand bar: the PWA wave gradient (deep -> teal -> cyan) -->
+            <tr>
+              <td style="background:#0eb2c4;background-image:linear-gradient(100deg,#0b5f6e 0%,#12a2b6 55%,#2ed3dd 100%);padding:26px 32px;">
+                <span style="font-size:19px;font-weight:700;color:#ffffff;letter-spacing:-0.2px;">Best Pinnacle Care</span>
+              </td>
+            </tr>
+            <!-- Content -->
+            <tr>
+              <td style="padding:34px 32px;color:#0d3d4a;font-size:15px;line-height:1.6;">
+                <%= yield %>
+              </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+              <td style="padding:20px 32px 28px;border-top:1px solid #e2f5f8;color:#5a8a92;font-size:12px;line-height:1.6;">
+                Best Pinnacle Care · domiciliary care<br>
+                This is an automated message — please don't reply to it.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
