@@ -13,7 +13,7 @@ RSpec.describe "Timesheet stays in sync with clock corrections", type: :request 
     clock(va, "clock_in", start)
     clock(va, "clock_out", start + (worked / 60.0).hours)
     period = Timesheets::BuildPeriod.call(starts_on: start.to_date.beginning_of_week)
-    [va, period]
+    [ va, period ]
   end
 
   def clock(va, kind, at)

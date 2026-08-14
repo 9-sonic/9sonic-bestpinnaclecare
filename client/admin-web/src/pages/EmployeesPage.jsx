@@ -8,7 +8,6 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
 import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
-import CarerProfileDrawer from './CarerProfileDrawer.jsx';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
 const METHOD = { gps: 'App (GPS)', pin: 'PIN tablet', manual_admin: 'Manual', manual: 'Manual' };
@@ -175,8 +174,6 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
-
-      {profileFor && <CarerProfileDrawer carer={profileFor} onClose={() => setProfileFor(null)} />}
     </div>
   );
 }
