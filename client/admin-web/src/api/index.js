@@ -178,6 +178,9 @@ export const createChannel = (title, participantIds, purpose, autoPost = false) 
   api.post('/conversations', { kind: 'channel', title, purpose, auto_post: autoPost, participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
 export const createGroup = (title, participantIds, purpose) =>
   api.post('/conversations', { kind: 'group', title, purpose, participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
+// Add carers to an existing group/channel. Direct threads reject this server-side.
+export const addConversationParticipants = (conversationId, participantIds) =>
+  api.post(`/conversations/${conversationId}/participants`, { participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
 
 /* ------------------------------ Timesheets -------------------------------- */
 

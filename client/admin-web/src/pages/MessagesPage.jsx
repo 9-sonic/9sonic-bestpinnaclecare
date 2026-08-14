@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listConversations, listMessages, sendMessage, createChannel, createGroup, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
+import { listConversations, listMessages, sendMessage, createChannel, createGroup, addConversationParticipants, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
@@ -25,12 +25,15 @@ const humanFileSize = (n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.m
 const isImage = (ct) => (ct ?? '').startsWith('image/');
 
 export default function MessagesPage() {
-  const { admin } = useAuth();
+  const { admin, canManage } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState(null);
+  // Add-member picker on the members panel: null when closed, [] of employee ids when open.
+  const [adding, setAdding] = useState(null);
+  const [addBusy, setAddBusy] = useState(false);
   const [messages, setMessages] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [draft, setDraft] = useState('');
@@ -80,7 +83,7 @@ export default function MessagesPage() {
       markConversationRead(id, msgs);
     } catch { setMessages([]); } finally { setLoadingMsgs(false); }
   }, [markConversationRead]);
-  useEffect(() => { loadMessages(activeId); setBroadcast(false); }, [activeId, loadMessages]);
+  useEffect(() => { loadMessages(activeId); setBroadcast(false); setAdding(null); }, [activeId, loadMessages]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages]);
 
   // Live over the WebSocket: append to the open thread (dedupe by id) + bump the list.
@@ -135,6 +138,24 @@ export default function MessagesPage() {
       setComposer(null); setName(''); setPurpose(''); setAutoPost(false); setMembers([]);
       await reload(); setActiveId(c.id);
     } catch (e) { toast.error(e.message || 'Could not create'); }
+  }
+
+  // Staff not already in the active conversation — the pool the add-picker draws from.
+  const addableStaff = useMemo(() => {
+    if (!active) return [];
+    const inConvo = new Set((active.participants ?? []).filter((p) => p.type === 'Employee').map((p) => p.id));
+    return staff.filter((e) => !inConvo.has(e.id));
+  }, [active, staff]);
+
+  async function addMembers() {
+    if (!active || !adding?.length) return;
+    setAddBusy(true);
+    try {
+      await addConversationParticipants(active.id, adding);
+      toast.success(`Added ${adding.length} ${adding.length === 1 ? 'person' : 'people'}`);
+      setAdding(null);
+      const cs = await reload(); setConvos(cs);
+    } catch (e) { toast.error(e.message || 'Could not add'); } finally { setAddBusy(false); }
   }
 
   async function toggleMute() {
@@ -346,7 +367,38 @@ export default function MessagesPage() {
 
         {active && (
           <Panel>
-            <PanelTitle hint="Everyone in this conversation">Members ({(active.participants ?? []).length})</PanelTitle>
+            <div style={s('display:flex;align-items:center;gap:8px')}>
+              <div style={s('flex:1')}><PanelTitle hint="Everyone in this conversation">Members ({(active.participants ?? []).length})</PanelTitle></div>
+              {/* Add member — only for a group/channel (a direct thread is 1:1), and only for managers. */}
+              {canManage && active.kind !== 'direct' && adding == null && (
+                <Button size="sm" icon="plus" onClick={() => setAdding([])}>Add</Button>
+              )}
+            </div>
+
+            {/* Inline add-member picker */}
+            {adding != null && (
+              <div style={s('display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:12px;background:var(--d-panel);border-radius:14px')}>
+                <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Add carers ({adding.length})</div>
+                <div style={s('display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto')}>
+                  {addableStaff.length === 0 && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);padding:4px')}>Everyone is already in this conversation.</div>}
+                  {addableStaff.map((e) => {
+                    const on = adding.includes(e.id);
+                    return (
+                      <div key={e.id} onClick={() => setAdding((m) => (on ? m.filter((x) => x !== e.id) : [...m, e.id]))} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:11px;cursor:pointer'), background: on ? 'var(--d-card)' : 'transparent', '--hbg': 'var(--d-card)' }}>
+                        <Avatar initials={initials(fullName(e))} size="sm" src={e.avatar_url} />
+                        <div style={s('flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{fullName(e)}</div>
+                        {on && <Icon name="check" size={15} />}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+                  <Button size="sm" onClick={() => setAdding(null)}>Cancel</Button>
+                  <Button size="sm" variant="primary" icon="check" disabled={addBusy || adding.length === 0} onClick={addBusy || adding.length === 0 ? undefined : addMembers}>{addBusy ? 'Adding…' : 'Add'}</Button>
+                </div>
+              </div>
+            )}
+
             <div style={s('display:flex;flex-direction:column;gap:8px')}>
               {(active.participants ?? []).map((p) => (
                 <div key={`${p.type}:${p.id}`} style={s('display:flex;align-items:center;gap:10px')}>

@@ -27,8 +27,9 @@ Rails.application.routes.draw do
       # Shared chat (participants are Admin or Employee)
       resources :conversations, only: %i[index create] do
         member do
-          patch :mute      # mute/unmute notifications for this conversation
-          post  :chase     # re-notify who hasn't read the latest message
+          patch :mute               # mute/unmute notifications for this conversation
+          post  :chase              # re-notify who hasn't read the latest message
+          post  :participants, action: :add_participants  # add people to a group/channel
         end
         resources :messages, only: %i[index create] do
           member do
