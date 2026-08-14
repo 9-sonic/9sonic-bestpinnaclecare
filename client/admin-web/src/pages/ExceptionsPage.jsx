@@ -4,6 +4,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs } from '../ds/console.jsx';
 import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.js';
 
@@ -26,6 +27,7 @@ function isToday(iso) { return iso && new Date(iso).toDateString() === new Date(
 /* -------- amend / resolve drawer -------- */
 function ExceptionDrawer({ ex, onClose, onDone }) {
   const toast = useToast();
+  const { canManage } = useAuth();
   const [inTime, setInTime] = useState(ex.actualIn ? formatTime(ex.actualIn) : '');
   const [outTime, setOutTime] = useState(ex.actualOut ? formatTime(ex.actualOut) : '');
   const [reason, setReason] = useState('');
@@ -74,7 +76,7 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
             <div style={s('border:1px solid var(--d-border);border-radius:12px;padding:11px 14px;font-size:12.5px;font-weight:500;color:var(--d-muted);font-style:italic')}>No reason submitted. The carer was prompted in-app when the flag was raised.</div>
           </div>
 
-          {canAmend ? (
+          {canAmend && canManage ? (
             <div>
               <div style={s('font-size:13px;font-weight:700;color:var(--d-ink);margin-bottom:10px')}>Amend the clocking record</div>
               <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
@@ -94,6 +96,8 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="e.g. Carer confirmed by phone they left at 19:05; battery died." style={{ ...field, height: 'auto', padding: '10px 13px', resize: 'vertical', lineHeight: 1.5 }} />
               </label>
             </div>
+          ) : !canManage ? (
+            <div style={s('border:1px solid var(--d-border);border-radius:12px;padding:12px 15px;font-size:12.5px;font-weight:500;color:var(--d-muted);line-height:1.55')}>Your role can review exceptions but not amend or resolve them. A manager or coordinator will action this.</div>
           ) : (
             <label style={s('display:flex;flex-direction:column;gap:6px')}>
               <span style={upper}>Resolution note (optional)</span>
@@ -118,8 +122,8 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
         </div>
 
         <div style={s('padding:16px 24px;border-top:1px solid var(--d-border);display:flex;flex-wrap:wrap;gap:10px')}>
-          {canAmend && <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={save}>{busy ? 'Saving…' : 'Save & verify'}</Button>}
-          {ex.alertId && <Button icon="check" onClick={accept}>Accept as is</Button>}
+          {canAmend && canManage && <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={save}>{busy ? 'Saving…' : 'Save & verify'}</Button>}
+          {ex.alertId && canManage && <Button icon="check" onClick={accept}>Accept as is</Button>}
           <Button onClick={onClose}>Cancel</Button>
         </div>
       </div>

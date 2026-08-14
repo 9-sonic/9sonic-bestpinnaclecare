@@ -139,3 +139,12 @@ body {
   width: 0;
   height: 0;
 }
+
+/* Icon grows on hover; the section-name label is rendered position:fixed from
+   AdminLayout so the scrolling rail never clips it. */
+.rail-item {
+  transition: transform 0.15s ease;
+}
+.rail-item:hover {
+  transform: scale(1.15);
+}

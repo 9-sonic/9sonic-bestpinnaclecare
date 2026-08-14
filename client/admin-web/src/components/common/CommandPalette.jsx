@@ -12,7 +12,8 @@ const PAGES = [
   ['Exceptions', '/exceptions', 'alert'], ['Alerts', '/alerts', 'bell'], ['Cover', '/cover', 'refresh'],
   ['Requests', '/requests', 'note'], ['Timesheets', '/timesheets', 'wallet'], ['Rota', '/rota', 'calendar'],
   ['Clients', '/clients', 'user'], ['Staff', '/employees', 'users'], ['Messages', '/messages', 'chat'],
-  ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'], ['Settings', '/settings', 'settings'],
+  ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'],
+  // Settings hidden pre-launch: ['Settings', '/settings', 'settings'],
 ];
 
 export default function CommandPalette({ open, onClose }) {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { listRequests, approveRequest, declineRequest } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { formatDate } from '../api/format.js';
@@ -41,6 +42,7 @@ const CONSEQUENCE = {
 
 export default function RequestsPage() {
   const toast = useToast();
+  const { canManage } = useAuth();
   const [rows, setRows] = useState(null);
   const [filter, setFilter] = useState('pending');
   const [selectedId, setSelectedId] = useState(null);
@@ -181,7 +183,9 @@ export default function RequestsPage() {
 
                 <Panel>
                   <PanelTitle hint="Your reply goes to the carer's app and is kept with the request">Decision</PanelTitle>
-                  {selected.state === 'pending' ? (
+                  {selected.state === 'pending' && !canManage ? (
+                    <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>Awaiting a manager decision. Your role can view requests but not approve or decline them.</div>
+                  ) : selected.state === 'pending' ? (
                     <>
                       <div style={s('display:flex;flex-direction:column;gap:6px')}>
                         <span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>Message to the carer</span>

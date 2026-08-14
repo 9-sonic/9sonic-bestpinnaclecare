@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { s } from '../../lib/ui.jsx';
 import { listNotifications, markAllNotificationsSeen, markNotificationSeen } from '../../api/index.js';
+import { subscribeInbox } from '../../lib/cable.js';
 import { formatTime, formatDate } from '../../api/format.js';
 
 // Bell in the top bar: unseen notifications with a count badge and a dropdown.
@@ -28,6 +29,17 @@ export default function NotificationsBell() {
     load();
     const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, REFRESH_MS);
     return () => clearInterval(t);
+  }, []);
+
+  // Live: a notification pushed over the cable lands in the bell immediately
+  // (badge updates without waiting for the 60s poll). The sound is handled once
+  // in AdminLayout so it doesn't double-ring.
+  useEffect(() => {
+    const off = subscribeInbox((payload) => {
+      if (payload?.type !== 'notification' || !payload.notification) return;
+      setItems((xs) => (xs.some((n) => n.id === payload.notification.id) ? xs : [payload.notification, ...xs]));
+    });
+    return off;
   }, []);
 
   useEffect(() => {

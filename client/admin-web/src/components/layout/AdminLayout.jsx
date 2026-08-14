@@ -4,6 +4,8 @@ import Icon from '../common/Icon.jsx';
 import NotificationsBell from '../common/NotificationsBell.jsx';
 import CommandPalette from '../common/CommandPalette.jsx';
 import { s, px } from '../../lib/ui.jsx';
+import { subscribeInbox } from '../../lib/cable.js';
+import { playSound } from '../../lib/sounds.js';
 import { uploadMyAvatar } from '../../api/index.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -63,6 +65,10 @@ export default function AdminLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const accountRef = useRef(null);
+  // Hover label for the icon rail. Rendered position:fixed OUTSIDE the rail so
+  // the scrolling rail can never clip it (overflow-y:auto forces overflow-x to
+  // clip too — a child pill always gets cut off). { label, y } or null.
+  const [railHover, setRailHover] = useState(null);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -72,6 +78,23 @@ export default function AdminLayout() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // App-wide inbox listener: distinct cues so the office can tell a new chat
+  // message from a system notification without looking. Runs everywhere (not
+  // just the Messages page) since the layout is always mounted.
+  useEffect(() => {
+    const off = subscribeInbox((payload) => {
+      if (!payload?.type) return;
+      if (payload.type === 'message') {
+        const m = payload.message;
+        const fromMe = m?.sender_type === 'Admin' && m?.sender_id === admin?.id;
+        if (!fromMe) playSound('message');
+      } else if (payload.type === 'notification' || payload.type === 'alert') {
+        playSound('notification');
+      }
+    });
+    return off;
+  }, [admin?.id]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -118,8 +141,12 @@ export default function AdminLayout() {
               <div
                 key={item.to}
                 onClick={() => navigate(item.to)}
-                className={active ? '' : 'hv'}
-                title={item.label}
+                onMouseEnter={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setRailHover({ label: item.label, y: r.top + r.height / 2, x: r.right });
+                }}
+                onMouseLeave={() => setRailHover(null)}
+                className={`rail-item${active ? '' : ' hv'}`}
                 style={railBtn(active)}
               >
                 <Icon name={item.icon} size={px(22)} />
@@ -173,9 +200,11 @@ export default function AdminLayout() {
                 <div onClick={() => { setMenuOpen(false); navigate('/profile'); }} className="hv" style={menuRow}>
                   <Icon name="user" size={18} /><span>My profile</span>
                 </div>
-                <div onClick={() => { setMenuOpen(false); navigate('/settings'); }} className="hv" style={menuRow}>
+                {/* Settings hidden pre-launch — most policy toggles aren't wired
+                    to backend behaviour yet; needs a Jesse ↔ Best Pinnacle pass. */}
+                {/* <div onClick={() => { setMenuOpen(false); navigate('/settings'); }} className="hv" style={menuRow}>
                   <Icon name="settings" size={18} /><span>Settings</span>
-                </div>
+                </div> */}
                 <div onClick={toggle} className="hv" style={menuRow}>
                   <Icon name={dark ? 'sun' : 'moon'} size={18} /><span>{dark ? 'Light mode' : 'Dark mode'}</span>
                 </div>
@@ -193,6 +222,21 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Rail hover label — position:fixed at the app root so the scrolling rail
+          can't clip it. Follows the hovered icon's vertical centre. */}
+      {railHover && (
+        <div
+          style={{
+            ...s('position:fixed;z-index:200;pointer-events:none;background:var(--d-ink);color:var(--d-card);font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:10px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,0.25)'),
+            left: `${railHover.x + 12}px`,
+            top: `${railHover.y}px`,
+            transform: 'translateY(-50%)',
+          }}
+        >
+          {railHover.label}
+        </div>
+      )}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>

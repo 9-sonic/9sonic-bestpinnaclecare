@@ -82,6 +82,7 @@ export const listVisits = ({ from, to }) => api.get('/admin/visits', { from, to 
 export const createVisit = (payload) => api.post('/admin/visits', payload);
 export const editVisit = (id, payload) => api.patch(`/admin/visits/${id}`, payload);
 export const publishVisit = (id) => api.post(`/admin/visits/${id}/publish`);
+export const cancelVisit = (id, reason) => api.post(`/admin/visits/${id}/cancel`, { reason });
 export const generateVisits = ({ from, to }) => api.post('/admin/visits/generate', { from, to });
 
 // Returns the assignment plus any soft warnings (overlap, rest, weekly hours).
@@ -117,6 +118,9 @@ export const getServiceUser = (id) => api.get(`/admin/service_users/${id}`);
 export const createServiceUser = (payload) => api.post('/admin/service_users', payload);
 export const updateServiceUser = (id, payload) => api.patch(`/admin/service_users/${id}`, payload);
 export const listCarePlanItems = (serviceUserId) => api.get(`/admin/service_users/${serviceUserId}/care_plan_items`);
+export const createCarePlanItem = (serviceUserId, attrs) => api.post(`/admin/service_users/${serviceUserId}/care_plan_items`, attrs);
+export const updateCarePlanItem = (serviceUserId, id, attrs) => api.patch(`/admin/service_users/${serviceUserId}/care_plan_items/${id}`, attrs);
+export const deleteCarePlanItem = (serviceUserId, id) => api.delete(`/admin/service_users/${serviceUserId}/care_plan_items/${id}`);
 
 // The client's visit-note journal across all visits. filters: { q, employee_id,
 // from, to, page, per_page }. Returns { notes, page, per_page, total }.
@@ -126,7 +130,8 @@ export const listServiceUserNotes = (serviceUserId, filters = {}) =>
 // One visit's delivery record: schedule + care plan + per-assignment tasks/notes.
 export const getVisit = (id) => api.get(`/admin/visits/${id}`);
 
-export const listCarePackages = () => api.get('/admin/care_package_slots');
+// Paginated { items, page, per_page, total }. Pass { page, per_page, service_user_id }.
+export const listCarePackages = (params = {}) => api.get('/admin/care_package_slots', params);
 
 // Weekly availability grid for one carer: [{ weekday, slot, available, ... }].
 export const getEmployeeAvailability = (id) => api.get(`/admin/employees/${id}/availability`);
