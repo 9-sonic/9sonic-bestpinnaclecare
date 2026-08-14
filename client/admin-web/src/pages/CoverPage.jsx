@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { getCover, createCoverOffer, acceptCoverOffer, declineCoverOffer, assignEmployee, listEmployees } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { formatTimeRange, formatDate } from '../api/format.js';
@@ -28,10 +29,13 @@ function noticeOf(startIso) {
 
 export default function CoverPage() {
   const toast = useToast();
+  const { canManage } = useAuth();
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [carers, setCarers] = useState([]);
-  const [filter, setFilter] = useState('all');
+  // Default to "Unfilled" so the primary view shows only what genuinely still
+  // needs cover — offered visits move to their own "Awaiting reply" tab.
+  const [filter, setFilter] = useState('open');
   const [selectedId, setSelectedId] = useState(null);
   const [picked, setPicked] = useState(null);
 
@@ -152,10 +156,12 @@ export default function CoverPage() {
                     })}
                     {carers.length === 0 && <div style={s('font-size:12.5px;color:var(--d-muted);padding:8px')}>No active carers.</div>}
                   </div>
-                  <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:14px')}>
-                    <Button variant="primary" icon="plus" disabled={!picked} onClick={assign}>Assign directly</Button>
-                    <Button icon="send" disabled={!picked || offeredIds.has(picked)} onClick={offer}>Offer</Button>
-                  </div>
+                  {canManage && (
+                    <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:14px')}>
+                      <Button variant="primary" icon="plus" disabled={!picked} onClick={assign}>Assign directly</Button>
+                      <Button icon="send" disabled={!picked || offeredIds.has(picked)} onClick={offer}>Offer</Button>
+                    </div>
+                  )}
                 </Panel>
 
                 <Panel>
@@ -171,8 +177,8 @@ export default function CoverPage() {
                           </div>
                           {o.state === 'pending' ? (
                             <div style={s('display:flex;gap:6px')}>
-                              <Button size="sm" variant="primary" onClick={() => respond(o.id, true)}>Accept</Button>
-                              <Button size="sm" onClick={() => respond(o.id, false)}>Decline</Button>
+                              {canManage && <Button size="sm" variant="primary" onClick={() => respond(o.id, true)}>Accept</Button>}
+                              {canManage && <Button size="sm" onClick={() => respond(o.id, false)}>Decline</Button>}
                             </div>
                           ) : <Tag tone={OFFER_STATE[o.state]?.tone ?? 'muted'}>{OFFER_STATE[o.state]?.label ?? o.state}</Tag>}
                         </div>

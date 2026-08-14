@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
-  assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit, copyRota,
-  exportRota, getVisit, reassignAssignment,
+  assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit,
+  exportRota, getVisit, reassignAssignment, cancelVisit,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -185,7 +185,11 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
   async function save() {
     if (!clientId) { toast.error('Pick a client'); return; }
     const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
-    const mk = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d.toISOString(); };
+    const mkDate = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
+    const startDate = mkDate(start);
+    if (startDate.getTime() < Date.now()) { toast.error("You can't create a visit in the past — pick a future date and time."); return; }
+    if (mkDate(end).getTime() <= startDate.getTime()) { toast.error('End time must be after the start time.'); return; }
+    const mk = (t) => mkDate(t).toISOString();
     setBusy(true);
     try {
       await createVisit({ service_user_id: Number(clientId), scheduled_start: mk(start), scheduled_end: mk(end) });
@@ -284,6 +288,13 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
 
   async function withdraw() { try { await withdrawAssignment(a.id); toast.info('Carer removed from that visit'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not remove'); } }
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
+  async function cancel() {
+    if (!reason.trim()) { toast.error('Add a reason for cancelling — it goes in the audit trail.'); return; }
+    if (!window.confirm('Cancel this visit and free the carer? This cannot be undone.')) return;
+    setBusy(true);
+    try { await cancelVisit(visit.id, reason.trim()); toast.success('Visit cancelled — carer freed'); onChanged(); onClose(); }
+    catch (e) { toast.error(e.message || 'Could not cancel the visit'); } finally { setBusy(false); }
+  }
   async function save() {
     if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
     const base = new Date(visit.scheduled_start);
@@ -302,7 +313,10 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
   return (
     <Drawer title={`Edit visit — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
       footer={<div style={s('display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap')}>
-        {a && <Button icon="close" onClick={withdraw}>Remove carer</Button>}
+        <div style={s('display:flex;gap:8px')}>
+          {a && <Button icon="close" onClick={withdraw}>Remove carer</Button>}
+          {!started && visit.status !== 'cancelled' && <Button variant="danger" icon="close" onClick={busy ? undefined : cancel}>Cancel visit</Button>}
+        </div>
         <div style={s('display:flex;gap:8px;margin-left:auto')}>
           {a && !started && <Button icon="user" onClick={() => onReassign(visit, a.id)}>Reassign</Button>}
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
@@ -330,9 +344,9 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
               <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
             </div>
             <div style={s('display:flex;flex-direction:column;gap:6px')}>
-              <span style={label}>Reason for change <span style={s('color:var(--d-danger-ink)')}>*</span></span>
-              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="e.g. Client asked for a later call this week" style={{ ...control, ...s('height:auto;padding:10px 13px;resize:vertical') }} />
-              <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Required — stored in the audit trail with your name and time.</span>
+              <span style={label}>Reason for change or cancellation <span style={s('color:var(--d-danger-ink)')}>*</span></span>
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="e.g. Client asked for a later call, or client in hospital" style={{ ...control, ...s('height:auto;padding:10px 13px;resize:vertical') }} />
+              <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Required to retime or cancel — stored in the audit trail with your name and time.</span>
             </div>
           </>
         )}
@@ -424,8 +438,23 @@ export default function RotaPage() {
 
   const openBlock = (v) => (isShort(v) ? setAssigning(v) : setDetail(v));
 
-  async function handleGenerate() { setBusy(true); try { const r = await generateVisits({ from: range.from, to: range.to }); toast.success(`${r.created} visits generated from care packages`); await load(); } catch (e) { toast.error(e.message || 'Could not generate visits'); } finally { setBusy(false); } }
-  async function handleDuplicate() { setBusy(true); try { const prev = new Date(range.monday); prev.setDate(prev.getDate() - 7); await copyRota({ from_week_start: isoDate(prev), to_week_start: range.from }); toast.success('Last week duplicated into this week as drafts'); await load(); } catch (e) { toast.error(e.message || 'Could not duplicate the week'); } finally { setBusy(false); } }
+  // Auto-generate the upcoming week's visits from the care packages. Always the
+  // NEXT Mon–Sun from today (not the viewed week), then jump the view to it.
+  async function handleGenerateNextWeek() {
+    setBusy(true);
+    try {
+      const nextMon = new Date(range.monday);
+      // move to the Monday of next week relative to today
+      const todayMon = weekOf(new Date()).monday;
+      nextMon.setTime(new Date(todayMon).getTime());
+      nextMon.setDate(nextMon.getDate() + 7);
+      const nextSun = new Date(nextMon); nextSun.setDate(nextSun.getDate() + 6);
+      const r = await generateVisits({ from: isoDate(nextMon), to: isoDate(nextSun) });
+      toast.success(`${r.created} visit${r.created === 1 ? '' : 's'} generated for next week`);
+      setWeekStart(nextMon);
+      await load();
+    } catch (e) { toast.error(e.message || 'Could not generate next week'); } finally { setBusy(false); }
+  }
   async function handlePublishAll() {
     if (drafts.length === 0) { toast.info('No draft visits to publish'); return; }
     setBusy(true);
@@ -469,8 +498,7 @@ export default function RotaPage() {
       {/* Page actions */}
       {canManage && (
         <div style={s('display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end')}>
-          <Button icon="refresh" onClick={busy ? undefined : handleGenerate}>{busy ? 'Working…' : 'Generate from care packages'}</Button>
-          <Button icon="sync" onClick={busy ? undefined : handleDuplicate}>Duplicate last week</Button>
+          <Button icon="sync" onClick={busy ? undefined : handleGenerateNextWeek}>{busy ? 'Working…' : 'Generate next week'}</Button>
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
           <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'csv'); toast.success('Rota CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
           <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'xlsx'); toast.success('Rota XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'Export rota'}</Button>

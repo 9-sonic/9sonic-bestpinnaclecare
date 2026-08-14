@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listServiceUsers, createServiceUser, updateServiceUser, listCarePlanItems, listServiceUserNotes } from '../api/index.js';
+import { useNavigate } from 'react-router-dom';
+import { listServiceUsers, createServiceUser } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
@@ -34,53 +35,17 @@ const inputStyle = { ...s('height:46px;border-radius:16px;background:var(--d-fie
 
 export default function ServiceUsersPage() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { canManage } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [modeFilter, setModeFilter] = useState('all');
-  const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
-  const [profileFor, setProfileFor] = useState(null);
-  const [carePlan, setCarePlan] = useState([]);
-  const [carePlanLoading, setCarePlanLoading] = useState(false);
-  const [notesFor, setNotesFor] = useState(null);       // service user whose journal is open
-  const [notes, setNotes] = useState([]);
-  const [notesLoading, setNotesLoading] = useState(false);
-  const [noteQuery, setNoteQuery] = useState('');
-  const [noteCarer, setNoteCarer] = useState('');       // employee_id filter, '' = all
 
   async function load() { setRows(await listServiceUsers()); }
-  async function openProfile(r) {
-    setProfileFor(r); setCarePlanLoading(true);
-    try { setCarePlan(await listCarePlanItems(r.id)); } catch { setCarePlan([]); } finally { setCarePlanLoading(false); }
-  }
-  async function openNotes(r) {
-    setNotesFor(r); setProfileFor(null); setNoteQuery(''); setNoteCarer('');
-  }
-  // (Re)load the journal whenever the open client or the filters change.
-  useEffect(() => {
-    if (!notesFor) return undefined;
-    let active = true;
-    setNotesLoading(true);
-    const filters = {};
-    if (noteQuery.trim()) filters.q = noteQuery.trim();
-    if (noteCarer) filters.employee_id = noteCarer;
-    listServiceUserNotes(notesFor.id, filters)
-      .then((res) => { if (active) setNotes(res.notes ?? []); })
-      .catch(() => { if (active) setNotes([]); })
-      .finally(() => { if (active) setNotesLoading(false); });
-    return () => { active = false; };
-  }, [notesFor, noteQuery, noteCarer]);
-
-  // Distinct carers seen in the loaded notes, for the filter dropdown.
-  const noteCarers = useMemo(() => {
-    const m = new Map();
-    notes.forEach((n) => { if (n.employee_id) m.set(n.employee_id, n.employee_name); });
-    return [...m.entries()].map(([id, name]) => ({ id, name }));
-  }, [notes]);
   useEffect(() => { let active = true; load().finally(() => active && setLoading(false)); return () => { active = false; }; }, []);
 
   const filtered = useMemo(() => {
@@ -91,15 +56,15 @@ export default function ServiceUsersPage() {
   }, [rows, query, modeFilter]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  function openCreate() { setForm(EMPTY); setEditing(null); setCreating(true); }
-  function openEdit(r) { setEditing(r); setForm({ ...EMPTY, ...r, lat: r.lat ?? '', lng: r.lng ?? '' }); }
-  function closeModal() { setCreating(false); setEditing(null); }
+  // Add only — editing a client lives on their detail page (/clients/:id).
+  function openCreate() { setForm(EMPTY); setCreating(true); }
+  function closeModal() { setCreating(false); }
   async function save() {
     setSaving(true);
     try {
       const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng), geofence_radius_m: Number(form.geofence_radius_m) || 150 };
-      if (editing) { await updateServiceUser(editing.id, payload); toast.success('Record updated'); }
-      else { await createServiceUser(payload); toast.success('Person added'); }
+      await createServiceUser(payload);
+      toast.success('Person added');
       await load(); closeModal(); setForm(EMPTY);
     } catch (err) { toast.error(err.message || 'Could not save'); } finally { setSaving(false); }
   }
@@ -154,7 +119,7 @@ export default function ServiceUsersPage() {
                     <div style={s('display:flex;align-items:flex-start;gap:12px')}>
                       <Avatar initials={`${r.first_name?.[0] ?? ''}${r.last_name?.[0] ?? ''}`} />
                       <div style={s('flex:1;min-width:0')}>
-                        <div onClick={() => openProfile(r)} className="hv" style={{ ...s('font-size:16px;font-weight:700;color:var(--d-ink);cursor:pointer;letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:6px'), '--hbg': 'transparent' }}>{fullName(r)}</div>
+                        <div onClick={() => navigate(`/clients/${r.id}`)} className="hv" style={{ ...s('font-size:16px;font-weight:700;color:var(--d-ink);cursor:pointer;letter-spacing:-0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:6px'), '--hbg': 'transparent' }}>{fullName(r)}</div>
                         <div style={s('display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--d-muted);margin-top:2px')}><Icon name="pin" size={12} /><span style={s('white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{addressOf(r)}</span></div>
                         <div style={s('display:flex;gap:6px;flex-wrap:wrap;margin-top:8px')}>
                           <Tag tone="primary">{r.reference ?? 'No ref'}</Tag>
@@ -183,7 +148,7 @@ export default function ServiceUsersPage() {
                         </div>
                         <span style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>{(r.carers ?? []).length} carer{(r.carers ?? []).length === 1 ? '' : 's'}</span>
                       </div>
-                      <Button size="sm" onClick={() => openProfile(r)}>Open</Button>
+                      <Button size="sm" onClick={() => navigate(`/clients/${r.id}`)}>Open</Button>
                     </div>
                   </div>
                 );
@@ -208,12 +173,12 @@ export default function ServiceUsersPage() {
         </Panel>
       )}
 
-      {/* Add / edit modal */}
-      {(creating || editing) && (
+      {/* Add-a-person modal (editing lives on the client detail page) */}
+      {creating && (
         <div onClick={closeModal} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
           <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:560px;max-height:90vh;background:var(--d-card);border-radius:28px;display:flex;flex-direction:column;overflow:hidden')}>
             <div style={s('padding:22px 24px 8px;display:flex;align-items:center')}>
-              <div style={s('font-size:19px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>{editing ? `Edit ${editing.first_name}` : 'Add a person'}</div>
+              <div style={s('font-size:19px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>Add a person</div>
               <div style={s('flex:1')} />
               <div onClick={closeModal} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
             </div>
@@ -247,116 +212,12 @@ export default function ServiceUsersPage() {
             </div>
             <div style={s('padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px')}>
               <Button onClick={closeModal}>Cancel</Button>
-              <Button variant="primary" icon="check" onClick={saving ? undefined : save}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add person'}</Button>
+              <Button variant="primary" icon="check" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Add person'}</Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Profile drawer */}
-      {profileFor && (
-        <div onClick={() => setProfileFor(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.42);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 18px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:14px')}>
-              <Avatar initials={`${profileFor.first_name?.[0] ?? ''}${profileFor.last_name?.[0] ?? ''}`} />
-              <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{fullName(profileFor)}</div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{profileFor.reference ?? 'No reference'}</div>
-              </div>
-              <div onClick={() => setProfileFor(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:18px')}>
-              <div style={s('display:grid;grid-template-columns:repeat(3,1fr);gap:8px')}>
-                {[['Visits / wk', profileFor.visits_per_week ?? 0], ['Adherence', profileFor.adherence == null ? '—' : `${profileFor.adherence}%`], ['Carers', (profileFor.carers ?? []).length]].map(([l, v]) => (
-                  <div key={l} style={s('background:var(--d-panel);border-radius:12px;padding:11px;text-align:center')}>
-                    <div style={s('font-size:9.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{l}</div>
-                    <div className="d-num" style={s('font-size:15px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={s('display:flex;flex-direction:column;gap:6px')}>
-                <div style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Address</div>
-                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink);line-height:1.5')}>{addressOf(profileFor)}</div>
-              </div>
-              <div style={s('display:flex;flex-direction:column;gap:8px')}>
-                <div style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Clocking rules</div>
-                <div style={s('background:var(--d-panel);border-radius:16px;padding:14px 16px')}>
-                  <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{profileFor.lat == null ? 'No coordinates' : `${profileFor.geofence_radius_m}m · ${MODE_LABEL[profileFor.geofence_mode ?? 'block']}`}</div>
-                  <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:6px')}>{GEOFENCE_HELP[profileFor.geofence_mode ?? 'block']}</div>
-                </div>
-              </div>
-              {profileFor.access_notes && (
-                <div style={s('display:flex;flex-direction:column;gap:8px')}>
-                  <div style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Access notes</div>
-                  <div style={s('background:var(--d-note-bg);border-radius:16px;padding:14px 16px;font-size:13px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>{profileFor.access_notes}</div>
-                </div>
-              )}
-              <div style={s('display:flex;flex-direction:column;gap:8px')}>
-                <div style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Care plan</div>
-                {carePlanLoading ? <div style={s('font-size:13px;color:var(--d-muted)')}>Loading…</div>
-                  : carePlan.length === 0 ? <div style={s('font-size:13px;color:var(--d-muted)')}>No care plan items recorded.</div>
-                  : carePlan.map((c) => (
-                    <div key={c.id} style={s('background:var(--d-panel);border-radius:14px;padding:12px 14px')}>
-                      <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{c.label}</div>
-                      {c.detail && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:3px')}>{c.detail}</div>}
-                    </div>
-                  ))}
-              </div>
-            </div>
-            <div style={s('padding:16px 22px;border-top:1px solid var(--d-border);display:flex;justify-content:space-between;gap:10px')}>
-              <Button icon="note" onClick={() => openNotes(profileFor)}>View notes</Button>
-              {canManage && <Button variant="primary" icon="edit" onClick={() => { const r = profileFor; setProfileFor(null); openEdit(r); }}>Edit details</Button>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {notesFor && (
-        <div onClick={() => setNotesFor(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.42);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:520px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:14px')}>
-              <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>Visit notes</div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{fullName(notesFor)} · carer log across visits</div>
-              </div>
-              <div onClick={() => setNotesFor(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('padding:14px 22px;border-bottom:1px solid var(--d-border);display:flex;gap:10px')}>
-              <div style={s('flex:1;display:flex;align-items:center;gap:8px;background:var(--d-panel);border-radius:12px;padding:0 12px')}>
-                <Icon name="search" size={15} />
-                <input value={noteQuery} onChange={(e) => setNoteQuery(e.target.value)} placeholder="Search notes"
-                  style={s('flex:1;border:none;background:transparent;outline:none;padding:10px 0;font-size:13px;font-weight:500;color:var(--d-ink);font-family:inherit')} />
-              </div>
-              <select value={noteCarer} onChange={(e) => setNoteCarer(e.target.value)}
-                style={s('background:var(--d-panel);border:none;border-radius:12px;padding:0 12px;font-size:13px;font-weight:600;color:var(--d-ink);font-family:inherit;cursor:pointer')}>
-                <option value="">All carers</option>
-                {noteCarers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:12px')}>
-              {notesLoading ? <div style={s('font-size:13px;color:var(--d-muted)')}>Loading…</div>
-                : notes.length === 0 ? <div style={s('font-size:13px;color:var(--d-muted)')}>No notes match.</div>
-                : notes.map((n) => (
-                  <div key={n.id} style={s('background:var(--d-panel);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px')}>
-                    <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink);line-height:1.55')}>{n.body}</div>
-                    <div style={s('display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;color:var(--d-muted)')}>
-                      <Icon name="user" size={12} />
-                      <span>{n.employee_name ?? n.author_name ?? 'Unknown'}</span>
-                      <span>·</span>
-                      <span>{fmtNoteDate(n.visit_scheduled_start ?? n.created_at)}</span>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
-
-function fmtNoteDate(iso) {
-  if (!iso) return '';
-  try { return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-  catch { return iso; }
 }

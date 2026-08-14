@@ -66,4 +66,17 @@ RSpec.describe "Admin cover", type: :request do
     get "/api/v1/admin/audit", params: { event_type: "cover.offered" }, headers: auth
     expect(response.parsed_body.first["event_type"]).to eq("cover.offered")
   end
+
+  it "refuses to accept an offer once the visit is already filled" do
+    v = open_visit
+    # someone else already filled it
+    create(:visit_assignment, visit: v, employee: create(:employee))
+    post "/api/v1/admin/cover_offers", params: { visit_id: v.id, employee_id: employee.id }, headers: auth, as: :json
+    offer_id = response.parsed_body["id"]
+
+    post "/api/v1/admin/cover_offers/#{offer_id}/accept", headers: auth
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body["error"]).to eq("visit_already_filled")
+    expect(VisitAssignment.assigned.where(visit: v, employee: employee)).not_to exist
+  end
 end

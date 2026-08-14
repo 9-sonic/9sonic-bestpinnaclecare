@@ -9,6 +9,7 @@ module Api
       # (moving visits, applying leave) is left to the manager acting on it —
       # this queue records the decision, it does not silently mutate the roster.
       class RequestsController < BaseController
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[approve decline]
         def index
           scope = CarerRequest.includes(:employee, :decided_by)
                               .order(Arel.sql("CASE WHEN state = 'pending' THEN 0 ELSE 1 END"), created_at: :desc)

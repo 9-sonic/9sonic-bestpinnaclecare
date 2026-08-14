@@ -26,12 +26,26 @@ module Notifications
             channel:           channel,
             status:            "queued"
           )
-          # in_app is read live off the row; email is actually sent (and the row
-          # marked sent/failed) by its own background job.
+          # in_app: push it live over the cable so the bell updates (and rings)
+          # immediately, instead of waiting for the next poll. email is sent by
+          # its own job. Broadcast is best-effort — a socket problem must never
+          # fail an already-created notification.
+          broadcast(recipient, notification) if channel == "in_app"
           Notifications::EmailNotificationJob.perform_later(notification.id) if channel == "email"
           notification
         end
       end
+    end
+
+    # Push the notification to the recipient's live socket(s). Same address as
+    # chat messages so one InboxChannel subscription receives both.
+    def self.broadcast(recipient, notification)
+      ActionCable.server.broadcast(
+        "inbox:#{recipient.class.name}:#{recipient.id}",
+        { type: "notification", notification: NotificationSerializer.call(notification) }
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[cable] notification broadcast failed: #{e.message}")
     end
 
     # Critical alerts ignore the in-app off-switch (§7).

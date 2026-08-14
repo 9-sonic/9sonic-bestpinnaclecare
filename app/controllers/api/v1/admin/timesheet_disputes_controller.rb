@@ -2,8 +2,10 @@ module Api
   module V1
     module Admin
       class TimesheetDisputesController < BaseController
+        # Dispute resolution touches pay — managers/coordinators + finance.
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator, :finance) }, only: :resolve
         def index
-          render json: TimesheetDispute.where(state: "open").order(created_at: :desc)
+          render json: TimesheetDispute.where(state: "open").includes(:raised_by).order(created_at: :desc)
                                        .map { |d| TimesheetDisputeSerializer.call(d) }
         end
 

@@ -2,6 +2,7 @@ module Api
   module V1
     module Admin
       class AlertsController < BaseController
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[acknowledge resolve]
         # The inbox: everything not yet resolved, plus anything resolved today so
         # the "resolved" count and filter have something to show.
         def index

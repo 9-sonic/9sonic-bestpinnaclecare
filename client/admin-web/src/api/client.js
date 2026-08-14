@@ -32,6 +32,13 @@ const MESSAGES = {
   unconfirmed_lines: 'This carer has visits still in review — resolve those before approving.',
   period_locked: 'This period is locked, so it can no longer be changed.',
   no_lines: 'This carer has no timesheet lines in this period.',
+  cannot_deactivate_self: 'You cannot deactivate your own account.',
+  last_registered_manager: 'You cannot remove the last registered manager — the system must keep one.',
+  visit_in_past: "You can't create or publish a visit in the past.",
+  visit_already_filled: 'That visit has already been filled by another carer.',
+  visit_started: "This visit can't be cancelled — a carer has already clocked in. The record must be kept.",
+  already_cancelled: 'This visit is already cancelled.',
+  reason_required: 'A reason is required — it goes in the audit trail.',
 };
 
 function messageFor(code, status) {

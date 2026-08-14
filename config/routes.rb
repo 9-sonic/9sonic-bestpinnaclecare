@@ -58,7 +58,10 @@ Rails.application.routes.draw do
         end
         resources :care_package_slots, only: %i[index create update]
         resources :visits, only: %i[index show create update] do
-          member     { post :publish }
+          member do
+            post :publish
+            post :cancel    # soft-cancel + free the assigned carer(s)
+          end
           collection { post :generate }   # generate dated visits from care packages
         end
         resources :visit_assignments, only: %i[create destroy] do

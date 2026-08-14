@@ -14,8 +14,11 @@ module Api
         # GET /admin/employees/:employee_id/profile
         def profile
           e = employee
+          # Same per-carer metrics the employees list shows (hours this week,
+          # 30-day punctuality, usual capture method), merged onto the profile.
+          stats = ::Staff::Stats.call(only: e.id)[e.id] || {}
           render json: {
-            employee: EmployeeSerializer.call(e),
+            employee: EmployeeSerializer.call(e).merge(stats),
             counts: {
               visits:        e.visit_assignments.assigned.count,
               upcoming:      e.visit_assignments.assigned.non_terminal.count,

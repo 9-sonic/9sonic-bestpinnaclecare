@@ -9,10 +9,13 @@ const SetPasswordPage = lazy(() => import('./pages/SetPasswordPage.jsx'));
 const LiveBoardPage = lazy(() => import('./pages/LiveBoardPage.jsx'));
 const RotaPage = lazy(() => import('./pages/RotaPage.jsx'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage.jsx'));
+const CarerDetailPage = lazy(() => import('./pages/CarerDetailPage.jsx'));
 const ServiceUsersPage = lazy(() => import('./pages/ServiceUsersPage.jsx'));
+const ClientDetailPage = lazy(() => import('./pages/ClientDetailPage.jsx'));
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage.jsx'));
 const TimesheetsPage = lazy(() => import('./pages/TimesheetsPage.jsx'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
+// Settings hidden pre-launch (policy toggles not wired to backend yet).
+// const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const LifecyclePage = lazy(() => import('./pages/LifecyclePage.jsx'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage.jsx'));
@@ -44,11 +47,13 @@ export default function App() {
           <Route path="/board" element={<Navigate to="/" replace />} />
           <Route path="/rota" element={<RotaPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
+          <Route path="/employees/:id" element={<CarerDetailPage />} />
           <Route path="/clients" element={<ServiceUsersPage />} />
+          <Route path="/clients/:id" element={<ClientDetailPage />} />
           <Route path="/service-users" element={<ServiceUsersPage />} />
           <Route path="/exceptions" element={<ExceptionsPage />} />
           <Route path="/timesheets" element={<TimesheetsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          {/* <Route path="/settings" element={<SettingsPage />} /> */}
 
           {/* New IA — real where the backend exists, placeholder where it doesn't */}
           <Route path="/lifecycle" element={<LifecyclePage />} />

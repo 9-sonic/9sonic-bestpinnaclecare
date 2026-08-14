@@ -4,6 +4,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { formatTime, formatDate } from '../api/format.js';
 import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
 
@@ -18,6 +19,7 @@ const carerInits = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 
 
 export default function AlertsPage() {
   const toast = useToast();
+  const { canManage } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('open');
@@ -120,8 +122,8 @@ export default function AlertsPage() {
               <Panel>
                 <PanelTitle hint="Acknowledge so the carer knows you have seen it, then resolve with a record">Actions</PanelTitle>
                 <div style={s('display:flex;gap:10px;flex-wrap:wrap')}>
-                  {selected.state === 'open' && <Button variant="primary" icon="check" onClick={() => ack(selected)}>Acknowledge</Button>}
-                  {selected.state !== 'resolved' && <Button icon="shield" onClick={() => resolve(selected)}>Resolve</Button>}
+                  {canManage && selected.state === 'open' && <Button variant="primary" icon="check" onClick={() => ack(selected)}>Acknowledge</Button>}
+                  {canManage && selected.state !== 'resolved' && <Button icon="shield" onClick={() => resolve(selected)}>Resolve</Button>}
                   {selected.state === 'resolved' && <div style={s('font-size:12.5px;font-weight:600;color:var(--d-ok-ink);display:flex;align-items:center;gap:7px')}><Icon name="check" size={16} /> Resolved{selected.resolved_at ? ` at ${formatTime(selected.resolved_at)}` : ''}</div>}
                 </div>
                 <div style={s('margin-top:14px;background:var(--d-note-bg);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>Resolving records who cleared the alert and when in the audit trail. A manager-attested clock-in is flagged as manager-entered, never as a device capture.</div>

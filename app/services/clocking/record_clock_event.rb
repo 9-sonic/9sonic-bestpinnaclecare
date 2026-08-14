@@ -31,6 +31,12 @@ module Clocking
         return replay(existing)
       end
 
+      # The visit must be in a state that can accept this clock action. Corrections
+      # (manual_admin) bypass this — an admin fixes records out of band.
+      if @method != "manual_admin" && (err = clockable_error)
+        return Result.new(status: :blocked, geofence_result: "not_checked", error: err)
+      end
+
       if @method == "manual_admin"
         # Admin-authorised correction: no geofence/skew enforcement.
         geo = EvaluateGeofence::Result.new(result: "not_checked", distance_m: nil, blocked: false)
@@ -56,7 +62,10 @@ module Clocking
         if @kind == "clock_in" && too_early? && @on_block == :reject
           return Result.new(status: :blocked, geofence_result: geo.result, distance_m: geo.distance_m, error: "too_early")
         end
-        anomaly = time_anomaly? || too_early? || geo.result == "no_fix" || geo.result == "fail"
+        # An early clock-out (before scheduled_end − early_leave_tolerance) is
+        # never blocked — a carer finishing early for a real reason must still be
+        # able to clock out — but it's flagged for the office to review.
+        anomaly = time_anomaly? || too_early? || early_leave? || geo.result == "no_fix" || geo.result == "fail"
       end
 
       event = nil
@@ -89,6 +98,21 @@ module Clocking
 
     private
 
+    # Returns an error code if this clock action can't apply to the visit's
+    # current state, else nil. Guards against clocking a cancelled/missed/already-
+    # completed visit, clocking in twice, or clocking out with no clock-in.
+    def clockable_error
+      state = @va.lifecycle_state
+      return "visit_not_clockable" if %w[cancelled missed completed].include?(state)
+
+      if @kind == "clock_in"
+        "already_clocked_in" if @va.effective_clock_in
+      elsif @kind == "clock_out"
+        return "not_clocked_in" unless @va.effective_clock_in
+        "already_clocked_out" if @va.effective_clock_out
+      end
+    end
+
     def replay(event)
       Result.new(status: :replay, clock_event: event, geofence_result: event&.geofence_result,
                  distance_m: event&.distance_from_site_m, lifecycle_state: @va.reload.lifecycle_state)
@@ -109,6 +133,16 @@ module Clocking
       start = @va.visit.scheduled_start
       window = Setting.instance.checkin_window_before_start_minutes.to_i
       @too_early = start.present? && @occurred_at < (start - window.minutes)
+    end
+
+    # A clock-out more than early_leave_tolerance_minutes before the scheduled
+    # end — flagged for review (not blocked). Only applies to clock-out.
+    def early_leave?
+      return false unless @kind == "clock_out"
+
+      finish = @va.visit.scheduled_end
+      tolerance = Setting.instance.early_leave_tolerance_minutes.to_i
+      finish.present? && @occurred_at < (finish - tolerance.minutes)
     end
 
     def advance_lifecycle(anomaly:)
