@@ -13,6 +13,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Modal from '../components/common/Modal.jsx';
+import AssistanceRequestDialog from '../components/clock/AssistanceRequestDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useOnline } from '../hooks/useOnline.js';
 import { enqueue } from '../utils/offlineQueue.js';
@@ -30,6 +31,10 @@ export default function ClockPage() {
   const [gps, setGps] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
+  const [assistOpen, setAssistOpen] = useState(false);
+  // The last clock failure, kept so the assistance request can describe what
+  // actually happened (error, distance, when, where) without the carer typing.
+  const [lastError, setLastError] = useState(null);
   // Break state lives on the device, not on the shift. The API models
   // `break_minutes` but has no endpoint for starting or ending a break, so
   // nothing comes back from the server to merge into the shift — it has to be
@@ -85,6 +90,17 @@ export default function ClockPage() {
       setSearchParams({ shift: shift.id }, { replace: true });
     }
   }, [shift, selectedId, setSearchParams]);
+
+  // Secondary entry, e.g. from Help & support: /clock?assist=1 opens the
+  // assistance form directly. The param is stripped so a reload or a shared
+  // link does not keep reopening it.
+  useEffect(() => {
+    if (searchParams.get('assist') !== '1' || loading) return;
+    setAssistOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('assist');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, loading, setSearchParams]);
 
   // Load the stored break whenever the shown shift changes, so switching shifts
   // (or reloading mid-break) picks up where the carer left off. Keyed on the id
@@ -174,12 +190,14 @@ export default function ClockPage() {
         await sendClockEvent({ visitAssignmentId: shift.id, event });
         successFeedback();
         toast.success(kind === 'clock_in' ? 'Clocked in' : 'Clocked out');
+        setLastError(null);
       } catch (err) {
         // Outside the geofence is a decision for the carer, not a failure to
         // retry, so it is surfaced rather than queued.
         if (err.code === 'too_far') {
           errorFeedback();
           const away = err.data?.distance_m;
+          setLastError({ code: 'too_far', distanceM: away ?? null, attemptedAt: event.occurred_at, location });
           setError(
             away
               ? `You are about ${away}m from the address. Move closer and try again.`
@@ -191,6 +209,7 @@ export default function ClockPage() {
         // Block mode, but we couldn't get a location — enable it and retry.
         if (err.code === 'location_required') {
           errorFeedback();
+          setLastError({ code: 'location_required', distanceM: null, attemptedAt: event.occurred_at, location });
           setError('We couldn’t get your location. Turn on location for this app and try again.');
           return;
         }
@@ -198,12 +217,14 @@ export default function ClockPage() {
         // The shift hasn't started yet — clocking in opens shortly before it.
         if (err.code === 'too_early') {
           errorFeedback();
+          setLastError({ code: 'too_early', distanceM: null, attemptedAt: event.occurred_at, location });
           setError("This shift hasn't started yet. You can clock in shortly before it begins.");
           return;
         }
 
         if (!online || err.isNetworkError) {
           enqueue({ visitAssignmentId: shift.id, event });
+          setLastError({ code: 'no_connection', distanceM: null, attemptedAt: event.occurred_at, location });
           warnFeedback();
           toast.warn('Saved on this phone. It will sync when you have signal.');
         } else {
@@ -222,6 +243,14 @@ export default function ClockPage() {
       await refresh();
     } catch (err) {
       errorFeedback();
+      // Covers getCurrentLocation failing before an event was even built, and
+      // anything rethrown above that was not a network drop.
+      setLastError({
+        code: err.code ?? null,
+        distanceM: null,
+        attemptedAt: new Date().toISOString(),
+        location: gps,
+      });
       setError(err.message || 'Something went wrong');
       toast.error(err.message || 'Something went wrong');
     } finally {
@@ -456,7 +485,28 @@ export default function ClockPage() {
           act on it standing at a front door, and honest that the record is
           kept either way. Location rules are not settled with the client, so
           this describes what the app does, not what policy requires. */}
-      <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="Can't clock in?">
+      <Modal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Can't clock in?"
+        footer={
+          // The form opens ON TOP of this advice sheet, not in its place:
+          // closing a Modal unwinds its history entry with a deferred
+          // history.back(), which would pop the new dialog's entry and close
+          // it instantly. Nested overlays each push their own entry and unwind
+          // one at a time (see useHistoryOverlay).
+          <Button
+            pill
+            block
+            onClick={() => {
+              tapFeedback();
+              setAssistOpen(true);
+            }}
+          >
+            Request help from the office
+          </Button>
+        }
+      >
         <div className="prose">
           <p>
             <strong>No signal.</strong> Tap Clock In anyway. The time of your tap is
@@ -479,6 +529,16 @@ export default function ClockPage() {
           </p>
         </div>
       </Modal>
+
+      <AssistanceRequestDialog
+        open={assistOpen}
+        onClose={() => setAssistOpen(false)}
+        shift={shift}
+        errorContext={lastError}
+        // Sent or queued: the whole episode is over, so close the advice
+        // sheet sitting underneath as well.
+        onSubmitted={() => setHelpOpen(false)}
+      />
     </div>
   );
 }

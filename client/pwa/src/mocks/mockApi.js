@@ -354,4 +354,35 @@ export function readLocal() {
   return loadDb().local;
 }
 
+/* ------------------- Carer requests (for clock assistance etc.) ----------- */
+
+export async function listMyRequests() {
+  await delay(150);
+  const db = loadDb();
+  return db.carer_requests || [];
+}
+
+export async function createRequest({ kind, summary, detail, payload }) {
+  await delay(220);
+  const db = loadDb();
+  const req = {
+    id: Date.now(),
+    employee_id: db.employee?.id || 1,
+    employee_name: db.employee?.full_name || null,
+    kind,
+    state: 'pending',
+    summary,
+    detail: detail || null,
+    payload: payload || {},
+    decided_by: null,
+    decision_note: null,
+    decided_at: null,
+    created_at: new Date().toISOString(),
+  };
+  if (!db.carer_requests) db.carer_requests = [];
+  db.carer_requests.unshift(req);
+  saveDb(db);
+  return req;
+}
+
 export { nameOf };

@@ -8,6 +8,7 @@ import PullToRefresh from '../common/PullToRefresh.jsx';
 import InstallPrompt from '../common/InstallPrompt.jsx';
 import UpdatePrompt from '../common/UpdatePrompt.jsx';
 import { useQueueSync } from '../../hooks/useQueueSync.js';
+import { useAssistanceQueueSync } from '../../hooks/useAssistanceQueueSync.js';
 import { useSwipeTabs } from '../../hooks/useSwipeTabs.js';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 import { useAuth } from '../../hooks/useAuth.js';
@@ -56,6 +57,7 @@ export default function AppLayout() {
   // The chat thread manages its own scrolling and would fight the gesture.
   const allowPull = !pathname.startsWith('/messages/');
   useQueueSync();
+  useAssistanceQueueSync();
 
   // Swiping between tabs only makes sense where the tab bar is: on desktop the
   // sidebar is the navigation and a stray trackpad swipe changing page would
