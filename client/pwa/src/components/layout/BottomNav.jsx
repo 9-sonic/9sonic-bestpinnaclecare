@@ -21,10 +21,10 @@ export default function BottomNav({ messagesUnread = 0 }) {
           aria-hidden="true"
           style={{ '--nav-active': activeIndex }}
         >
-          <svg viewBox="0 0 119 26" preserveAspectRatio="none" focusable="false">
+          <svg viewBox="0 0 160 26" preserveAspectRatio="none" focusable="false">
             <path
               fill="currentColor"
-              d="M120.8,26C98.1,26,86.4,0,60.4,0C35.9,0,21.1,26,0.5,26H120.8z"
+              d="M160,24 C120,24 104,0 80,0 C56,0 40,24 0,24 V26 H160 Z"
             />
           </svg>
         </span>

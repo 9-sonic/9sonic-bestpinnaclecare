@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Card from '../components/common/Card.jsx';
 import Icon from '../components/common/Icon.jsx';
-import Modal from '../components/common/Modal.jsx';
-import Button from '../components/common/Button.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useBiometric } from '../hooks/useBiometric.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../hooks/useAuth.js';
+import { requestPasswordReset } from '../api/auth.js';
 
 const TINTS = {
   teal: { bg: 'var(--teal-050)', fg: 'var(--color-primary)' },
@@ -48,8 +47,6 @@ function Row({ icon, tint, label, hint, trailing, onClick }) {
   );
 }
 
-const LANGUAGES = ['English', 'Polski', 'Română', 'Português', 'Shqip'];
-
 export default function PreferencesPage() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -64,8 +61,7 @@ export default function PreferencesPage() {
   const [largeText, setLargeText] = useState(
     () => document.documentElement.dataset.textSize === 'large'
   );
-  const [langOpen, setLangOpen] = useState(false);
-  const [language, setLanguage] = useState(user?.language ?? 'English');
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   async function handleBiometric() {
     if (biometricOn) {
@@ -91,6 +87,21 @@ export default function PreferencesPage() {
     localStorage.setItem('bpc.textSize', next ? 'large' : 'normal');
   }
 
+  // Emails a reset link. The API always answers 202, so a sent-looking toast is
+  // honest — the carer only hears about it again if the send itself failed.
+  async function handleChangePassword() {
+    if (passwordBusy || !user?.email) return;
+    setPasswordBusy(true);
+    try {
+      await requestPasswordReset(user.email);
+      toast.success('Check your email for a password reset link');
+    } catch {
+      toast.error('Could not send the reset email. Please try again.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   return (
     <div className="page--flush">
       <ScreenHeader title="Preferences" back onBack={() => navigate('/profile')} />
@@ -110,13 +121,6 @@ export default function PreferencesPage() {
           label="Larger text"
           hint="Increase text size across the app"
           trailing={<Switch on={largeText} onChange={handleLargeText} label="Larger text" />}
-        />
-        <Row
-          icon="globe"
-          tint={TINTS.purple}
-          label="Language"
-          hint={language}
-          onClick={() => setLangOpen(true)}
         />
       </Card>
 
@@ -170,32 +174,10 @@ export default function PreferencesPage() {
           icon="shield"
           tint={TINTS.green}
           label="Change password"
-          onClick={() => toast.info('Password changes open in the staff portal')}
+          hint="We'll email you a reset link"
+          onClick={handleChangePassword}
         />
       </Card>
-
-      <Modal open={langOpen} onClose={() => setLangOpen(false)} title="Choose language">
-        <div className="choice-list">
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang}
-              type="button"
-              className={`choice${lang === language ? ' choice--on' : ''}`}
-              onClick={() => {
-                setLanguage(lang);
-                setLangOpen(false);
-                toast.success(`Language set to ${lang}`);
-              }}
-            >
-              <span>{lang}</span>
-              {lang === language && <Icon name="check" size={17} />}
-            </button>
-          ))}
-        </div>
-        <Button block variant="white" onClick={() => setLangOpen(false)}>
-          Cancel
-        </Button>
-      </Modal>
     </div>
   );
 }

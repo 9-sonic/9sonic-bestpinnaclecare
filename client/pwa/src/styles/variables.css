@@ -592,8 +592,8 @@
      than as the bar's own surface. Blur is a little tighter than --shadow-nav
      because drop-shadow has no spread parameter to pull it back in. */
   --shadow-nav-drop:
-    drop-shadow(0 9px 12px rgba(11, 18, 32, 0.13))
-    drop-shadow(0 3px 5px rgba(11, 18, 32, 0.07));
+    drop-shadow(0 -4px 14px rgba(11, 18, 32, 0.08))
+    drop-shadow(0 -1px 3px rgba(11, 18, 32, 0.04));
 
   --radius-lg: 20px;
 }
@@ -605,7 +605,7 @@
   --shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   --shadow-nav: 0 12px 28px -8px rgba(0, 0, 0, 0.6);
   --card-line: rgba(255, 255, 255, 0.08);
-  --shadow-nav-drop: drop-shadow(0 9px 12px rgba(0, 0, 0, 0.5));
+  --shadow-nav-drop: drop-shadow(0 -4px 16px rgba(0, 0, 0, 0.45));
 }
 
 /* Calendar day states, the export's own flat fills. Teal for the selection,

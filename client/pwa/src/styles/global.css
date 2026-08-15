@@ -250,13 +250,16 @@ body {
    Filled with currentColor so the single `color` below covers both themes. */
 .bottom-nav__wave {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% - 2px);
   left: calc((var(--nav-active, 0) + 0.5) * 20%);
-  /* A little wider than one column (20%), so the hump reads as a wave either
-     side of the disc rather than disappearing behind it. Not much wider: on the
-     first and last tab the surplus overhangs the end of the bar. */
-  width: 24%;
-  height: calc(var(--nav-height) * 0.34);
+  /* A good deal wider than one column (20%), so the hump spreads past the disc
+     with the gentle shoulders of a water ripple rather than a steep bell. Not
+     unlimited: on the first and last tab the surplus overhangs the end of the
+     bar (harmless — body hides horizontal overflow). */
+  width: 32%;
+  /* Tall enough that the peak clears the top of the lifted disc with room to
+     spare — the disc should read as nested in the wave, not as covering it. */
+  height: calc(var(--nav-height) * 0.46);
   transform: translateX(-50%);
   color: var(--color-surface);
   pointer-events: none;
@@ -304,7 +307,7 @@ body {
 }
 
 .bottom-nav__link--active .bottom-nav__icon {
-  transform: translateY(calc(var(--nav-height) * -0.22));
+  transform: translateY(calc(var(--nav-height) * -0.26));
   color: var(--color-primary-contrast);
 }
 
@@ -326,7 +329,7 @@ body {
    reads as the icon arriving, and sized past the icon box to leave a margin. */
 .bottom-nav__pill {
   position: absolute;
-  inset: -7px;
+  inset: -12px;
   border-radius: 50%;
   background: var(--color-primary);
   transform: scale(0);
@@ -340,8 +343,8 @@ body {
 /* Anchored to the icon, so it travels with it when the tab becomes active. */
 .bottom-nav__badge {
   position: absolute;
-  top: -8px;
-  left: 11px;
+  top: -10px;
+  left: 13px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
