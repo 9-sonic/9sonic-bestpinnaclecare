@@ -982,6 +982,22 @@ body {
   box-shadow: var(--shadow-focus);
 }
 
+/* A field that cannot be changed has to look like it. Read-only inputs used to
+   be indistinguishable from editable ones, so the only way to find out was to
+   tap and get no caret — the same problem as a box that accepts a change and
+   discards it. Muted ground, quieter text, no focus ring, standard cursor. */
+.field__input[readonly] {
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.field__input[readonly]:focus {
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+
 .field__input--error {
   border-color: var(--color-danger);
 }
@@ -4214,8 +4230,16 @@ body {
   color: var(--color-border-strong);
 }
 
-.stack-card--spaced {
-  margin-top: var(--space-5);
+/* Only Log out uses this, to break the run of cards before a destructive
+   action.
+
+   Doubled up on purpose. `.stack-card` is declared twice in this sheet (see the
+   later pass), and that one sets the `margin` shorthand, which resets
+   margin-top to 0. With equal specificity the later declaration won, so this
+   modifier silently did nothing and Log out read as the tail of the Legal card.
+   The extra class makes it win regardless of source order. */
+.stack-card.stack-card--spaced {
+  margin-top: var(--space-8);
 }
 
 /* --------------------------- Motion and polish --------------------------- */
@@ -4492,8 +4516,9 @@ body {
 
   .clock-screen { padding: var(--space-2) var(--space-3) var(--space-4); }
 
-  /* Profile header: less dead space above the fold. */
-  .profile__hero { margin-top: -38px; }
+  /* The hero offset is no longer tuned per breakpoint: it is tied to where the
+     avatar meets the wave, which is the same fraction of the header at every
+     width. See .profile__hero in the Profile section. */
   .profile__name { font-size: var(--text-lg); }
 
   .detail-head { padding: var(--space-3); }
@@ -7922,12 +7947,27 @@ body:has(.drawer-backdrop) .app-content {
 
 /* --------------------------------- Profile -------------------------------- */
 
-/* The header is the wave rather than a flat band, tying the screen back to
-   sign in. */
+/* The header is the same artwork as sign in and the launch screen, cropped to
+   its bottom section. It is dark in both themes, so the bar sitting on it is
+   always white rather than following the theme's text colour. */
 .profile__bar-title {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: var(--text-lg);
+  color: #fff;
+}
+
+/* Pulls the avatar up so it straddles the wave, as on the board: its top sits
+   141px down a 220px header. */
+.profile__hero {
+  margin-top: -79px;
+}
+
+/* On the artwork the ring reads as a cut-out, so it is white rather than the
+   brand tint the ring uses elsewhere. */
+.profile__avatar-btn .avatar--ring {
+  border-color: #fff;
+  box-shadow: none;
 }
 
 .profile__name {

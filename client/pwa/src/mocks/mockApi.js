@@ -281,7 +281,6 @@ export async function updateProfile(patch) {
 
   db.employee = {
     ...db.employee,
-    ...(patch.phone !== undefined ? { phone: patch.phone } : null),
     ...(patch.emergencyContactName !== undefined
       ? { emergency_contact_name: patch.emergencyContactName }
       : null),

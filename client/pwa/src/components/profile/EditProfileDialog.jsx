@@ -6,8 +6,13 @@ import Icon from '../common/Icon.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { updateProfile, uploadAvatar } from '../../api/auth.js';
 
-// Edit the fields a carer is allowed to change themselves. Staff ID and role
-// are set by the office, so they are shown read only.
+// The carer's record is office controlled: name, email, mobile, staff ID and
+// role are all shown read only. Emergency contact is the exception — it is the
+// carer's own to keep current, and it is the field that matters most when it is
+// out of date.
+//
+// The read-only fields are not sent on save either, so the client never asks to
+// change something it does not present as changeable.
 export default function EditProfileDialog({ open, onClose, user, onSaved }) {
   const toast = useToast();
   // Emergency contact is two fields because the API stores two
@@ -15,13 +20,10 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
   // would have to be split on save, and "Jane 07700 900000" has no reliable
   // split — the number is the part that matters in an emergency.
   const [form, setForm] = useState({
-    name: user?.name ?? '',
-    phone: user?.phone ?? '',
     emergencyContactName: user?.emergencyContactName ?? '',
     emergencyContactPhone: user?.emergencyContactPhone ?? '',
   });
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef(null);
 
@@ -43,16 +45,8 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
     }
   }
 
-  function validate() {
-    const next = {};
-    if (!form.name.trim()) next.name = 'Enter your name';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
   async function handleSave(e) {
     e.preventDefault();
-    if (!validate()) return;
     setSaving(true);
     try {
       const updated = await updateProfile(form);
@@ -103,20 +97,21 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
           </button>
         </div>
 
+        {/* Name, email and mobile are the office's record of this carer. They
+            are shown so the carer can check them and see what to ask their
+            manager about — a box that takes a change and discards it is worse
+            than no box. */}
         <label className="field">
           <span className="field__label">Full name</span>
           <input
-            className={`field__input${errors.name ? ' field__input--error' : ''}`}
-            value={form.name}
-            onChange={set('name')}
-            autoComplete="name"
+            className="field__input"
+            value={user?.name ?? ''}
+            readOnly
+            tabIndex={-1}
+            aria-describedby="profile-readonly-note"
           />
-          {errors.name && <span className="field__error">{errors.name}</span>}
         </label>
 
-        {/* Email is the sign-in identifier and is office controlled: PATCH
-            /staff/me does not accept it. Shown, not editable — a box that
-            takes a change and discards it is worse than no box. */}
         <label className="field">
           <span className="field__label">Email address</span>
           <input
@@ -134,11 +129,10 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
           <input
             className="field__input"
             type="tel"
-            value={form.phone}
-            onChange={set('phone')}
-            autoComplete="tel"
-            inputMode="tel"
-            placeholder="07700 900000"
+            value={user?.phone ?? ''}
+            readOnly
+            tabIndex={-1}
+            aria-describedby="profile-readonly-note"
           />
         </label>
 
@@ -167,8 +161,8 @@ export default function EditProfileDialog({ open, onClose, user, onSaved }) {
         <div className="readonly-note" id="profile-readonly-note">
           <Icon name="info" size={15} />
           <span>
-            Your email address, staff ID {user?.staffId} and role are managed by the office.
-            Contact your manager to change them.
+            Your name, email address, mobile number, staff ID {user?.staffId} and role are
+            managed by the office. Contact your manager to change them.
           </span>
         </div>
       </form>

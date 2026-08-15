@@ -84,7 +84,7 @@ export default function ProfilePage() {
 
   return (
     <div className="page--flush">
-      <WaveHeader height={124}>
+      <WaveHeader height={220} photo curve="profile">
         <div className="profile__bar">
           <span className="profile__bar-spacer" />
           <span className="profile__bar-title">Profile</span>
@@ -106,7 +106,7 @@ export default function ProfilePage() {
           onClick={() => { tapFeedback(); setEditing(true); }}
           aria-label="Edit profile photo"
         >
-          <Avatar name={user?.name ?? ''} src={user?.avatar} size={88} ring />
+          <Avatar name={user?.name ?? ''} src={user?.avatar} size={104} ring />
           <span className="profile__avatar-edit">
             <Icon name="camera" size={13} />
           </span>
@@ -125,13 +125,9 @@ export default function ProfilePage() {
           value={user?.name}
           onClick={() => navigate('/profile/details')}
         />
-        <Row
-          icon="calendar"
-          tint={TINTS.blue}
-          label="Availability"
-          value={user?.availability ?? 'Mon to Fri'}
-          onClick={() => navigate('/profile/availability')}
-        />
+        {/* Availability is not surfaced here for now. The board still shows it,
+            and /profile/availability is still routed and tested, so restoring
+            this row is the only change needed to bring it back. */}
         <Row icon="settings" tint={TINTS.green} label="Preferences" onClick={() => navigate('/profile/preferences')} />
       </Card>
 
