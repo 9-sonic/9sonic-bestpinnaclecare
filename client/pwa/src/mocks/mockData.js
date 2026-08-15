@@ -99,6 +99,45 @@ const serviceUsers = [
   },
 ];
 
+// Matches CarePlanItemSerializer. Content mirrors db/seeds.rb so the mock and a
+// seeded API show a carer the same thing. Keyed by service user, as on the
+// server, where the plan belongs to the person rather than to the visit.
+const carePlanItems = {
+  1: [
+    { id: 801, category: 'medication', label: 'Morning medication', detail: 'Blister pack in the kitchen drawer.', position: 0, active: true },
+    { id: 802, category: 'mobility', label: 'Assist to armchair', detail: 'Uses a Zimmer frame; take it slowly.', position: 1, active: true },
+    { id: 803, category: 'allergy', label: 'Penicillin allergy', detail: 'Flag on all records.', position: 2, active: true },
+  ],
+  2: [
+    { id: 811, category: 'medication', label: 'Morning medication', detail: 'Blister pack in the kitchen drawer.', position: 0, active: true },
+    { id: 812, category: 'nutrition', label: 'Prepare a light meal', detail: 'Soft foods; watch for choking.', position: 1, active: true },
+  ],
+  3: [
+    { id: 821, category: 'mobility', label: 'Assist to armchair', detail: 'Uses a Zimmer frame; take it slowly.', position: 0, active: true },
+    { id: 822, category: 'nutrition', label: 'Prepare a light meal', detail: 'Soft foods; watch for choking.', position: 1, active: true },
+  ],
+  4: [
+    { id: 831, category: 'medication', label: 'Morning medication', detail: 'Blister pack in the kitchen drawer.', position: 0, active: true },
+  ],
+};
+
+// Matches VisitTaskSerializer. The server seeds one task per active care plan
+// item, copying its label, so the mock does the same — including the allergy,
+// which is what makes an un-tickable row worth handling in the UI.
+export function tasksFor(assignmentId, suId) {
+  return (carePlanItems[suId] ?? []).map((c, i) => ({
+    id: Number(`${assignmentId}${String(i).padStart(2, '0')}`),
+    label: c.label,
+    done: false,
+    care_plan_item_id: c.id,
+    completed_at: null,
+  }));
+}
+
+export function carePlanFor(suId) {
+  return carePlanItems[suId] ?? [];
+}
+
 // Matches VisitAssignmentSerializer, including the nested visit.
 function assignment({ id, visitId, suId, start, end, state, actualStart, actualEnd, worked, flags }) {
   return {

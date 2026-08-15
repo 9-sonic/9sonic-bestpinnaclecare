@@ -28,7 +28,10 @@ const isoDate = (d) => d.toISOString().slice(0, 10);
 // time rather than an error screen. It is a degraded view, not a silent one —
 // the care plan and tasks come back empty.
 export async function getShift(id) {
-  if (env.useMock) return mergeVisitLocal(toShift(await mock.getVisit(id)));
+  // Same adapter as the live path: the mock now answers with the care plan,
+  // tasks and notes the detail endpoint returns, so demo mode exercises the
+  // whole screen rather than a version of it with two sections missing.
+  if (env.useMock) return mergeVisitLocal(toShiftDetail(await mock.getVisit(id)));
 
   try {
     return mergeVisitLocal(toShiftDetail(await api.get(`/staff/visit_assignments/${id}`)));
