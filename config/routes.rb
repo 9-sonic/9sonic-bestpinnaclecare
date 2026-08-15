@@ -26,6 +26,9 @@ Rails.application.routes.draw do
 
       # Shared chat (participants are Admin or Employee)
       resources :conversations, only: %i[index create] do
+        collection do
+          get :search             # full-text search over message bodies in my conversations
+        end
         member do
           patch :mute               # mute/unmute notifications for this conversation
           post  :chase              # re-notify who hasn't read the latest message
@@ -128,6 +131,7 @@ Rails.application.routes.draw do
         get "timesheet_exports/:id", to: "timesheet_exports#show"
         get "report_exports",        to: "report_exports#show"
         get "audit_exports",         to: "audit_exports#show"
+        get "attendance_audit_exports", to: "attendance_audit_exports#show" # CQC visit-attendance CSV/XLSX
         get "rota_exports",          to: "rota_exports#show"
         resources :timesheet_disputes, only: %i[index] do
           member { post :resolve }

@@ -27,6 +27,40 @@ module Api
         render json: ConversationSerializer.call(convo, viewer: current_identity), status: :created
       end
 
+      # GET /api/v1/conversations/search?q=&limit=
+      # Full-text-ish search over message bodies, restricted to the caller's own
+      # conversations (a non-participant never sees a match). Returns the matching
+      # messages, newest first, each carrying enough conversation context for the
+      # UI to show a result row and jump to the thread. Blank q -> empty result.
+      def search
+        q = params[:q].to_s.strip
+        return render(json: { query: q, results: [] }) if q.blank?
+
+        limit = params.fetch(:limit, 30).to_i.clamp(1, 100)
+        like  = "%#{ActiveRecord::Base.sanitize_sql_like(q)}%"
+
+        messages = Message.visible
+                          .where(conversation_id: my_conversation_ids)
+                          .where("messages.body ILIKE ?", like)
+                          .includes(conversation: :conversation_participants)
+                          .order(created_at: :desc)
+                          .limit(limit)
+
+        render json: {
+          query: q,
+          results: messages.map { |m|
+            {
+              conversation_id: m.conversation_id,
+              conversation_title: ConversationSerializer.call(m.conversation, viewer: current_identity)[:title],
+              message_id: m.id,
+              snippet: m.body,
+              system: m.system,
+              created_at: m.created_at&.iso8601
+            }
+          }
+        }
+      end
+
       # PATCH /api/v1/conversations/:id/mute  { muted: true|false }
       def mute
         cp = my_participant(params[:id])
@@ -68,10 +102,15 @@ module Api
       # Subquery (not joins+where) so the eager-loaded participant list isn't
       # filtered down to just the viewer's own row.
       def participating_scope
-        mine = ConversationParticipant.where(
+        Conversation.where(id: my_conversation_ids)
+      end
+
+      # The ids of conversations the caller is an active participant of — the
+      # security boundary for anything that reads across conversations (search).
+      def my_conversation_ids
+        ConversationParticipant.where(
           participant_type: current_identity.class.name, participant_id: current_identity.id, left_at: nil
         ).select(:conversation_id)
-        Conversation.where(id: mine)
       end
 
       def resolve_person(p)

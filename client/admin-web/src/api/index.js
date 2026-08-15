@@ -18,6 +18,16 @@ async function apiUpload(path, formData, method = 'POST') {
   return res.json();
 }
 
+// Admin list endpoints are paginated ({ items, page, per_page, total }). Two
+// shapes of caller:
+//   • list*(...)  — pickers, feeds and search that want every row: fetch a large
+//     page and return the plain array (unwrapping items) so existing callers are
+//     unchanged.
+//   • page*(...)  — the list pages that show Prev/Next: pass { page, per_page }
+//     and get the full { items, total, page, per_page } object back.
+const FULL_PAGE = 500;
+const unwrap = (res) => (Array.isArray(res) ? res : (res?.items ?? []));
+
 /* --------------------------------- Auth ---------------------------------- */
 
 export const login = ({ email, password }) =>
@@ -41,7 +51,8 @@ export const setPassword = ({ token, password }) =>
 
 /* ---------------------------- Team (office admins) ------------------------ */
 
-export const listAdmins = () => api.get('/admin/admins');
+export const listAdmins = () => api.get('/admin/admins', { per_page: FULL_PAGE }).then(unwrap);
+export const pageAdmins = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/admins', { page, per_page });
 export const inviteAdmin = (attrs) => api.post('/admin/admins', attrs);
 export const updateAdmin = (id, payload) => api.patch(`/admin/admins/${id}`, payload);
 
@@ -65,11 +76,13 @@ export const acceptCoverOffer = (id) => api.post(`/admin/cover_offers/${id}/acce
 export const declineCoverOffer = (id) => api.post(`/admin/cover_offers/${id}/decline`);
 
 // Carer requests queue.
-export const listRequests = (params = {}) => api.get('/admin/requests', params);
+export const listRequests = (params = {}) => api.get('/admin/requests', { per_page: FULL_PAGE, ...params }).then(unwrap);
+export const pageRequests = ({ page = 1, per_page = 25, ...params } = {}) => api.get('/admin/requests', { page, per_page, ...params });
 export const approveRequest = (id, note) => api.post(`/admin/requests/${id}/approve`, { note });
 export const declineRequest = (id, note) => api.post(`/admin/requests/${id}/decline`, { note });
 
-export const listAlerts = () => api.get('/admin/alerts');
+export const listAlerts = () => api.get('/admin/alerts', { per_page: FULL_PAGE }).then(unwrap);
+export const pageAlerts = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/alerts', { page, per_page });
 export const acknowledgeAlert = (id) => api.post(`/admin/alerts/${id}/acknowledge`);
 export const resolveAlert = (id, note) => api.post(`/admin/alerts/${id}/resolve`, { resolution_note: note });
 
@@ -78,7 +91,8 @@ export const correctClock = (payload) => api.post('/admin/clock_corrections', pa
 
 /* --------------------------------- Rota ----------------------------------- */
 
-export const listVisits = ({ from, to }) => api.get('/admin/visits', { from, to });
+export const listVisits = ({ from, to }) => api.get('/admin/visits', { from, to, per_page: FULL_PAGE }).then(unwrap);
+export const pageVisits = ({ from, to, page = 1, per_page = 50 }) => api.get('/admin/visits', { from, to, page, per_page });
 export const createVisit = (payload) => api.post('/admin/visits', payload);
 export const editVisit = (id, payload) => api.patch(`/admin/visits/${id}`, payload);
 export const publishVisit = (id) => api.post(`/admin/visits/${id}/publish`);
@@ -101,7 +115,8 @@ export const copyRota = (payload) => api.post('/admin/rota_copies', payload);
 
 /* -------------------------------- People ---------------------------------- */
 
-export const listEmployees = () => api.get('/admin/employees');
+export const listEmployees = () => api.get('/admin/employees', { per_page: FULL_PAGE }).then(unwrap);
+export const pageEmployees = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/employees', { page, per_page });
 
 // Avatars (multipart). avatar_url comes back on the serialized identity.
 export const uploadMyAvatar = (file) => { const fd = new FormData(); fd.append('avatar', file); return apiUpload('/admin/me/avatar', fd); };
@@ -113,7 +128,8 @@ export const getEmployee = (id) => api.get(`/admin/employees/${id}`);
 export const inviteEmployee = (payload) => api.post('/admin/employees', payload);
 export const updateEmployee = (id, payload) => api.patch(`/admin/employees/${id}`, payload);
 
-export const listServiceUsers = () => api.get('/admin/service_users');
+export const listServiceUsers = () => api.get('/admin/service_users', { per_page: FULL_PAGE }).then(unwrap);
+export const pageServiceUsers = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/service_users', { page, per_page });
 export const getServiceUser = (id) => api.get(`/admin/service_users/${id}`);
 export const createServiceUser = (payload) => api.post('/admin/service_users', payload);
 export const updateServiceUser = (id, payload) => api.patch(`/admin/service_users/${id}`, payload);
@@ -178,13 +194,19 @@ export const createChannel = (title, participantIds, purpose, autoPost = false) 
   api.post('/conversations', { kind: 'channel', title, purpose, auto_post: autoPost, participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
 export const createGroup = (title, participantIds, purpose) =>
   api.post('/conversations', { kind: 'group', title, purpose, participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
+// Open (or reuse — the backend dedupes on the pair) a direct thread with one carer.
+export const createDirect = (employeeId) =>
+  api.post('/conversations', { kind: 'direct', participant: { type: 'Employee', id: employeeId } });
 // Add carers to an existing group/channel. Direct threads reject this server-side.
 export const addConversationParticipants = (conversationId, participantIds) =>
   api.post(`/conversations/${conversationId}/participants`, { participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
+// Full-text search over message bodies in my conversations -> { query, results: [{ conversation_id, snippet, ... }] }
+export const searchConversations = (q) => api.get(`/conversations/search?q=${encodeURIComponent(q ?? '')}`);
 
 /* ------------------------------ Timesheets -------------------------------- */
 
-export const listTimesheetPeriods = () => api.get('/admin/timesheet_periods');
+export const listTimesheetPeriods = () => api.get('/admin/timesheet_periods', { per_page: FULL_PAGE }).then(unwrap);
+export const pageTimesheetPeriods = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/timesheet_periods', { page, per_page });
 export const getTimesheetPeriod = (id) => api.get(`/admin/timesheet_periods/${id}`);
 export const approvePeriod = (id) => api.post(`/admin/timesheet_periods/${id}/approve`);
 export const approveCarerLines = (periodId, employeeId) =>
@@ -232,6 +254,22 @@ export async function exportAuditLog(params = {}, type = 'csv') {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `audit-log.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Streams the CQC visit-attendance audit (one row per carer x visit over the
+// date range) as CSV or XLSX and triggers a download.
+export async function exportAttendanceAudit(from, to, type = 'csv') {
+  const qs = new URLSearchParams({ from, to, type }).toString();
+  const res = await fetch(`${env.apiBaseUrl}/admin/attendance_audit_exports?${qs}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Could not generate the visit audit');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `visit-audit.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }

@@ -10,11 +10,13 @@ class Setting < ApplicationRecord
   # returning an unsaved record; id: 1 satisfies the single-row check constraint.
   def self.instance = first_or_create!(id: 1) { |s| s.company_name = DEFAULT_COMPANY_NAME }
 
-  def geofence_for(service_user)
-    # .presence so a blank ("") per-user mode falls back to the global setting
-    # rather than being treated as a real value (which is neither "block" nor
-    # "off", so it would silently stop enforcing).
-    { mode:   service_user&.geofence_mode.presence || geofence_mode.presence || "block",
-      radius: service_user&.geofence_radius_m || geofence_radius_m }
+  # Single geofence policy: a carer may only clock in at the client's location,
+  # within a fixed 150 m radius. There is no warn/off mode and no adjustable
+  # radius — every clock-in is enforced (block) at the same distance, so the
+  # stored geofence_mode / geofence_radius_m columns are intentionally ignored.
+  GEOFENCE_RADIUS_M = 150
+
+  def geofence_for(_service_user)
+    { mode: "block", radius: GEOFENCE_RADIUS_M }
   end
 end

@@ -98,14 +98,9 @@ export default function SettingsPage() {
 
         {/* Geofencing — REAL + policy toggles */}
         <Section title="Geofencing" hint="Location capture at the moment of clocking only">
-          <Field label="Geofence mode" hint="Flag for review, warn only, or block clock-in outside the fence.">
-            <select style={inputStyle(!canManage)} value={form.geofence_mode ?? 'block'} onChange={set('geofence_mode')} disabled={!canManage}>
-              <option value="warn">Warn — flag for review (recommended)</option>
-              <option value="off">Off — record without checking</option>
-              <option value="block">Block — refuse outside the radius</option>
-            </select>
+          <Field label="Clock-in fence" hint="Carers can only clock in at the client's address, within 150 m. Enforced on every clock-in.">
+            <div style={{ ...inputStyle(true), display: 'flex', alignItems: 'center' }}>On site only — within 150 m</div>
           </Field>
-          <Field label="Fence radius" hint="Distance from the registered client address."><NumberField value={form.geofence_radius_m ?? 150} onChange={set('geofence_radius_m')} suffix="m" min="25" disabled={!canManage} /></Field>
           <Toggle label="Allow clocking without GPS" hint="Care is never blocked by a poor signal — the record is flagged instead." on={policy.gpsOptional} onChange={pset('gpsOptional')} />
           <Toggle label="Offline capture" hint="Store clock times on the device and sync with original timestamps." on={policy.offline} onChange={pset('offline')} />
         </Section>

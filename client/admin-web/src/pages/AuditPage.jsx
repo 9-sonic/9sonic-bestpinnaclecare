@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { listAudit, exportAuditLog } from '../api/index.js';
+import { listAudit, exportAuditLog, exportAttendanceAudit } from '../api/index.js';
 import { formatDate, formatTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
@@ -20,7 +20,7 @@ const ACTION = {
   'clock.corrected': 'Amended clock', 'timesheet.approved': 'Approved period', 'timesheet.locked': 'Locked period',
   'assignment.created': 'Assigned carer', 'assignment.withdrawn': 'Withdrew assignment', 'settings.updated': 'Changed setting',
 };
-const RECORD = { VisitAssignment: 'Visit', TimesheetPeriod: 'Timesheet', Setting: 'Settings', ServiceUser: 'Client', Employee: 'Staff', Visit: 'Visit', Alert: 'Alert' };
+const RECORD = { VisitAssignment: 'Visit', TimesheetPeriod: 'Timesheet', Setting: 'Settings', ServiceUser: 'Client', Employee: 'Employee', Visit: 'Visit', Alert: 'Alert' };
 const TONE = {
   'clock.corrected': 'warning', 'timesheet.approved': 'success', 'timesheet.locked': 'success',
   'assignment.created': 'info', 'assignment.withdrawn': 'muted', 'settings.updated': 'info',
@@ -51,12 +51,88 @@ function mapEvent(e) {
   };
 }
 
-export default function AuditPage() {
+// CQC visit-attendance export: one row per carer × visit over a date range, as
+// CSV or XLSX. Lifted onto the Exports tab; self-contained (own date state).
+export function VisitAuditExport() {
   const toast = useToast();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const [vaFrom, setVaFrom] = useState(iso(new Date(Date.now() - 6 * 86400000)));
+  const [vaTo, setVaTo] = useState(iso(new Date()));
+  const [vaExporting, setVaExporting] = useState(false);
+
+  const setVaRange = (days) => {
+    setVaTo(iso(new Date()));
+    setVaFrom(iso(new Date(Date.now() - (days - 1) * 86400000)));
+  };
+
+  const downloadVisitAudit = async (type) => {
+    setVaExporting(true);
+    try {
+      // Send full-day bounds so the To date is inclusive.
+      await exportAttendanceAudit(`${vaFrom}T00:00:00`, `${vaTo}T23:59:59`, type);
+      toast.success(`Visit audit ${type.toUpperCase()} downloaded`);
+    } catch (e) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setVaExporting(false);
+    }
+  };
+
+  const dateField = (label, value, onChange) => (
+    <label style={s('display:flex;flex-direction:column;gap:4px')}>
+      <span style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{label}</span>
+      <input type="date" value={value} max={vaTo} onChange={(e) => onChange(e.target.value)}
+        style={{ ...s('height:38px;border:1px solid var(--d-border);border-radius:10px;background:var(--d-card);color:var(--d-ink);font-size:12.5px;font-weight:500;padding:0 12px'), fontFamily: 'inherit', colorScheme: 'light dark' }} />
+    </label>
+  );
+
+  return (
+    <Panel>
+      <PanelTitle hint="One row per carer × visit — scheduled vs actual taps, metres from the client's home, offline flags, lateness and map links. The CQC attendance export.">Visit attendance audit</PanelTitle>
+      <div style={s('display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-top:4px')}>
+        {dateField('From', vaFrom, setVaFrom)}
+        {dateField('To', vaTo, (val) => setVaTo(val < vaFrom ? vaFrom : val))}
+        <div style={s('display:flex;gap:6px;align-items:center')}>
+          {[{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }].map((r) => (
+            <button key={r.label} onClick={() => setVaRange(r.days)}
+              style={{ ...s('height:32px;padding:0 12px;border:1px solid var(--d-border);border-radius:16px;background:var(--d-card);color:var(--d-ink2);font-size:12px;font-weight:600;cursor:pointer'), fontFamily: 'inherit' }}>{r.label}</button>
+          ))}
+        </div>
+        <div style={s('flex:1')} />
+        <Button icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('csv')}>CSV</Button>
+        <Button variant="primary" icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('xlsx')}>{vaExporting ? 'Building…' : 'Export XLSX'}</Button>
+      </div>
+    </Panel>
+  );
+}
+
+// Full append-only change-log export (all events) as CSV or XLSX.
+export function AuditLogExport() {
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const pull = async (type) => {
+    setExporting(true);
+    try {
+      await exportAuditLog({}, type);
+      toast.success(`Audit ${type.toUpperCase()} downloaded`);
+    } catch (e) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+  return (
+    <div style={s('display:flex;gap:8px')}>
+      <Button icon="download" disabled={exporting} onClick={() => pull('csv')}>CSV</Button>
+      <Button variant="primary" icon="download" disabled={exporting} onClick={() => pull('xlsx')}>{exporting ? 'Exporting…' : 'Export change log'}</Button>
+    </div>
+  );
+}
+
+export default function ChangeLogTab() {
   const [entries, setEntries] = useState(null); // null = loading
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -89,8 +165,6 @@ export default function AuditPage() {
               <Icon name="search" size={16} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search author, record or reason" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
             </div>
-            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({}, 'csv'); toast.success('Audit CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
-            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportAuditLog({}, 'xlsx'); toast.success('Audit XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'XLSX'}</Button>
           </div>
 
           {dates.length === 0 ? (
@@ -123,21 +197,10 @@ export default function AuditPage() {
         </div>
       </div>
 
-      <Panel>
-        <PanelTitle hint="How this data is governed">Compliance notes</PanelTitle>
-        <div style={s('display:flex;flex-direction:column;gap:10px')}>
-          {[
-            'Every entry is append-only. Records are written once and never altered or deleted — a correction adds a new row that points at what it supersedes.',
-            'Amendments carry the author, the exact time, and a mandatory reason. The original clock event is always preserved.',
-            'Location is captured only at clock moments, never between visits. UK-hosted; UK GDPR and NHS Data Security Standards apply.',
-          ].map((t) => (
-            <div key={t} style={s('display:flex;gap:11px;align-items:flex-start')}>
-              <div style={s('width:22px;height:22px;border-radius:7px;background:var(--d-ok-bg);display:flex;align-items:center;justify-content:center;flex:none;color:var(--d-ok-ink);margin-top:1px')}><Icon name="shield" size={13} /></div>
-              <div style={s('font-size:13px;font-weight:500;color:var(--d-ink2);line-height:1.5')}>{t}</div>
-            </div>
-          ))}
-        </div>
-      </Panel>
+      <div style={s('background:var(--d-note-bg);border-radius:14px;padding:12px 15px;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>
+        <Icon name="shield" size={15} />
+        <span style={s('flex:1;min-width:0')}>This record is append-only — corrections add history, never overwrite it. How it&rsquo;s governed is in the Guide.</span>
+      </div>
     </div>
   );
 }

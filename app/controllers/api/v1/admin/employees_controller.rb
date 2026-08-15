@@ -9,7 +9,7 @@ module Api
 
         def index
           stats = ::Staff::Stats.call
-          render json: Employee.order(:last_name, :first_name).map { |e| serialize(e).merge(stats[e.id] || {}) }
+          paginate(Employee.order(:last_name, :first_name)) { |e| serialize(e).merge(stats[e.id] || {}) }
         end
 
         def show

@@ -7,19 +7,13 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName, addressOf } from '../api/format.js';
-import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
+import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, Pager } from '../ds/console.jsx';
 
 const EMPTY = {
   first_name: '', last_name: '', reference: '', phone: '',
   address_line1: '', address_line2: '', city: '', postcode: '',
-  lat: '', lng: '', geofence_radius_m: 150, geofence_mode: 'block', access_notes: '',
+  lat: '', lng: '', access_notes: '',
 };
-const GEOFENCE_HELP = {
-  block: 'Clocking in is refused outside the radius. Use where attendance must be exact.',
-  warn: 'Clocking in is allowed but flagged for the office to review.',
-  off: 'Location is recorded but never checked against the address.',
-};
-const MODE_LABEL = { block: 'Block', warn: 'Warn', off: 'Record only' };
 const inits = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
 function Field({ label, hint, children, full }) {
@@ -40,7 +34,6 @@ export default function ServiceUsersPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [modeFilter, setModeFilter] = useState('all');
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -51,9 +44,14 @@ export default function ServiceUsersPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows
-      .filter((r) => (modeFilter === 'all' ? true : (r.geofence_mode ?? 'block') === modeFilter))
       .filter((r) => (q ? `${r.full_name} ${r.reference ?? ''} ${r.postcode ?? ''}`.toLowerCase().includes(q) : true));
-  }, [rows, query, modeFilter]);
+  }, [rows, query]);
+
+  // Client-side pagination over the filtered clients so search spans everyone.
+  const PER_PAGE = 18;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [query]);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   // Add only — editing a client lives on their detail page (/clients/:id).
@@ -62,7 +60,7 @@ export default function ServiceUsersPage() {
   async function save() {
     setSaving(true);
     try {
-      const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng), geofence_radius_m: Number(form.geofence_radius_m) || 150 };
+      const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng) };
       await createServiceUser(payload);
       toast.success('Person added');
       await load(); closeModal(); setForm(EMPTY);
@@ -75,13 +73,9 @@ export default function ServiceUsersPage() {
   const totalVisits = rows.reduce((a, r) => a + (r.visits_per_week ?? 0), 0);
   const adhVals = rows.map((r) => r.adherence).filter((v) => v != null);
   const avgAdh = adhVals.length ? Math.round(adhVals.reduce((a, b) => a + b, 0) / adhVals.length) : null;
-  const modeTabs = [
-    { key: 'all', label: 'All', icon: 'user', count: rows.length },
-    { key: 'block', label: 'Block', icon: 'shield', count: rows.filter((r) => (r.geofence_mode ?? 'block') === 'block').length },
-    { key: 'warn', label: 'Warn', icon: 'alert', count: rows.filter((r) => r.geofence_mode === 'warn').length },
-    { key: 'off', label: 'Record only', icon: 'pin', count: rows.filter((r) => r.geofence_mode === 'off').length },
-  ];
-  const siteExceptions = rows.filter((r) => (r.geofence_mode ?? 'block') !== 'warn' || r.lat == null);
+  // A client with no coordinates can't be geofenced — the one real exception now
+  // that the fence is always-on at a fixed radius.
+  const siteExceptions = rows.filter((r) => r.lat == null);
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
@@ -103,17 +97,15 @@ export default function ServiceUsersPage() {
         {canManage && <Button variant="primary" icon="plus" onClick={openCreate}>Add a person</Button>}
       </div>
 
-      {/* Geofence-mode filter + card grid */}
+      {/* Client card grid */}
       <div style={s('display:flex;flex-direction:column')}>
-        <SegTabs tabs={modeTabs} active={modeFilter} onSelect={setModeFilter} />
-        <div style={s('margin-top:12px')}>
+        <div>
           {filtered.length === 0 ? (
             <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>Nobody matches that search.</div>
           ) : (
             <div style={s('display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px')}>
-              {filtered.map((r) => {
+              {paged.map((r) => {
                 const noCoords = r.lat == null;
-                const mode = r.geofence_mode ?? 'block';
                 return (
                   <div key={r.id} style={s('background:var(--d-card);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:14px')}>
                     <div style={s('display:flex;align-items:flex-start;gap:12px')}>
@@ -129,7 +121,7 @@ export default function ServiceUsersPage() {
                     </div>
 
                     <div style={s('display:grid;grid-template-columns:repeat(3,1fr);gap:8px')}>
-                      {[['Visits / wk', r.visits_per_week ?? 0], ['Adherence', r.adherence == null ? '—' : `${r.adherence}%`], ['Radius', `${r.geofence_radius_m}m`]].map(([l, v]) => (
+                      {[['Visits / wk', r.visits_per_week ?? 0], ['Adherence', r.adherence == null ? '—' : `${r.adherence}%`], ['Fence', '150m']].map(([l, v]) => (
                         <div key={l} style={s('background:var(--d-panel);border-radius:12px;padding:9px;text-align:center')}>
                           <div style={s('font-size:9.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{l}</div>
                           <div className="d-num" style={s('font-size:14px;font-weight:700;color:var(--d-ink);margin-top:2px')}>{v}</div>
@@ -137,7 +129,7 @@ export default function ServiceUsersPage() {
                       ))}
                     </div>
 
-                    <div style={s('display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color:var(--d-muted)')}><Icon name="shield" size={13} /> Geofence {r.geofence_radius_m}m · {MODE_LABEL[mode]}</div>
+                    <div style={s('display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color:var(--d-muted)')}><Icon name="shield" size={13} /> On site only — clock-in within 150 m</div>
 
                     <div style={s('display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--d-border);padding-top:12px')}>
                       <div style={s('display:flex;align-items:center;gap:8px;min-width:0')}>
@@ -155,18 +147,19 @@ export default function ServiceUsersPage() {
               })}
             </div>
           )}
+          <Pager page={page} perPage={PER_PAGE} total={filtered.length} onPage={setPage} />
         </div>
       </div>
 
       {/* Site-level clocking exceptions */}
       {siteExceptions.length > 0 && (
         <Panel>
-          <PanelTitle hint="Where clocking rules differ from the warn default, or coordinates are missing">Site-level clocking exceptions</PanelTitle>
+          <PanelTitle hint="Clients with no coordinates can't be geofenced — add an address so clock-in can be enforced">Missing location</PanelTitle>
           <div style={s('display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px')}>
             {siteExceptions.map((r) => (
               <div key={r.id} style={s('border:1px solid var(--d-border);border-radius:14px;padding:12px 14px')}>
                 <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{fullName(r)}</div>
-                <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{r.lat == null ? 'No coordinates' : `${MODE_LABEL[r.geofence_mode ?? 'block']} · ${r.geofence_radius_m}m`}</div>
+                <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>No coordinates</div>
               </div>
             ))}
           </div>
@@ -194,18 +187,11 @@ export default function ServiceUsersPage() {
               </div>
               <div style={s('height:1px;background:var(--d-panel2);margin:2px 0')} />
               <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>Geofence</div>
-              <div style={s('display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px')}>
+              <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers can only clock in at this address, within 150 m. Enter the coordinates so the fence can be enforced.</div>
+              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
                 <Field label="Latitude"><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="53.4808" /></Field>
                 <Field label="Longitude"><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="-2.2426" /></Field>
-                <Field label="Radius, m"><input style={inputStyle} type="number" value={form.geofence_radius_m} onChange={set('geofence_radius_m')} /></Field>
               </div>
-              <Field label="Checking mode" hint={GEOFENCE_HELP[form.geofence_mode]}>
-                <select style={inputStyle} value={form.geofence_mode} onChange={set('geofence_mode')}>
-                  <option value="block">Block, refuse clock in outside the radius</option>
-                  <option value="warn">Warn, allow but flag it</option>
-                  <option value="off">Off, record location without checking</option>
-                </select>
-              </Field>
               <Field label="Access notes for carers">
                 <textarea rows={3} value={form.access_notes} onChange={set('access_notes')} placeholder="Key safe code, parking, who is usually in." style={{ ...inputStyle, height: 'auto', padding: '12px 16px', resize: 'vertical', lineHeight: 1.5 }} />
               </Field>

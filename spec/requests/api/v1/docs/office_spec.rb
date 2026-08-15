@@ -9,7 +9,9 @@ RSpec.describe "Office (admin)", type: :request do
   path "/api/v1/admin/service_users" do
     get("List service users") do
       tags "Office — Service Users"; produces "application/json"; security [ bearerAuth: [] ]
-      response(200, "list") { schema type: :array, items: { "$ref" => "#/components/schemas/ServiceUser" }; run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "list") { schema PagedSchema.of("#/components/schemas/ServiceUser"); run_test! }
     end
     post("Create a service user") do
       tags "Office — Service Users"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
@@ -89,7 +91,9 @@ RSpec.describe "Office (admin)", type: :request do
       parameter name: :from, in: :query, required: false, schema: { type: :string, format: :date }
       parameter name: :to,   in: :query, required: false, schema: { type: :string, format: :date }
       let(:from) { nil }; let(:to) { nil }
-      response(200, "visits") { schema type: :array, items: { "$ref" => "#/components/schemas/Visit" }; run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "visits") { schema PagedSchema.of("#/components/schemas/Visit"); run_test! }
     end
     post("Create an ad-hoc visit") do
       tags "Office — Rota"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
@@ -189,7 +193,15 @@ RSpec.describe "Office (admin)", type: :request do
   path "/api/v1/admin/alerts" do
     get("Open alerts") do
       tags "Office — Monitoring"; produces "application/json"; security [ bearerAuth: [] ]
-      response(200, "alerts") { run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "alerts") do
+        schema type: :object, required: %w[items page per_page total], properties: {
+          items: { type: :array, items: { type: :object } },
+          page: { type: :integer }, per_page: { type: :integer }, total: { type: :integer }
+        }
+        run_test!
+      end
     end
   end
 
@@ -214,10 +226,15 @@ RSpec.describe "Office (admin)", type: :request do
   path "/api/v1/admin/timesheet_periods" do
     get("List attendance periods (newest first)") do
       tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
       response(200, "periods") do
-        schema type: :array, items: { type: :object, properties: {
-          id: { type: :integer }, starts_on: { type: :string, format: :date }, ends_on: { type: :string, format: :date }, status: { type: :string }
-        } }
+        schema type: :object, required: %w[items page per_page total], properties: {
+          items: { type: :array, items: { type: :object, properties: {
+            id: { type: :integer }, starts_on: { type: :string, format: :date }, ends_on: { type: :string, format: :date }, status: { type: :string }
+          } } },
+          page: { type: :integer }, per_page: { type: :integer }, total: { type: :integer }
+        }
         run_test!
       end
     end
@@ -233,7 +250,9 @@ RSpec.describe "Office (admin)", type: :request do
     get("List carers (with clocking stats)") do
       tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
       description "Each carer merged with Staff::Stats — hours this week, punctuality, dominant capture method. Pay fields only for finance / registered manager."
-      response(200, "carers") { schema type: :array, items: { "$ref" => "#/components/schemas/Employee" }; run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "carers") { schema PagedSchema.of("#/components/schemas/Employee"); run_test! }
     end
 
     post("Invite a carer") do

@@ -15,7 +15,9 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
   path "/api/v1/admin/admins" do
     get("List office users") do
       tags "Office — People"; produces "application/json"; security [ bearerAuth: [] ]
-      response(200, "admins") { schema type: :array, items: { "$ref" => "#/components/schemas/Admin" }; run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "admins") { schema PagedSchema.of("#/components/schemas/Admin"); run_test! }
     end
 
     post("Invite an office user (registered manager only)") do

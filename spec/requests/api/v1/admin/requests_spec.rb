@@ -15,14 +15,14 @@ RSpec.describe "Admin carer requests", type: :request do
 
     get "/api/v1/admin/requests", headers: auth
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.first["id"]).to eq(pending.id)
+    expect(response.parsed_body["items"].first["id"]).to eq(pending.id)
   end
 
   it "filters by kind" do
     request_record(kind: "leave")
     request_record(kind: "swap")
     get "/api/v1/admin/requests", params: { kind: "leave" }, headers: auth
-    expect(response.parsed_body.map { |r| r["kind"] }.uniq).to eq([ "leave" ])
+    expect(response.parsed_body["items"].map { |r| r["kind"] }.uniq).to eq([ "leave" ])
   end
 
   it "approves a request and audits it" do

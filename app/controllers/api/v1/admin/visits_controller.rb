@@ -11,7 +11,7 @@ module Api
           visits = Visit.includes(:service_user, visit_assignments: :employee)
                         .where(scheduled_start: from.beginning_of_day..to.end_of_day)
                         .order(:scheduled_start)
-          render json: visits.map { |v| VisitSerializer.call(v, include_service_user: true) }
+          paginate(visits, per_page: 100) { |v| VisitSerializer.call(v, include_service_user: true) }
         end
 
         # GET /api/v1/admin/visits/:id  — the office view of one visit's care

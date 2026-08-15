@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listEmployees, inviteEmployee } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -7,7 +7,9 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
-import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
+import Tabs, { panelRadius } from '../ds/Tabs.jsx';
+import TeamPage from './TeamPage.jsx';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
 const METHOD = { gps: 'App (GPS)', pin: 'PIN tablet', manual_admin: 'Manual', manual: 'Manual' };
@@ -35,7 +37,7 @@ function Meter({ value }) {
   );
 }
 
-export default function EmployeesPage() {
+function EmployeesTab() {
   const toast = useToast();
   const navigate = useNavigate();
   const { canManage } = useAuth();
@@ -57,6 +59,12 @@ export default function EmployeesPage() {
       .filter((e) => (showInactive ? true : e.active))
       .filter((e) => (q ? `${e.full_name} ${e.email} ${e.employee_reference ?? ''}`.toLowerCase().includes(q) : true));
   }, [rows, query, showInactive]);
+
+  // Paginate the filtered list client-side so search still spans everyone.
+  const PER_PAGE = 20;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [query, showInactive]);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   function validate() {
     const next = {};
@@ -120,7 +128,7 @@ export default function EmployeesPage() {
               <TableWrap minWidth={920}>
                 <thead><tr><Th>Carer</Th><Th>Reference</Th><Th>Clocking method</Th><Th align="right">Hours this week</Th><Th>Punctuality</Th><Th>Status</Th><Th align="right" /></tr></thead>
                 <tbody>
-                  {filtered.map((e) => (
+                  {paged.map((e) => (
                     <Row key={e.id}>
                       <Td>
                         <span style={s('display:inline-flex;align-items:center;gap:11px;min-width:0')}>
@@ -145,6 +153,7 @@ export default function EmployeesPage() {
               </TableWrap>
             )}
           </div>
+          <Pager page={page} perPage={PER_PAGE} total={filtered.length} onPage={setPage} />
         </div>
       </div>
 
@@ -174,6 +183,37 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// The Employees area folds in the office-user (former "Team") list as a second
+// tab, so both live under one nav item without a new route. Each tab renders its
+// own page unchanged — field employees from the employees API, office users from
+// the admins API — with their own tables, actions and permissions. The active
+// tab lives in the URL (?tab=office) so refresh, back and deep-links behave.
+const TABS = [
+  { key: 'employees', label: 'Staff', icon: 'users' },
+  { key: 'office', label: 'Admins', icon: 'shield' },
+];
+
+export default function EmployeesPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'office' ? 'office' : 'employees';
+
+  const select = (key) => {
+    const next = new URLSearchParams(params);
+    if (key === 'employees') next.delete('tab');
+    else next.set('tab', key);
+    setParams(next, { replace: true });
+  };
+
+  return (
+    <div style={s('display:flex;flex-direction:column')}>
+      <Tabs tabs={TABS} active={tab} onSelect={select} />
+      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
+        {tab === 'office' ? <TeamPage /> : <EmployeesTab />}
+      </div>
     </div>
   );
 }

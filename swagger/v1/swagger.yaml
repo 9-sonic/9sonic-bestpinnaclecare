@@ -268,15 +268,43 @@ paths:
       - Office — People
       security:
       - bearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: admins
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  "$ref": "#/components/schemas/Admin"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/Admin"
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 25
+                  total:
+                    type: integer
+                    example: 42
+                required:
+                - items
+                - page
+                - per_page
+                - total
     post:
       summary: Invite an office user (registered manager only)
       tags:
@@ -1207,9 +1235,39 @@ paths:
         required: false
         schema:
           type: string
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - per_page
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
   "/api/v1/admin/requests/{id}/approve":
     parameters:
     - name: id
@@ -1801,15 +1859,43 @@ paths:
       - Office — Service Users
       security:
       - bearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: list
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  "$ref": "#/components/schemas/ServiceUser"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/ServiceUser"
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 25
+                  total:
+                    type: integer
+                    example: 42
+                required:
+                - items
+                - page
+                - per_page
+                - total
     post:
       summary: Create a service user
       tags:
@@ -2014,15 +2100,42 @@ paths:
         schema:
           type: string
           format: date
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: visits
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  "$ref": "#/components/schemas/Visit"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/Visit"
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 25
+                  total:
+                    type: integer
+                    example: 42
+                required:
+                - items
+                - page
+                - per_page
+                - total
     post:
       summary: Create an ad-hoc visit
       tags:
@@ -2248,9 +2361,40 @@ paths:
       - Office — Monitoring
       security:
       - bearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - page
+                - per_page
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
   "/api/v1/admin/clock_corrections":
     post:
       summary: Manual clock correction (append-only, reason required)
@@ -2290,26 +2434,51 @@ paths:
       - Office — Timesheets
       security:
       - bearerAuth: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: periods
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    starts_on:
-                      type: string
-                      format: date
-                    ends_on:
-                      type: string
-                      format: date
-                    status:
-                      type: string
+                type: object
+                required:
+                - items
+                - page
+                - per_page
+                - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        starts_on:
+                          type: string
+                          format: date
+                        ends_on:
+                          type: string
+                          format: date
+                        status:
+                          type: string
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+                  total:
+                    type: integer
     post:
       summary: Build/refresh an attendance period
       tags:
@@ -2340,15 +2509,43 @@ paths:
       - bearerAuth: []
       description: Each carer merged with Staff::Stats — hours this week, punctuality,
         dominant capture method. Pay fields only for finance / registered manager.
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         '200':
           description: carers
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  "$ref": "#/components/schemas/Employee"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/Employee"
+                  page:
+                    type: integer
+                    example: 1
+                  per_page:
+                    type: integer
+                    example: 25
+                  total:
+                    type: integer
+                    example: 42
+                required:
+                - items
+                - page
+                - per_page
+                - total
     post:
       summary: Invite a carer
       tags:

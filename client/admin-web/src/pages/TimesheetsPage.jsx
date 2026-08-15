@@ -1,51 +1,58 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listTimesheetPeriods, getTimesheetPeriod, approvePeriod, approveCarerLines, lockPeriod, listDisputes, resolveDispute, exportTimesheetPeriod } from '../api/index.js';
+import { listTimesheetPeriods, getTimesheetPeriod, exportTimesheetPeriod } from '../api/index.js';
+// PHASE 2 — PAYROLL. Approval / locking / dispute resolution belong to the
+// payroll module, which isn't built yet. The imports and the flows that use them
+// are commented out below (search "PHASE 2") rather than deleted, so wiring them
+// back is a one-block change once payroll lands. Until then this page is a
+// read-only view of verified hours per carer, per period.
+// import { approvePeriod, approveCarerLines, lockPeriod, listDisputes, resolveDispute } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
-import { fullName, minutesToHours, formatDate } from '../api/format.js';
-import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
+import { minutesToHours, formatDate } from '../api/format.js';
+import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 
 const h = (m) => minutesToHours(m ?? 0);
 const initials = (name) => (name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
+const periodLabel = (p) => (p ? `${formatDate(p.starts_on)} – ${formatDate(p.ends_on)}` : '');
 
 export default function TimesheetsPage() {
   const toast = useToast();
-  const { canManage } = useAuth();
-  const [periods, setPeriods] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [disputes, setDisputes] = useState([]);
+  const [periods, setPeriods] = useState([]);      // list newest-first, for the stepper + dropdown
+  const [selected, setSelected] = useState(null);  // full period with lines
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState('all');
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [detail, setDetail] = useState(null);
 
-  async function load(periodId) {
-    const [ps, ds] = await Promise.all([listTimesheetPeriods(), listDisputes()]);
-    setPeriods(ps); setDisputes(ds);
-    const target = periodId ?? selected?.id ?? ps[0]?.id;
-    if (target) setSelected(await getTimesheetPeriod(target));
-  }
   useEffect(() => {
     let active = true;
-    load().finally(() => active && setLoading(false));
+    (async () => {
+      const ps = await listTimesheetPeriods();
+      // Newest first so stepping "back" walks into history.
+      const sorted = [...ps].sort((a, b) => new Date(b.starts_on) - new Date(a.starts_on));
+      if (!active) return;
+      setPeriods(sorted);
+      if (sorted[0]) setSelected(await getTimesheetPeriod(sorted[0].id));
+    })().finally(() => active && setLoading(false));
     return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleApprove() { setBusy(true); try { await approvePeriod(selected.id); toast.success('Period approved, ready for payroll'); await load(selected.id); } catch (e) { toast.error(e.message); } finally { setBusy(false); } }
-  async function handleLock() { setBusy(true); try { await lockPeriod(selected.id); toast.success('Period locked'); await load(selected.id); } catch (e) { toast.error(e.message); } finally { setBusy(false); } }
-  async function handleResolveDispute(d) { try { await resolveDispute(d.id, 'Checked against the original clock records'); toast.success('Query resolved'); await load(); } catch (e) { toast.error(e.message); } }
-  async function handleExport(type) { try { await exportTimesheetPeriod(selected.id, type); toast.success(`${type.toUpperCase()} export downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); } }
+  async function pick(id) {
+    setJumpOpen(false);
+    setSelected(await getTimesheetPeriod(id));
+  }
 
-  // Aggregate the period's lines per carer. Keyed by employee_id (the line
-  // carries that); names + per-carer approval state come from the period's
-  // `carers` rollup so a single carer can be approved independently.
+  // Index of the current period within the (newest-first) list drives the stepper.
+  const idx = useMemo(() => periods.findIndex((p) => p.id === selected?.id), [periods, selected]);
+  const hasNewer = idx > 0;                       // more recent period exists
+  const hasOlder = idx >= 0 && idx < periods.length - 1;
+
+  // One row per carer for the period, aggregated from the lines. Pure attendance:
+  // scheduled vs worked vs breaks vs overtime, plus any exception flags as info.
   const carers = useMemo(() => {
     const lines = selected?.lines ?? [];
-    const roll = new Map((selected?.carers ?? []).map((c) => [c.employee_id, c]));
     const map = new Map();
     for (const l of lines) {
       const key = l.employee_id ?? 'unknown';
@@ -54,178 +61,165 @@ export default function TimesheetsPage() {
       g.flagged += (l.flags ?? []).length; g.lines.push(l);
       map.set(key, g);
     }
-    // Approval reflects the carer's real line state (c.approved), not the period
-    // status — a period can be 'approved' while a carer's lines aren't. Locked is
-    // final, so it forces approved regardless.
-    const locked = selected?.status === 'locked';
-    return [...map.values()].map((g) => {
-      const c = roll.get(g.employeeId);
-      const approved = locked || !!c?.approved;
-      return {
-        ...g,
-        name: c?.employee_name ?? 'Unknown carer',
-        overtime: Math.max(g.worked - g.scheduled, 0),
-        state: approved ? 'approved' : g.flagged > 0 ? 'blocked' : 'ready',
-      };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    const roll = new Map((selected?.carers ?? []).map((c) => [c.employee_id, c.employee_name]));
+    return [...map.values()]
+      .map((g) => ({ ...g, name: roll.get(g.employeeId) ?? 'Unknown carer', overtime: Math.max(g.worked - g.scheduled, 0) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [selected]);
 
-  async function approveOne(employeeId) {
-    setBusy(true);
-    try { const r = await approveCarerLines(selected.id, employeeId); toast.success(`Approved ${r.approved_count} line${r.approved_count === 1 ? '' : 's'}`); await load(selected.id); }
-    catch (e) { toast.error(e.message); } finally { setBusy(false); }
+  async function handleExport(type) {
+    try { await exportTimesheetPeriod(selected.id, type); toast.success(`${type.toUpperCase()} hours downloaded`); }
+    catch (e) { toast.error(e.message || 'Export failed'); }
   }
 
   if (loading) return <Spinner fullscreen />;
 
-  const totalWorked = carers.reduce((a, c) => a + c.worked, 0);
-  const totalOt = carers.reduce((a, c) => a + c.overtime, 0);
-  const ready = carers.filter((c) => c.state === 'ready').length;
-  const blocked = carers.filter((c) => c.state === 'blocked').length;
-  const openDisputes = disputes.filter((d) => d.state === 'open');
-  const rows = filter === 'all' ? carers : carers.filter((c) => c.state === filter);
+  if (!selected) {
+    return (
+      <Panel style={{ padding: '48px 24px' }}>
+        <div style={s('text-align:center;font-size:14px;font-weight:600;color:var(--d-muted)')}>No timesheet periods yet.
+          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:6px')}>Periods appear once visits are completed and rolled up.</div>
+        </div>
+      </Panel>
+    );
+  }
 
-  const STATE_TONE = { ready: 'primary', blocked: 'danger', approved: 'success' };
-  const STATE_LABEL = { ready: 'Ready for approval', blocked: 'Blocked', approved: 'Approved' };
-  const periodTabs = periods.map((p) => ({ key: p.id, label: formatDate(p.starts_on), icon: p.status === 'locked' ? 'shield' : p.status === 'approved' ? 'check' : 'calendar' }));
-  const filterTabs = [
-    { key: 'all', label: 'All', icon: 'menu', count: carers.length },
-    { key: 'ready', label: 'Ready', icon: 'check', count: ready },
-    { key: 'blocked', label: 'Blocked', icon: 'alert', count: blocked },
-    { key: 'approved', label: 'Approved', icon: 'shield', count: carers.filter((c) => c.state === 'approved').length },
-  ];
+  const totalWorked = carers.reduce((a, c) => a + c.worked, 0);
+  const totalScheduled = carers.reduce((a, c) => a + c.scheduled, 0);
+  const totalOt = carers.reduce((a, c) => a + c.overtime, 0);
+  const withFlags = carers.filter((c) => c.flagged > 0).length;
+  const q = query.trim().toLowerCase();
+  const rows = q ? carers.filter((c) => c.name.toLowerCase().includes(q)) : carers;
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      {/* Period picker */}
-      {periods.length > 0 && <SegTabs active={selected?.id} onSelect={(id) => getTimesheetPeriod(id).then(setSelected)} tabs={periodTabs} />}
-
-      {selected && (
-        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 4px')}>
-          <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted)')}>{formatDate(selected.starts_on)} to {formatDate(selected.ends_on)}</div>
-          <div style={s('flex:1')} />
-          {canManage && selected.status === 'open' && <Button variant="primary" icon="check" onClick={busy ? undefined : handleApprove}>{busy ? '…' : `Approve ${ready} ready`}</Button>}
-          {canManage && selected.status === 'approved' && <Button icon="shield" onClick={busy ? undefined : handleLock}>Lock period</Button>}
+      {/* Period navigator — stepper + jump dropdown. Scales to any amount of
+          history: one period on screen, arrows to step, dropdown to jump. */}
+      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--d-card);border-radius:20px;padding:12px 16px')}>
+        <Button size="sm" icon="chevronLeft" disabled={!hasOlder} onClick={() => hasOlder && pick(periods[idx + 1].id)}>Older</Button>
+        <div style={s('position:relative;flex:1;min-width:200px')}>
+          <div onClick={() => setJumpOpen((v) => !v)} className="hv"
+            style={{ ...s('display:flex;align-items:center;gap:10px;justify-content:center;cursor:pointer;border-radius:14px;padding:8px 14px'), '--hbg': 'var(--d-panel)' }}>
+            <Icon name="calendar" size={16} />
+            <span style={s('font-size:15px;font-weight:700;color:var(--d-ink);letter-spacing:-0.2px')}>{periodLabel(selected)}</span>
+            <Icon name="chevronDown" size={15} style={{ transform: jumpOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          </div>
+          {jumpOpen && (
+            <div style={s('position:absolute;top:46px;left:50%;transform:translateX(-50%);width:min(320px,90vw);max-height:320px;overflow-y:auto;background:var(--d-card);border:1px solid var(--d-border);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,0.22);padding:6px;z-index:60')}>
+              {periods.map((p) => (
+                <div key={p.id} onClick={() => pick(p.id)} className={p.id === selected.id ? '' : 'hv'}
+                  style={{ ...s('display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600'), background: p.id === selected.id ? 'var(--d-panel)' : 'transparent', color: 'var(--d-ink)', '--hbg': 'var(--d-panel)' }}>
+                  <Icon name="calendar" size={14} />
+                  <span style={s('flex:1;min-width:0')}>{periodLabel(p)}</span>
+                  {p.id === selected.id && <Icon name="check" size={14} />}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Stat cards */}
-      <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px')}>
-        <StatCard label="Verified hours" value={h(totalWorked)} hint={`Across ${carers.length} carers`} tone="primary" icon="clock" />
-        <StatCard label="Overtime" value={h(totalOt)} hint="Worked beyond scheduled" tone="magenta" icon="alert" />
-        <StatCard label="Ready to approve" value={ready} hint="All entries verified" tone="success" icon="check" />
-        <StatCard label="Blocked" value={blocked} hint="Unresolved exceptions" tone="danger" icon="shield" />
+        <Button size="sm" onClick={() => hasNewer && pick(periods[idx - 1].id)} disabled={!hasNewer}>Newer <Icon name="chevronRight" size={14} /></Button>
       </div>
 
-      {/* Carer queries */}
-      {openDisputes.length > 0 && (
-        <Panel style={{ background: 'var(--d-warn-bg)' }}>
-          <div style={s('display:flex;align-items:center;gap:12px;margin-bottom:10px')}>
-            <div style={s('width:36px;height:36px;border-radius:12px;background:var(--d-warn-icon);display:flex;align-items:center;justify-content:center;color:var(--d-warn-ink)')}><Icon name="alert" size={18} /></div>
-            <div style={s('font-size:14px;font-weight:700;color:var(--d-warn-ink)')}>{openDisputes.length} {openDisputes.length === 1 ? 'query' : 'queries'} from carers</div>
-          </div>
-          <div style={s('display:flex;flex-direction:column;gap:8px')}>
-            {openDisputes.map((d) => (
-              <div key={d.id} style={s('display:flex;align-items:center;gap:14px;background:var(--d-card);border-radius:14px;padding:11px 14px')}>
-                <div style={s('flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--d-ink2)')}><b style={s('font-weight:700;color:var(--d-ink)')}>{fullName(d.employee)}</b>: {d.reason}</div>
-                <Button size="sm" variant="primary" onClick={() => handleResolveDispute(d)}>Mark resolved</Button>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+      {/* Hours summary — attendance, not pay. */}
+      <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px')}>
+        <StatCard label="Verified hours" value={h(totalWorked)} hint={`Across ${carers.length} carer${carers.length === 1 ? '' : 's'}`} tone="primary" icon="clock" />
+        <StatCard label="Scheduled hours" value={h(totalScheduled)} hint="Planned for this period" tone="info" icon="calendar" />
+        <StatCard label="Overtime" value={h(totalOt)} hint="Worked beyond scheduled" tone="magenta" icon="trend" />
+        <StatCard label="Flagged entries" value={withFlags} hint="Carers with a review flag" tone={withFlags > 0 ? 'warning' : 'success'} icon="alert" />
+      </div>
 
-      {/* Table + aside */}
-      <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,1fr) 320px' }}>
+      {/* PHASE 2 — PAYROLL. The approval/lock action bar, the carer-queries
+          (disputes) banner, and the "Approval progress" / "Blockers" panels are
+          the payroll sign-off flow. Commented out until the payroll module
+          exists; the read-only hours view above/below stays live.
+
+      {selected.status === 'open' && canManage && (
+        <div style={s('display:flex;align-items:center;gap:12px')}>
+          <Button variant="primary" icon="check" onClick={handleApprove}>Approve {ready} ready</Button>
+          {selected.status === 'approved' && <Button icon="shield" onClick={handleLock}>Lock period</Button>}
+        </div>
+      )}
+      {openDisputes.length > 0 && ( ... carer queries banner + resolveDispute ... )}
+      <Panel><PanelTitle>Approval progress</PanelTitle> ... approved/ready/blocked bar ...</Panel>
+      <Panel><PanelTitle>Blockers before payroll runs</PanelTitle> ... </Panel>
+      */}
+
+      {/* Hours table + export aside */}
+      <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
         <div style={s('display:flex;flex-direction:column;gap:12px;min-width:0')}>
-          <SegTabs tabs={filterTabs} active={filter} onSelect={setFilter} />
+          <div style={s('height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
+            <Icon name="search" size={16} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a carer"
+              style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+          </div>
           <div style={s('background:var(--d-card);border-radius:20px;padding:12px 14px;overflow:auto')}>
             {rows.length === 0 ? (
-              <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>Nothing in this period.<div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:4px')}>Lines appear once visits are completed.</div></div>
+              <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>{q ? 'No carer matches.' : 'No hours in this period.'}
+                {!q && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:4px')}>Lines appear once visits are completed.</div>}
+              </div>
             ) : (
-              <TableWrap minWidth={820}>
-                <thead><tr><Th>Carer</Th><Th align="right">Scheduled</Th><Th align="right">Worked</Th><Th align="right">Breaks</Th><Th align="right">Overtime</Th><Th>Status</Th><Th /></tr></thead>
+              <TableWrap minWidth={720}>
+                <thead><tr><Th>Carer</Th><Th align="right">Scheduled</Th><Th align="right">Worked</Th><Th align="right">Breaks</Th><Th align="right">Overtime</Th><Th align="right">Visits</Th><Th /></tr></thead>
                 <tbody>
                   {rows.map((c) => (
                     <Row key={c.employeeId} onClick={() => setDetail(c)}>
-                      <Td><span style={s('display:inline-flex;align-items:center;gap:11px')}><Avatar initials={initials(c.name)} size="sm" /><b style={s('font-weight:700;color:var(--d-ink)')}>{c.name}</b></span></Td>
+                      <Td>
+                        <span style={s('display:inline-flex;align-items:center;gap:11px')}>
+                          <Avatar initials={initials(c.name)} size="sm" />
+                          <span>
+                            <b style={s('font-weight:700;color:var(--d-ink);display:block')}>{c.name}</b>
+                            {c.flagged > 0 && <span style={s('font-size:11px;font-weight:600;color:var(--d-warn-ink)')}>{c.flagged} flagged</span>}
+                          </span>
+                        </span>
+                      </Td>
                       <Td align="right" mono>{h(c.scheduled)}</Td>
                       <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{h(c.worked)}</b></Td>
                       <Td align="right" mono>{h(c.breaks)}</Td>
                       <Td align="right" mono>{c.overtime > 0 ? <span style={s('color:var(--d-magenta);font-weight:700')}>{h(c.overtime)}</span> : '–'}</Td>
-                      <Td><Tag tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</Tag></Td>
-                      <Td>{canManage && selected.status !== 'locked' && c.state === 'ready' && (
-                        <span onClick={(e) => { e.stopPropagation(); if (!busy) approveOne(c.employeeId); }}>
-                          <Button size="sm" icon="check">Approve</Button>
-                        </span>
-                      )}</Td>
+                      <Td align="right" mono>{c.lines.length}</Td>
+                      <Td align="right"><Icon name="chevronRight" size={15} style={{ color: 'var(--d-faint)' }} /></Td>
                     </Row>
                   ))}
                 </tbody>
               </TableWrap>
             )}
           </div>
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.6;padding:0 4px')}>Approving marks the hours as checked. Locking prevents further edits and is the point at which the period goes to payroll. Neither changes the underlying clock records.</div>
+          <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.6;padding:0 4px')}>Hours are read straight from verified clock records — this view never changes them. Approval, locking and payroll export arrive in phase 2.</div>
         </div>
 
-        {/* Aside */}
+        {/* Export aside — attendance hours, not payroll. */}
         <div style={s('display:flex;flex-direction:column;gap:16px')}>
           <Panel>
-            <PanelTitle hint="This pay period">Approval progress</PanelTitle>
-            {(() => {
-              const approved = carers.filter((c) => c.state === 'approved').length;
-              const total = Math.max(carers.length, 1);
-              const seg = [['Approved', approved, 'var(--d-ok-ink)'], ['Ready', ready, 'var(--d-primary)'], ['Blocked', blocked, 'var(--d-danger-ink)']];
-              return (
-                <>
-                  <div style={s('display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--d-panel)')}>
-                    {seg.map(([l, v, c]) => v > 0 && <div key={l} style={{ width: `${(v / total) * 100}%`, background: c }} />)}
-                  </div>
-                  <div style={s('display:flex;flex-wrap:wrap;gap:12px;margin-top:10px')}>
-                    {seg.map(([l, v, c]) => (
-                      <span key={l} style={s('display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--d-ink2)')}><span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: c }} />{l} <b className="d-num">{v}</b></span>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-          </Panel>
-
-          <Panel>
-            <PanelTitle hint="Resolve these before payroll runs">Blockers</PanelTitle>
-            {blocked === 0 ? (
-              <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>Nothing blocking payroll.</div>
-            ) : (
-              <div style={s('display:flex;flex-direction:column;gap:8px')}>
-                {carers.filter((c) => c.state === 'blocked').map((c) => (
-                  <div key={c.employeeId} onClick={() => setDetail(c)} className="hv" style={{ ...s('background:var(--d-danger-bg);border-radius:12px;padding:11px 13px;cursor:pointer'), '--hbg': 'var(--d-danger-bg2)' }}>
-                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-danger-ink)')}>{c.name}</div>
-                    <div style={s('font-size:11px;font-weight:500;color:var(--d-danger-ink);opacity:0.85;margin-top:2px')}>{[...new Set(c.lines.flatMap((l) => l.flags ?? []))].map((f) => f.replace(/_/g, ' ')).join(', ') || 'Unverified entry'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-
-          <Panel>
-            <PanelTitle hint="Verified hours only — blocked lines excluded">Export presets</PanelTitle>
+            <PanelTitle hint="Verified hours for this period">Export hours</PanelTitle>
             <div style={s('display:flex;flex-direction:column;gap:8px')}>
-              <button type="button" onClick={() => handleExport('csv')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />CSV for payroll</button>
-              <button type="button" onClick={() => handleExport('xlsx')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />Excel workbook (XLSX)</button>
+              <button type="button" onClick={() => handleExport('csv')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />CSV</button>
+              <button type="button" onClick={() => handleExport('xlsx')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />Excel (XLSX)</button>
+            </div>
+          </Panel>
+
+          <Panel>
+            <PanelTitle hint="This period at a glance">Totals</PanelTitle>
+            <div style={s('display:flex;flex-direction:column;gap:10px')}>
+              {[['Carers', carers.length], ['Scheduled', h(totalScheduled)], ['Worked', h(totalWorked)], ['Overtime', h(totalOt)]].map(([l, v]) => (
+                <div key={l} style={s('display:flex;align-items:center;justify-content:space-between')}>
+                  <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{l}</span>
+                  <span className="d-num" style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{v}</span>
+                </div>
+              ))}
             </div>
           </Panel>
         </div>
       </div>
 
-      {/* Carer detail drawer */}
+      {/* Carer detail drawer — per-visit hours breakdown for the period. */}
       {detail && (
         <div onClick={() => setDetail(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
           <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
             <div style={s('padding:22px 24px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:center;gap:12px')}>
-              <Avatar initials={initials(detail.name)} />
+              <Avatar initials={initials(detail.name)} size={52} />
               <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{detail.name}</div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{h(detail.worked)} worked · {detail.lines.length} visits</div>
+                <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{detail.name}</div>
+                <div className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{h(detail.worked)} worked · {detail.lines.length} visit{detail.lines.length === 1 ? '' : 's'}</div>
               </div>
               <div onClick={() => setDetail(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
             </div>
@@ -237,7 +231,7 @@ export default function TimesheetsPage() {
                     <div style={s('flex:1;min-width:0')}>
                       <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{formatDate(l.work_date)}</div>
                       <div className="d-num" style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>Scheduled {h(l.scheduled_minutes)} · worked {h(l.worked_minutes)}</div>
-                      {(l.flags ?? []).length > 0 && <div style={s('display:flex;gap:5px;margin-top:5px')}>{l.flags.map((f) => <Tag key={f} tone="warning">{f.replace(/_/g, ' ')}</Tag>)}</div>}
+                      {(l.flags ?? []).length > 0 && <div style={s('display:flex;gap:5px;margin-top:5px;flex-wrap:wrap')}>{l.flags.map((f) => <Tag key={f} tone="warning">{f.replace(/_/g, ' ')}</Tag>)}</div>}
                     </div>
                     <div className="d-num" style={{ ...s('font-size:12.5px;font-weight:700'), color: diff === 0 ? 'var(--d-muted)' : diff > 0 ? 'var(--d-ok-ink)' : 'var(--d-danger-ink)' }}>{diff === 0 ? 'on time' : `${diff > 0 ? '+' : ''}${diff}m`}</div>
                   </div>

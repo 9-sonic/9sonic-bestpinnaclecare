@@ -6,24 +6,52 @@ import { getReports, exportReportPack } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, LineChart, BarChart, StackedBars, DonutChart, CHART, SegTabs } from '../ds/console.jsx';
 
-const RANGES = [{ id: 'week', label: 'Weekly', days: 7 }, { id: 'month', label: 'Monthly', days: 30 }, { id: 'year', label: 'Yearly', days: 365 }];
+export const RANGES = [{ id: 'week', label: 'Weekly', days: 7 }, { id: 'month', label: 'Monthly', days: 30 }, { id: 'year', label: 'Yearly', days: 365 }];
 const SEV_COLOR = { high: CHART.danger, normal: CHART.warn };
 const SEV_LABEL = { high: 'High', normal: 'Normal' };
 
-export default function ReportsPage() {
+// The [from, to] ISO window for a range id — shared by the Overview fetch and the
+// report-pack export so they always cover the same period.
+export function rangeWindow(rangeId) {
+  const days = RANGES.find((r) => r.id === rangeId)?.days ?? 7;
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 86400000);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+// Report-pack CSV/XLSX download for a range. Lifted out of the Overview hero so
+// it can live on the Exports tab; same handler, same period as what's on screen.
+export function ReportPackExport({ range }) {
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
-  const [range, setRange] = useState('week');
+  const pull = async (type) => {
+    setExporting(true);
+    try {
+      const { from, to } = rangeWindow(range);
+      await exportReportPack(from, to, type);
+      toast.success(`${type.toUpperCase()} report pack downloaded`);
+    } catch (e) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+  return (
+    <div style={s('display:flex;gap:8px')}>
+      <Button icon="download" disabled={exporting} onClick={() => pull('csv')}>CSV</Button>
+      <Button variant="primary" icon="download" disabled={exporting} onClick={() => pull('xlsx')}>{exporting ? 'Building…' : 'Export report pack'}</Button>
+    </div>
+  );
+}
+
+export default function OverviewTab({ range, setRange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const days = RANGES.find((r) => r.id === range)?.days ?? 7;
-    const to = new Date();
-    const from = new Date(to.getTime() - days * 86400000);
-    getReports({ from: from.toISOString(), to: to.toISOString() })
+    getReports(rangeWindow(range))
       .then((d) => { if (active) setData(d); })
       .catch(() => { if (active) setData(null); })
       .finally(() => active && setLoading(false));
@@ -64,10 +92,6 @@ export default function ReportsPage() {
           <div style={s('flex:1;min-width:0')}>
             <div style={s('font-size:20px;font-weight:700;color:var(--d-primary-deep);letter-spacing:-0.3px')}>How clocking performed this period</div>
             <div style={s('font-size:13px;font-weight:500;color:var(--d-ink2);margin-top:3px')}>Attendance, punctuality and exceptions across every care visit — from real clock records.</div>
-          </div>
-          <div style={s('display:flex;gap:8px')}>
-            <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { const days = RANGES.find((r) => r.id === range)?.days ?? 7; const to = new Date(); const from = new Date(to.getTime() - days * 86400000); await exportReportPack(from.toISOString(), to.toISOString(), 'csv'); toast.success('CSV report pack downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
-            <Button variant="primary" icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { const days = RANGES.find((r) => r.id === range)?.days ?? 7; const to = new Date(); const from = new Date(to.getTime() - days * 86400000); await exportReportPack(from.toISOString(), to.toISOString(), 'xlsx'); toast.success('XLSX report pack downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Building…' : 'Export report pack'}</Button>
           </div>
         </div>
       </Panel>

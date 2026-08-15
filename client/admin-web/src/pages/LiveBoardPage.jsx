@@ -5,6 +5,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import Tabs, { panelRadius } from '../ds/Tabs.jsx';
 import { StatCard, Panel, PanelTitle, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 import {
@@ -31,14 +32,18 @@ function inLabel(iso) {
 export default function LiveBoardPage() {
   const navigate = useNavigate();
   const { admin } = useAuth();
+  const toast = useToast();
   const [board, setBoard] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [cover, setCover] = useState({ open_shifts: [], counts: {} });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [updatedAt, setUpdatedAt] = useState(null);
   const [detail, setDetail] = useState(null);
 
+  // Fetch the board. The live_board call is the one that must succeed — alerts
+  // and cover degrade gracefully — so a failure here is surfaced, not swallowed.
   const load = useCallback(async () => {
     const [b, al, cv] = await Promise.all([
       getLiveBoard(),
@@ -49,10 +54,26 @@ export default function LiveBoardPage() {
     setUpdatedAt(new Date());
   }, []);
 
+  // Manual refresh: give feedback (button shows "Refreshing…" + disables) and
+  // never fail silently — a rejected fetch now raises a toast instead of a
+  // no-op click.
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } catch (e) {
+      toast.error(e.message || 'Could not refresh the live board');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, toast]);
+
   useEffect(() => {
     let active = true;
-    load().finally(() => active && setLoading(false));
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, REFRESH_MS);
+    load().catch(() => {}).finally(() => active && setLoading(false));
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') load().catch(() => {});
+    }, REFRESH_MS);
     return () => { active = false; clearInterval(timer); };
   }, [load]);
 
@@ -112,8 +133,8 @@ export default function LiveBoardPage() {
         <span className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
         <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>· {all.length} shifts scheduled today</span>
         <div style={s('flex:1')} />
-        {updatedAt && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
-        <Button icon="refresh" size="sm" onClick={load}>Refresh</Button>
+        {updatedAt && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
+        <Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
       </div>
 
       {/* Stat cards */}
@@ -121,7 +142,6 @@ export default function LiveBoardPage() {
         <StatCard label="On shift now" value={counts.in_progress ?? 0} hint="Clocked in, delivering care" tone="success" icon="target" live active={filter === 'active'} onClick={() => setFilter(filter === 'active' ? 'all' : 'active')} />
         <StatCard label="Late" value={counts.late ?? 0} hint="Past the grace period" tone="warning" icon="clock" active={filter === 'late'} onClick={() => setFilter(filter === 'late' ? 'all' : 'late')} />
         <StatCard label="Missed / overdue" value={(counts.missed ?? 0) + (counts.overdue ?? 0)} hint="Escalation running" tone="danger" icon="alert" active={filter === 'missed'} onClick={() => setFilter(filter === 'missed' ? 'all' : 'missed')} />
-        <StatCard label="Awaiting review" value={counts.pending_review ?? 0} hint="Needs a decision" tone="magenta" icon="note" />
         <StatCard label="Completed" value={counts.completed ?? 0} hint="Finished today" tone="info" icon="check" active={filter === 'done'} onClick={() => setFilter(filter === 'done' ? 'all' : 'done')} />
       </div>
 
@@ -203,7 +223,6 @@ export default function LiveBoardPage() {
                 ))}
               </div>
             )}
-            <Button size="sm" onClick={() => setFilter('all')} icon="chevronRight">Alert inbox</Button>
           </Panel>
 
           <Panel>
@@ -313,6 +332,13 @@ export default function LiveBoardPage() {
               </div>
               <div style={s('background:var(--d-note-bg);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>Any amendment is appended to the audit trail with your name, the time and a mandatory reason. The original record is never overwritten.</div>
             </div>
+            {/* Attention items (needs review / missed / overdue / late) are one
+                click from the resolve & amend flow on the Exceptions page. */}
+            {ATTENTION_ORDER.includes(detail.lifecycle_state) && (
+              <div style={s('padding:16px 22px;border-top:1px solid var(--d-border);display:flex;justify-content:flex-end')}>
+                <Button variant="primary" icon="chevronRight" onClick={() => navigate(`/exceptions?va=${detail.id}`)}>Review &amp; resolve</Button>
+              </div>
+            )}
           </div>
         </div>
       )}
