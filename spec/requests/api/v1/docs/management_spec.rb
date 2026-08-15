@@ -74,7 +74,15 @@ RSpec.describe "Office — management", type: :request do
       tags "Office — Requests"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :kind,  in: :query, type: :string, required: false, description: "swap|drop|overtime|availability|leave"
       parameter name: :state, in: :query, type: :string, required: false
-      response(200, "requests") { run_test! }
+      parameter name: :page,     in: :query, required: false, schema: { type: :integer }
+      parameter name: :per_page, in: :query, required: false, schema: { type: :integer }
+      response(200, "requests") do
+        schema type: :object, required: %w[items page per_page total], properties: {
+          items: { type: :array, items: { type: :object } },
+          page: { type: :integer }, per_page: { type: :integer }, total: { type: :integer }
+        }
+        run_test!
+      end
     end
   end
 

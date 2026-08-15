@@ -2,6 +2,28 @@
 
 require 'rails_helper'
 
+# Shared schema for the admin list endpoints, which are paginated:
+#   { items: [...], page, per_page, total }
+# Call `PagedSchema.of("#/components/schemas/Employee")` inside a docs-spec's
+# `schema` DSL (which runs at example-group scope, so this must be a module
+# function, not an RSpec-included helper).
+module PagedSchema
+  module_function
+
+  def of(item_ref)
+    {
+      type: :object,
+      properties: {
+        items:    { type: :array, items: { "$ref" => item_ref } },
+        page:     { type: :integer, example: 1 },
+        per_page: { type: :integer, example: 25 },
+        total:    { type: :integer, example: 42 }
+      },
+      required: %w[items page per_page total]
+    }
+  end
+end
+
 RSpec.configure do |config|
   config.openapi_root = Rails.root.join('swagger').to_s
 
