@@ -3,7 +3,7 @@
 export const NAV_TABS = [
   { to: '/home', icon: 'home', label: 'Home' },
   { to: '/shifts', icon: 'calendar', label: 'Shifts' },
-  { to: '/clock', icon: 'clock', label: 'Clock', fab: true },
+  { to: '/clock', icon: 'clock', label: 'Clock' },
   { to: '/messages', icon: 'chat', label: 'Chats' },
   { to: '/profile', icon: 'user', label: 'Profile' },
 ];

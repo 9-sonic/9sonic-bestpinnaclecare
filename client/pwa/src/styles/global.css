@@ -208,13 +208,45 @@ body {
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
   background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
   z-index: 40;
   /* Isolated for layout so a route change cannot reflow the bar. Deliberately
      NOT paint-contained: paint containment clips descendants to the padding
-     box, which sliced the top off the raised clock button. */
+     box, which would slice the top off the wave and the lifted active icon. */
   contain: layout;
   overflow: visible;
+}
+
+/* The wave.
+   A hump that sits on top of the bar rather than a notch cut into it, so the bar
+   stays a plain filled rectangle and page content still scrolls under the
+   transparent corners of this strip. It is one column wide and centred on the
+   active column, whose index arrives as --nav-active from the component: with
+   five equal columns the centre of column n sits at (n + 0.5) * 20%.
+
+   Filled with currentColor so the single `color` below covers both themes. */
+.bottom-nav__wave {
+  position: absolute;
+  bottom: 100%;
+  left: calc((var(--nav-active, 0) + 0.5) * 20%);
+  /* A little wider than one column (20%), so the hump reads as a wave either
+     side of the disc rather than disappearing behind it. Not much wider: on the
+     first and last tab the surplus overhangs the end of the bar. */
+  width: 24%;
+  height: calc(var(--nav-height) * 0.34);
+  transform: translateX(-50%);
+  color: var(--color-surface);
+  pointer-events: none;
+  transition: left var(--dur) var(--ease);
+}
+
+/* No outline and no shadow of its own. Both make the hump read as a separate
+   shape stuck onto the bar. The bar carries a single drop-shadow filter that
+   covers the wave too, because the wave is one of its children — see the
+   elevation rule further down. */
+.bottom-nav__wave svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .bottom-nav__link {
@@ -235,6 +267,30 @@ body {
   color: var(--color-primary-strong);
 }
 
+/* Only the icon rides up into the wave; the label stays on its own baseline so
+   the five labels keep reading as one row. */
+.bottom-nav__icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  transition: transform var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.bottom-nav__link--active .bottom-nav__icon {
+  transform: translateY(calc(var(--nav-height) * -0.22));
+  color: var(--color-primary-contrast);
+}
+
+/* The disc is positioned and the icon's svg is not, so without this the disc
+   paints over the icon and the active tab shows a blank circle. */
+.bottom-nav__icon > svg {
+  position: relative;
+  z-index: 1;
+}
+
 .bottom-nav__label {
   font-size: 10.5px;
   font-weight: 700;
@@ -242,25 +298,26 @@ body {
   line-height: 1;
 }
 
-.bottom-nav__dot {
+/* The disc behind the lifted icon. Scaled from nothing rather than faded so it
+   reads as the icon arriving, and sized past the icon box to leave a margin. */
+.bottom-nav__pill {
   position: absolute;
-  top: 0;
-  width: 0;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
+  inset: -7px;
+  border-radius: 50%;
   background: var(--color-primary);
-  transition: width var(--dur) var(--ease);
+  transform: scale(0);
+  transition: transform var(--dur) var(--ease);
 }
 
-.bottom-nav__link--active .bottom-nav__dot {
-  width: 20px;
+.bottom-nav__link--active .bottom-nav__pill {
+  transform: scale(1);
 }
 
+/* Anchored to the icon, so it travels with it when the tab becomes active. */
 .bottom-nav__badge {
   position: absolute;
-  top: 5px;
-  right: 50%;
-  margin-right: -17px;
+  top: -8px;
+  left: 11px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -272,86 +329,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-/* The centre tab.
-   The button itself is positioned rather than laid out, so it needs a wrapper
-   that stays in the grid and holds its column open. Without that wrapper the
-   other four tabs collapse leftwards into the gap, which put the wrong label
-   under the wrong icon and left an empty column on the right. */
-.bottom-nav__slot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 100%;
-}
-
-/* Occupies the space an icon would, so the label below lines up with the
-   labels in the neighbouring tabs. */
-.bottom-nav__slot::before {
-  content: '';
-  display: block;
-  width: 20px;
-  height: 20px;
-}
-
-.bottom-nav__fab-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  color: var(--color-text-muted);
-  transition: color var(--dur) var(--ease);
-}
-
-.bottom-nav__slot:has(.bottom-nav__fab--active) .bottom-nav__fab-label {
-  color: var(--color-primary-strong);
-}
-
-/* Lifted clear of the bar and sitting on its own layer, with a ring in the
-   page background colour so the bar's top border appears to pass behind it. */
-.bottom-nav__fab {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translate(-50%, -52%);
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  border: 4px solid var(--color-bg);
-  box-shadow: 0 6px 16px rgba(23, 36, 46, 0.22);
-  transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.bottom-nav__fab:active {
-  transform: translate(-50%, -52%) scale(0.93);
-}
-
-.bottom-nav__fab--active {
-  background: var(--color-primary-strong);
-}
-
-.bottom-nav__fab-ring {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 2px solid var(--teal-300);
-  opacity: 0;
-  transition: opacity var(--dur) var(--ease);
-}
-
-.bottom-nav__fab--active .bottom-nav__fab-ring {
-  opacity: 0.7;
 }
 
 /* ------------------------------ Side nav --------------------------------- */
@@ -9057,26 +9034,33 @@ body:has(.drawer-backdrop) .app-content {
    badge are all untouched. To put the original colours back, delete this
    block: nothing else depends on it.
 --------------------------------------------------------------------------- */
-.bottom-nav__link,
-.bottom-nav__fab-label {
+.bottom-nav__link {
   color: var(--nav-ink-muted);
 }
 
-.bottom-nav__link--active,
-.bottom-nav__slot:has(.bottom-nav__fab--active) .bottom-nav__fab-label {
+/* The active tab's label only. Its icon is not covered by this: the icon sits on
+   the filled disc and takes --color-primary-contrast from the rule higher up,
+   which is more specific than this one. */
+.bottom-nav__link--active {
   color: var(--brand-text);
 }
 
 /* Dark mode keeps the bright teal for the active tab: it clears AA against the
    dark bar comfortably and is what makes the current tab obvious at a glance. */
-:root[data-theme='dark'] .bottom-nav__link--active,
-:root[data-theme='dark'] .bottom-nav__slot:has(.bottom-nav__fab--active) .bottom-nav__fab-label {
+:root[data-theme='dark'] .bottom-nav__link--active {
   color: var(--color-primary-strong);
 }
 
-/* The indicator dot and the clock button stay on the bright brand colour. They
-   carry no text, so they are decoration and are free to be vivid. */
-.bottom-nav__dot {
+/* ...but the icon on the disc still needs to contrast with the disc, not with
+   the bar. The dark rule above outranks the icon rule higher in this file, so
+   it has to be restated here. */
+:root[data-theme='dark'] .bottom-nav__link--active .bottom-nav__icon {
+  color: var(--color-primary-contrast);
+}
+
+/* The disc behind the active icon stays on the bright brand colour. It carries
+   no text, so it is decoration and is free to be vivid. */
+.bottom-nav__pill {
   background: var(--color-primary);
 }
 
@@ -11580,11 +11564,22 @@ body {
 
 /* Geometry untouched, as agreed. This is the export's elevation only: the bar
    sits higher off the page than a card, which is what separates it from the
-   content scrolling underneath. */
+   content scrolling underneath.
+
+   Two changes from the export, both so the wave reads as the bar's own surface
+   rising rather than as a shape sitting on top of it:
+
+   The inset hairline is dropped. It ran straight across the top edge, cutting a
+   hard line through the base of the wave.
+
+   And elevation is a filter, not a box-shadow. A box-shadow traces the bar's
+   rectangle, so the wave needed a shadow of its own — which gave the hump a
+   halo and made it look like a lighter, separate object. A drop-shadow filter
+   traces what the element actually paints, and the wave is one of its children,
+   so bar and hump throw a single continuous shadow. */
 .bottom-nav {
-  box-shadow:
-    inset 0 0 0 1px var(--card-line),
-    var(--shadow-nav);
+  box-shadow: none;
+  filter: var(--shadow-nav-drop);
 }
 
 /* The month heading is .page-title__text, not .cal__title — the earlier rule
