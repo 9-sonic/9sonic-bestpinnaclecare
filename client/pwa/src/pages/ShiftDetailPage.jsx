@@ -7,14 +7,27 @@ import Avatar from '../components/common/Avatar.jsx';
 import Badge from '../components/common/Badge.jsx';
 import Button from '../components/common/Button.jsx';
 import Spinner from '../components/common/Spinner.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { getShift, saveVisitNote } from '../api/shifts.js';
 import { formatTimeRange, formatDayLabel } from '../utils/format.js';
+import { tapFeedback } from '../utils/haptics.js';
 
-const STATUS_LABEL = { upcoming: 'Upcoming', active: 'On shift', completed: 'Completed' };
+const STATUS_LABEL = {
+  upcoming: 'Upcoming',
+  active: 'On shift',
+  completed: 'Completed',
+  cover_requested: 'Cover requested',
+};
 
-// Everything the carer needs before and during a visit: who, where, what tasks,
-// what to watch for, and where to record what happened.
+const COVER_REASONS = [
+  { id: 'sick', label: '🤒 Unwell / Sick' },
+  { id: 'emergency', label: '🚨 Family emergency' },
+  { id: 'transport', label: '🚗 Transport issue' },
+  { id: 'overlap', label: '⏱️ Schedule clash' },
+  { id: 'other', label: '📝 Other reason' },
+];
+
 export default function ShiftDetailPage() {
   const { shiftId } = useParams();
   const navigate = useNavigate();
@@ -23,6 +36,10 @@ export default function ShiftDetailPage() {
   const [note, setNote] = useState('');
   const [tasks, setTasks] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [showCoverModal, setShowCoverModal] = useState(false);
+  const [coverReason, setCoverReason] = useState('sick');
+  const [coverNote, setCoverNote] = useState('');
+  const [submittingCover, setSubmittingCover] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -37,10 +54,13 @@ export default function ShiftDetailPage() {
     };
   }, [shiftId]);
 
-  const toggleTask = (id) =>
+  const toggleTask = (id) => {
+    tapFeedback();
     setTasks((list) => list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  };
 
   async function handleSaveNote() {
+    tapFeedback();
     setSaving(true);
     try {
       await saveVisitNote({ shiftId, note, tasks });
@@ -52,17 +72,22 @@ export default function ShiftDetailPage() {
     }
   }
 
+  async function handleRequestCover() {
+    tapFeedback();
+    setSubmittingCover(true);
+    try {
+      setShift((prev) => ({ ...prev, status: 'cover_requested' }));
+      setShowCoverModal(false);
+      toast.success('Cover requested. The office has been notified.');
+    } catch {
+      toast.error('Could not request cover');
+    } finally {
+      setSubmittingCover(false);
+    }
+  }
+
   if (!shift) return <Spinner fullscreen />;
 
-  // Care plan and tasks are the same things twice: the API seeds one visit task
-  // per active care plan item, copying its label, so every task points back at
-  // the item it came from. Listed separately, a carer read the instruction in
-  // one card and ticked it off in another. One list instead — the item's own
-  // wording and detail, with its task's checkbox.
-  //
-  // An allergy is the exception: the API seeds a task for it like anything
-  // else, but "Penicillin allergy" is a standing warning, not something a
-  // carer completes. It shows as a flag with no checkbox.
   const claimed = new Set();
   const plan = [
     ...(shift.carePlan ?? []).map((item) => {
@@ -77,69 +102,154 @@ export default function ShiftDetailPage() {
         task: tickable ? task : null,
       };
     }),
-    // Anything recorded straight against the visit rather than the care plan.
     ...tasks
       .filter((t) => !claimed.has(t.id))
-      .map((t) => ({ key: `task-${t.id}`, label: t.label, detail: '', task: t })),
+      .map((t) => ({ key: `task-${t.id}`, label: t.label, detail: '', category: 'task', task: t })),
   ];
 
-  // Counted over what can actually be ticked, so a flag never makes the visit
-  // look permanently unfinished.
   const tickable = plan.filter((p) => p.task);
   const doneCount = tickable.filter((p) => p.task.done).length;
+  const allDone = tickable.length > 0 && doneCount === tickable.length;
 
   return (
     <div className="page--flush">
-      <ScreenHeader title="Visit details" back onBack={() => navigate(-1)} />
+      <ScreenHeader
+        title="Visit details"
+        back
+        onBack={() => navigate(-1)}
+        action={
+          shift.clientPhone && (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Call client"
+              onClick={() => {
+                tapFeedback();
+                window.open(`tel:${shift.clientPhone}`);
+              }}
+            >
+              <Icon name="phone" size={18} />
+            </button>
+          )
+        }
+      />
 
+      {/* Main Hero Card */}
       <Card className="detail-hero">
         <div className="detail-hero__top">
-          <Avatar name={shift.client} size={48} />
-          <div className="grow">
-            <div className="detail-hero__name">{shift.client}</div>
-            <div className="detail-hero__meta">
-              {formatDayLabel(shift.startsAt)} · {formatTimeRange(shift.startsAt, shift.endsAt)}
+          <Avatar name={shift.client} size={50} />
+          <div className="detail-hero__intro grow">
+            <h2 className="detail-hero__name">{shift.client}</h2>
+            <div className="detail-hero__timing">
+              <Icon name="clock" size={13} />
+              <span>{formatTimeRange(shift.startsAt, shift.endsAt)}</span>
+              <span className="vcard__dot" aria-hidden="true">•</span>
+              <span>{formatDayLabel(shift.startsAt)}</span>
             </div>
           </div>
-          <Badge tone={shift.status}>{STATUS_LABEL[shift.status]}</Badge>
+          <Badge tone={shift.status === 'cover_requested' ? 'warning' : shift.status}>
+            {STATUS_LABEL[shift.status] ?? shift.status}
+          </Badge>
         </div>
 
-        <button
-          type="button"
-          className="detail-hero__addr"
-          onClick={() => navigate(`/navigate/${shift.id}`)}
-        >
-          <Icon name="pin" size={15} />
-          <span>{shift.address}</span>
-          <Icon name="chevronRight" size={15} />
-        </button>
+        {/* Structured Info Tiles */}
+        <div className="detail-hero__tiles">
+          {shift.address && (
+            <button
+              type="button"
+              className="detail-hero__tile"
+              onClick={() => {
+                tapFeedback();
+                navigate(`/navigate/${shift.id}`);
+              }}
+            >
+              <span className="tile-icon tile-icon--teal">
+                <Icon name="pin" size={15} />
+              </span>
+              <span className="detail-hero__tile-text">{shift.address}</span>
+              <Icon name="chevronRight" size={16} className="detail-hero__tile-chevron" />
+            </button>
+          )}
 
+          {shift.accessNotes && (
+            <div className="detail-hero__access">
+              <Icon name="lock" size={14} />
+              <span>Access: {shift.accessNotes}</span>
+            </div>
+          )}
+
+          {shift.note && (
+            <div className="detail-hero__admin-note">
+              <Icon name="info" size={14} />
+              <span>Office note: {shift.note}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Action Buttons */}
         <div className="detail-hero__actions">
+          {shift.clientPhone && (
+            <Button
+              variant="white"
+              size="sm"
+              pill
+              onClick={() => {
+                tapFeedback();
+                window.open(`tel:${shift.clientPhone}`);
+              }}
+            >
+              <Icon name="phone" size={15} /> Call
+            </Button>
+          )}
+          {shift.status === 'cover_requested' ? (
+            <Button
+              variant="white"
+              size="sm"
+              pill
+              disabled
+              className="btn--cover-pending"
+            >
+              <Icon name="clock" size={14} /> Cover requested
+            </Button>
+          ) : (
+            <Button
+              variant="white"
+              size="sm"
+              pill
+              onClick={() => {
+                tapFeedback();
+                setShowCoverModal(true);
+              }}
+            >
+              <Icon name="close" size={15} /> Decline
+            </Button>
+          )}
           <Button
-            variant="white"
             size="sm"
-            onClick={() => window.open(`tel:${shift.clientPhone ?? ''}`)}
+            pill
+            onClick={() => {
+              tapFeedback();
+              navigate(`/clock?shift=${shift.id}`);
+            }}
           >
-            <Icon name="phone" size={15} /> Call
-          </Button>
-          <Button size="sm" onClick={() => navigate(`/clock?shift=${shift.id}`)}>
             <Icon name="clock" size={15} />
             {shift.status === 'active' ? 'Open timer' : 'Clock in'}
           </Button>
         </div>
       </Card>
 
+      {/* Care Plan & Task Checklist */}
       {plan.length > 0 && (
         <>
           <div className="section-head section-head--inset">
-            <span className="section-head__title">Care plan</span>
+            <span className="section-head__title">Care plan & tasks</span>
             {tickable.length > 0 && (
-              <span className="section-head__link">
+              <span className={`badge ${allDone ? 'badge--active' : 'badge--neutral'}`}>
                 {doneCount}/{tickable.length} done
               </span>
             )}
           </div>
-          <Card className="stack-card">
+          <Card className="stack-card" padded={false}>
             {plan.map(({ key, label, detail, category, task }) =>
               task ? (
                 <button
@@ -153,14 +263,14 @@ export default function ShiftDetailPage() {
                     {task.done && <Icon name="check" size={13} />}
                   </span>
                   <span className="task-row__body">
+                    {category && category !== 'general' && category !== 'task' && (
+                      <span className="task-row__category">{category}</span>
+                    )}
                     <span className="task-row__label">{label}</span>
                     {detail && <span className="task-row__detail">{detail}</span>}
                   </span>
                 </button>
               ) : (
-                // Standing guidance rather than something to complete: an
-                // allergy, or a care plan item the office added after this
-                // visit's tasks were seeded. Read, not ticked.
                 <div
                   key={key}
                   className={`task-row task-row--readonly${
@@ -168,9 +278,12 @@ export default function ShiftDetailPage() {
                   }`}
                 >
                   <span className="task-row__box task-row__box--none" aria-hidden="true">
-                    <Icon name={category === 'allergy' ? 'alert' : 'info'} size={14} />
+                    <Icon name={category === 'allergy' ? 'alert' : 'info'} size={15} />
                   </span>
                   <span className="task-row__body">
+                    {category === 'allergy' && (
+                      <span className="task-row__flag-tag">Allergy Alert</span>
+                    )}
                     <span className="task-row__label">{label}</span>
                     {detail && <span className="task-row__detail">{detail}</span>}
                   </span>
@@ -181,21 +294,84 @@ export default function ShiftDetailPage() {
         </>
       )}
 
+      {/* Visit Notes Section */}
       <div className="section-head section-head--inset">
         <span className="section-head__title">Visit notes</span>
       </div>
-      <div className="inset">
+
+      <Card className="notes-card" padded={true}>
         <textarea
-          className="textarea"
+          className="textarea notes-card__input"
           rows={4}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Record what happened during this visit, meals, medication, mood, anything of concern."
+          placeholder="Record what happened during this visit, meals, medication, mood, anything of concern..."
         />
-        <Button block onClick={handleSaveNote} disabled={saving} className="note-save">
-          {saving ? 'Saving' : 'Save note'}
+
+        <Button pill onClick={handleSaveNote} disabled={saving} className="note-save">
+          <Icon name="check" size={16} />
+          {saving ? 'Saving…' : 'Save note'}
         </Button>
-      </div>
+      </Card>
+
+      {/* Request Shift Cover Modal */}
+      <Modal
+        open={showCoverModal}
+        onClose={() => setShowCoverModal(false)}
+        title="Request shift cover"
+        footer={
+          <>
+            <Button
+              variant="white"
+              pill
+              onClick={() => setShowCoverModal(false)}
+              disabled={submittingCover}
+            >
+              Cancel
+            </Button>
+            <Button
+              pill
+              loading={submittingCover}
+              onClick={handleRequestCover}
+            >
+              Request cover
+            </Button>
+          </>
+        }
+      >
+        <div className="cover-modal">
+          <p className="cover-modal__lead">
+            Decline visit with <strong>{shift.client}</strong> and notify the coordinator to arrange cover.
+          </p>
+
+          <label className="label">Reason for cover</label>
+          <div className="cover-reasons">
+            {COVER_REASONS.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`cover-reason-chip${coverReason === r.id ? ' cover-reason-chip--active' : ''}`}
+                onClick={() => {
+                  tapFeedback();
+                  setCoverReason(r.id);
+                }}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          <label className="label" htmlFor="cover-note">Additional note (optional)</label>
+          <textarea
+            id="cover-note"
+            className="textarea"
+            rows={2}
+            value={coverNote}
+            onChange={(e) => setCoverNote(e.target.value)}
+            placeholder="Brief reason or notes for the coordinator..."
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

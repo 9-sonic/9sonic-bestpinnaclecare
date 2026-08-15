@@ -258,9 +258,30 @@ export default function ClockPage() {
       {/* Who the visit is for, with History opposite and the lifecycle state
           on its own line beneath. */}
       <div className="clockhead">
-        <div className="clockhead__who">
-          <h2 className="clockhead__name">{shift ? shift.client : 'No visit selected'}</h2>
-          {shift && <p className="clockhead__addr">{shift.address.split(',')[0]}</p>}
+        <div
+          className={`clockhead__who${shift ? ' clockhead__who--interactive' : ''}`}
+          onClick={() => {
+            if (shift) {
+              tapFeedback();
+              navigate(`/shifts/${shift.id}`);
+            }
+          }}
+          role={shift ? 'button' : undefined}
+          tabIndex={shift ? 0 : undefined}
+          aria-label={shift ? `View visit details for ${shift.client}` : undefined}
+          onKeyDown={(e) => {
+            if (shift && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              tapFeedback();
+              navigate(`/shifts/${shift.id}`);
+            }
+          }}
+        >
+          <div className="clockhead__who-text">
+            <h2 className="clockhead__name">{shift ? shift.client : 'No visit selected'}</h2>
+            {shift && <p className="clockhead__addr">{shift.address.split(',')[0]}</p>}
+          </div>
+          {shift && <Icon name="chevronRight" size={16} className="clockhead__chevron" />}
         </div>
         <Button
           variant="white"
@@ -419,9 +440,10 @@ export default function ClockPage() {
                     shift={s}
                     compact
                     selected={s.id === shift.id}
-                    onSelect={(picked) =>
-                      setSearchParams({ shift: picked.id }, { replace: true })
-                    }
+                    onSelect={(picked) => {
+                      tapFeedback();
+                      navigate(`/shifts/${picked.id}`);
+                    }}
                   />
                 ))}
               </div>
