@@ -125,13 +125,9 @@ export default function ProfilePage() {
           value={user?.name}
           onClick={() => navigate('/profile/details')}
         />
-        <Row
-          icon="calendar"
-          tint={TINTS.blue}
-          label="Availability"
-          value={user?.availability ?? 'Mon to Fri'}
-          onClick={() => navigate('/profile/availability')}
-        />
+        {/* Availability is not surfaced here for now. The board still shows it,
+            and /profile/availability is still routed and tested, so restoring
+            this row is the only change needed to bring it back. */}
         <Row icon="settings" tint={TINTS.green} label="Preferences" onClick={() => navigate('/profile/preferences')} />
       </Card>
 

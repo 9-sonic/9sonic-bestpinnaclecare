@@ -982,6 +982,22 @@ body {
   box-shadow: var(--shadow-focus);
 }
 
+/* A field that cannot be changed has to look like it. Read-only inputs used to
+   be indistinguishable from editable ones, so the only way to find out was to
+   tap and get no caret — the same problem as a box that accepts a change and
+   discards it. Muted ground, quieter text, no focus ring, standard cursor. */
+.field__input[readonly] {
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.field__input[readonly]:focus {
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+
 .field__input--error {
   border-color: var(--color-danger);
 }
@@ -4214,8 +4230,16 @@ body {
   color: var(--color-border-strong);
 }
 
-.stack-card--spaced {
-  margin-top: var(--space-5);
+/* Only Log out uses this, to break the run of cards before a destructive
+   action.
+
+   Doubled up on purpose. `.stack-card` is declared twice in this sheet (see the
+   later pass), and that one sets the `margin` shorthand, which resets
+   margin-top to 0. With equal specificity the later declaration won, so this
+   modifier silently did nothing and Log out read as the tail of the Legal card.
+   The extra class makes it win regardless of source order. */
+.stack-card.stack-card--spaced {
+  margin-top: var(--space-8);
 }
 
 /* --------------------------- Motion and polish --------------------------- */

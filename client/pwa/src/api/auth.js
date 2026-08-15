@@ -69,21 +69,19 @@ export function resetPassword({ token, password }) {
 // is part of why the office can still correct it.
 //
 // Email is deliberately not sent: it is the login identifier and stays office
-// controlled, so the endpoint does not accept it.
+// controlled, so the endpoint does not accept it. Name and phone are now in the
+// same position, which is why this no longer needs to split a display name into
+// first and last.
 // ---------------------------------------------------------------------------
-function splitName(name = '') {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { first_name: '', last_name: '' };
-  if (parts.length === 1) return { first_name: parts[0], last_name: '' };
-  return { first_name: parts.slice(0, -1).join(' '), last_name: parts.at(-1) };
-}
 
+// Emergency contact is the only part of their own record a carer maintains.
+// Name and phone used to be sent here too; they are the office's record, so the
+// client no longer asks to change them. The server remains the authority — this
+// is the client keeping its request honest, not an access control.
 export async function updateProfile(patch) {
   if (env.useMock) return toUser(await mock.updateProfile(patch));
 
   const body = {
-    ...splitName(patch.name),
-    phone: patch.phone ?? null,
     emergency_contact_name: patch.emergencyContactName ?? null,
     emergency_contact_phone: patch.emergencyContactPhone ?? null,
   };
