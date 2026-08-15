@@ -56,26 +56,26 @@
     </script>
     <style>
       /* Paint the brand immediately, before any JS or CSS bundle arrives, so a
-         cold PWA launch never flashes a blank screen. */
+         cold PWA launch never flashes a blank screen.
+
+         This must stay visually identical to .splash in global.css: the React
+         splash replaces this element mid-launch, and any difference between the
+         two reads as a flash. Same artwork, same logo, same geometry. The flat
+         teal is sampled from the top of the wallpaper so it stands in until the
+         image decodes. Both are theme-independent by design. */
       #boot {
         position: fixed;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #ffffff;
+        background: #047c7f url('/brand/wallpaper.webp') center / cover no-repeat;
         z-index: 200;
         transition: opacity 0.3s ease;
       }
-      :root[data-theme='dark'] #boot {
-        background: #0f171e;
-      }
-      /* The logo is dark-line artwork, so lift it on a dark background. */
-      :root[data-theme='dark'] #boot img {
-        filter: brightness(1.9) saturate(1.15);
-      }
       #boot img {
-        width: min(58vw, 220px);
+        width: min(53vw, 218px);
+        margin-bottom: 4vh;
       }
       #boot.is-hidden {
         opacity: 0;
@@ -84,7 +84,7 @@
     </style>
   </head>
   <body>
-    <div id="boot"><img src="/logo.png" alt="Best Pinnacle Care" /></div>
+    <div id="boot"><img src="/brand/logo-mono.webp" alt="Best Pinnacle Care" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>

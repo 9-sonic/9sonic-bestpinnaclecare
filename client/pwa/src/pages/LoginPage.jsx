@@ -58,7 +58,7 @@ export default function LoginPage() {
 
   return (
     <div className="signin">
-      <WaveHeader height={210} />
+      <WaveHeader height={241} photo />
 
       <div className="signin__body">
         <header className="signin__intro">
@@ -138,7 +138,7 @@ export default function LoginPage() {
               : 'No biometric sensor detected on this device'
           }
         >
-          <Icon name="fingerprint" size={40} strokeWidth={1.6} />
+          <Icon name="fingerprint" size={54} strokeWidth={2} />
         </button>
       </div>
     </div>
