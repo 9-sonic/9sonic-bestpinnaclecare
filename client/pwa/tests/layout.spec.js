@@ -25,23 +25,23 @@ test.describe('bottom navigation', () => {
 
   // Regression: the clock button was positioned out of the grid, so the four
   // remaining tabs slid left into columns 1 to 4. That put "Chats" under the
-  // floating button and left an empty column on the right.
+  // floating button and left an empty column on the right. The button is gone
+  // now — every tab is an equal cell — but the spacing still has to hold.
   test('has five evenly spaced cells with the right labels', async ({ page }) => {
     await signIn(page);
 
     const nav = page.locator('.bottom-nav');
     await expect(nav).toBeVisible();
-    await expect(page.locator('.bottom-nav__fab')).toBeVisible();
 
     const measured = await nav.evaluate((el) => {
       const box = el.getBoundingClientRect();
-      return [...el.children].map((child) => {
+      // The wave is also a child of the bar, so select the tabs rather than
+      // walking children.
+      return [...el.querySelectorAll('.bottom-nav__link')].map((child) => {
         const b = child.getBoundingClientRect();
         return {
-          label:
-            child.querySelector('.bottom-nav__label, .bottom-nav__fab-label')?.textContent ?? '',
+          label: child.querySelector('.bottom-nav__label')?.textContent ?? '',
           centre: b.left + b.width / 2 - box.left,
-          expected: 0,
           navWidth: box.width,
         };
       });
@@ -63,29 +63,56 @@ test.describe('bottom navigation', () => {
     });
   });
 
-  // Regression: paint containment on the bar clipped the top off the button,
-  // and a negative margin never lifted it clear of the bar in the first place.
-  test('the clock button floats clear of the bar and stays round', async ({ page }) => {
+  // The wave has to actually sit above the bar rather than inside it, and paint
+  // containment on the bar would clip it away — which is exactly what it did to
+  // the floating clock button this replaced.
+  test('the wave rises above the bar and is not clipped', async ({ page }) => {
     await signIn(page);
-    await expect(page.locator('.bottom-nav__fab')).toBeVisible();
+    await expect(page.locator('.bottom-nav__wave')).toBeVisible();
 
     const geometry = await page.evaluate(() => {
       const nav = document.querySelector('.bottom-nav');
-      const fab = document.querySelector('.bottom-nav__fab');
-      const n = nav.getBoundingClientRect();
-      const f = fab.getBoundingClientRect();
+      const wave = document.querySelector('.bottom-nav__wave');
       return {
-        overhang: n.top - f.top,
-        width: f.width,
-        height: f.height,
+        overhang: nav.getBoundingClientRect().top - wave.getBoundingClientRect().top,
         contain: getComputedStyle(nav).contain,
       };
     });
 
-    expect(geometry.overhang, 'button does not rise above the bar').toBeGreaterThan(10);
-    expect(Math.round(geometry.width)).toBe(Math.round(geometry.height));
-    // Paint containment would clip the overhang away again.
+    expect(geometry.overhang, 'wave does not rise above the bar').toBeGreaterThan(4);
     expect(geometry.contain).not.toContain('paint');
+  });
+
+  // The whole point of the pattern: the wave has to follow the active tab, and
+  // it is positioned from an index rather than measured, so an off-by-one here
+  // would be invisible on tab one and wrong everywhere else.
+  test('the wave centres on whichever tab is active', async ({ page }) => {
+    await signIn(page);
+
+    for (const [index, label] of ['Home', 'Shifts', 'Clock', 'Chats', 'Profile'].entries()) {
+      await page.locator('.bottom-nav__link', { hasText: label }).click();
+      await page.waitForFunction(
+        (i) =>
+          document.querySelector('.bottom-nav__wave')?.style.getPropertyValue('--nav-active') ===
+          String(i),
+        index,
+      );
+      // The wave slides over --dur (200ms); measuring straight away catches it
+      // in flight, halfway between the old tab and the new one.
+      await page.waitForTimeout(400);
+
+      const offset = await page.evaluate(() => {
+        const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+        const wave = document.querySelector('.bottom-nav__wave').getBoundingClientRect();
+        return {
+          centre: wave.left + wave.width / 2 - nav.left,
+          navWidth: nav.width,
+        };
+      });
+
+      const expected = ((index + 0.5) * offset.navWidth) / 5;
+      expect(Math.abs(offset.centre - expected), `wave off centre on ${label}`).toBeLessThanOrEqual(2);
+    }
   });
 });
 
