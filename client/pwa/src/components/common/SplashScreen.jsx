@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 
 // Branded launch screen shown while the app boots (auth restore, first chunk
-// load). Inherits the active theme so a dark mode user never gets a white flash.
+// load).
+//
+// The artwork is the same file the sign in header uses, so by the time the user
+// reaches /login it is already decoded and cached and the header paints with no
+// load-in. Keep both pointing at brand/wallpaper.webp.
+//
+// The illustration is dark in both themes by design, so this screen does not
+// follow the theme the way the rest of the app does. #boot in index.html paints
+// the same teal underneath, which is what stops a flash on a cold start.
 export default function SplashScreen({ onDone, minDuration = 900 }) {
   const [leaving, setLeaving] = useState(false);
 
@@ -16,13 +24,7 @@ export default function SplashScreen({ onDone, minDuration = 900 }) {
 
   return (
     <div className={`splash${leaving ? ' splash--leaving' : ''}`} role="status">
-      <div className="splash__inner">
-        <img className="splash__logo" src="/logo.png" alt="Best Pinnacle Care" />
-        <div className="splash__bar">
-          <span className="splash__bar-fill" />
-        </div>
-      </div>
-      <p className="splash__tagline">Here For You</p>
+      <img className="splash__logo" src="/brand/logo-mono.webp" alt="Best Pinnacle Care" />
       <span className="sr-only">Loading</span>
     </div>
   );
