@@ -15,7 +15,7 @@ module Api
                               .order(Arel.sql("CASE WHEN state = 'pending' THEN 0 ELSE 1 END"), created_at: :desc)
           scope = scope.where(kind: params[:kind])   if params[:kind].present?
           scope = scope.where(state: params[:state]) if params[:state].present?
-          render json: scope.map { |r| CarerRequestSerializer.call(r) }
+          paginate(scope) { |r| CarerRequestSerializer.call(r) }
         end
 
         def approve = decide("approved", "request.approved")

@@ -13,22 +13,25 @@ import '../../styles/design-shell.css';
 
 // Icon-only rail (tooltip on hover), carrying the full manager-console IA.
 // Sections without their own backend yet are marked preview and render a
-// "design preview" placeholder — the nav is walkable end to end.
+// Sidebar, grouped top→bottom by how the office actually works a day:
+//   overview → live operations → planning & records → people → insight → help.
+// Dividers (a null entry) separate the groups visually on the rail.
 const NAV = [
   { to: '/', label: 'Live board', icon: 'target', end: true },
-  { to: '/lifecycle', label: 'Lifecycle', icon: 'sync' },
+  null,
   { to: '/exceptions', label: 'Exceptions', icon: 'alert' },
-  { to: '/alerts', label: 'Alerts', icon: 'bell' },
   { to: '/cover', label: 'Cover', icon: 'refresh' },
   { to: '/requests', label: 'Requests', icon: 'note' },
-  { to: '/timesheets', label: 'Timesheets', icon: 'wallet' },
+  null,
   { to: '/rota', label: 'Rota', icon: 'calendar' },
+  { to: '/timesheets', label: 'Timesheets', icon: 'wallet' },
+  null,
   { to: '/clients', label: 'Clients', icon: 'user' },
-  { to: '/employees', label: 'Staff', icon: 'users' },
-  { to: '/team', label: 'Team', icon: 'shield' },
+  { to: '/employees', label: 'Employees', icon: 'users' },
+  null,
   { to: '/messages', label: 'Messages', icon: 'chat' },
-  { to: '/audit', label: 'Audit', icon: 'file' },
   { to: '/reports', label: 'Reports', icon: 'trend' },
+  { to: '/guide', label: 'Guide', icon: 'info' },
 ];
 
 const TITLE = {
@@ -42,11 +45,12 @@ const TITLE = {
   '/rota': 'Rota',
   '/clients': 'Clients',
   '/service-users': 'Clients',
-  '/employees': 'Staff',
+  '/employees': 'Employees',
   '/team': 'Team',
   '/messages': 'Messages',
-  '/audit': 'Audit',
+  '/audit': 'Reports',
   '/reports': 'Reports',
+  '/guide': 'Guide',
   '/settings': 'Settings',
 };
 
@@ -63,8 +67,6 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const accountRef = useRef(null);
   // Hover label for the icon rail. Rendered position:fixed OUTSIDE the rail so
   // the scrolling rail can never clip it (overflow-y:auto forces overflow-x to
   // clip too — a child pill always gets cut off). { label, y } or null.
@@ -73,7 +75,6 @@ export default function AdminLayout() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen((v) => !v); }
-      if (e.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -96,15 +97,24 @@ export default function AdminLayout() {
     return off;
   }, [admin?.id]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDoc = (e) => { if (accountRef.current && !accountRef.current.contains(e.target)) setMenuOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [menuOpen]);
 
   const isOn = (to, end) => (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`));
-  const title = TITLE[pathname] ?? 'Best Pinnacle Care';
+  // Reports absorbed the Audit page (still reachable at /audit), so its rail item
+  // lights up on both paths.
+  const navActive = (item) =>
+    item.to === '/reports' ? (isOn('/reports') || pathname === '/audit') : isOn(item.to, item.end);
+  // Detail/sub-pages (e.g. /employees/:id, /clients/:id) get a Back control in
+  // the top bar instead of one inside each page. backTo is the parent list; null
+  // on top-level pages, where no Back is shown.
+  const BACK_TO = [
+    [/^\/employees\/[^/]+$/, '/employees', 'Employees'],
+    [/^\/clients\/[^/]+$/, '/clients', 'Clients'],
+    [/^\/service-users\/[^/]+$/, '/clients', 'Clients'],
+    [/^\/profile$/, '/', 'Profile'],
+  ];
+  const backMatch = BACK_TO.find(([re]) => re.test(pathname));
+  const backTo = backMatch?.[1] ?? null;
+  const title = TITLE[pathname] ?? backMatch?.[2] ?? 'Best Pinnacle Care';
   const initials = `${admin?.first_name?.[0] ?? ''}${admin?.last_name?.[0] ?? ''}`.toUpperCase();
 
   const railBtn = (active) => ({
@@ -113,11 +123,6 @@ export default function AdminLayout() {
     color: active ? 'var(--d-pill-ink)' : 'var(--d-ink2)',
     '--hbg': 'var(--d-card-hover)',
   });
-
-  const menuRow = {
-    ...s('display:flex;align-items:center;gap:11px;height:40px;padding:0 12px;border-radius:12px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--d-ink)'),
-    '--hbg': 'var(--d-panel)',
-  };
 
   return (
     <div
@@ -134,9 +139,10 @@ export default function AdminLayout() {
 
         <div style={s('height:26px;flex:none')} />
 
-        <div className="rail-nav" style={s('flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:2px 0')}>
-          {NAV.map((item) => {
-            const active = isOn(item.to, item.end);
+        <div className="rail-nav" style={s('flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:8px;padding:2px 0')}>
+          {NAV.map((item, i) => {
+            if (item === null) return <div key={`div-${i}`} style={s('width:28px;height:1px;background:var(--d-border);margin:3px 0;flex:none')} />;
+            const active = navActive(item);
             return (
               <div
                 key={item.to}
@@ -155,66 +161,76 @@ export default function AdminLayout() {
           })}
         </div>
 
+        {/* Account actions — pinned at the rail bottom: theme toggle + sign out.
+            (The avatar itself stays in the top bar as the profile link.) */}
+        <div style={s('flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:12px;margin-top:8px;border-top:1px solid var(--d-border);width:54px')}>
+          <div
+            onClick={toggle}
+            onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setRailHover({ label: dark ? 'Light mode' : 'Dark mode', y: r.top + r.height / 2, x: r.right }); }}
+            onMouseLeave={() => setRailHover(null)}
+            title={dark ? 'Light mode' : 'Dark mode'}
+            className="hv"
+            style={{ ...railBtn(false), width: 40, height: 40 }}
+          >
+            <Icon name={dark ? 'sun' : 'moon'} size={19} />
+          </div>
+          <div
+            onClick={async () => { await logout(); navigate('/login'); }}
+            onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setRailHover({ label: 'Sign out', y: r.top + r.height / 2, x: r.right }); }}
+            onMouseLeave={() => setRailHover(null)}
+            title="Sign out"
+            className="hv"
+            style={{ ...s('width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;background:var(--d-card);color:var(--d-danger-dot)'), '--hbg': 'var(--d-danger-bg)' }}
+          >
+            <Icon name="logout" size={19} />
+          </div>
+        </div>
       </div>
 
       {/* Main */}
       <main style={s('flex:1;min-width:0;height:100vh;overflow:auto;display:flex;flex-direction:column;padding:20px 24px;gap:18px')}>
-        {/* Top bar */}
-        <div style={s('height:74px;flex:none;background:var(--d-panel);border-radius:28px;display:flex;align-items:center;padding:0 16px 0 38px')}>
-          <div style={s('font-size:30px;font-weight:500;letter-spacing:-0.5px;color:var(--d-ink)')}>{title}</div>
+        {/* Top bar — a clean utility strip: Back (on sub-pages), the page title,
+            then search + notifications. Account moved to the rail. */}
+        <div style={s('height:70px;flex:none;background:var(--d-panel);border-radius:24px;display:flex;align-items:center;padding:0 14px 0 22px;gap:14px')}>
+          {backTo && (
+            <div onClick={() => navigate(backTo)} title="Back" className="hv"
+              style={{ ...s('height:40px;border-radius:20px;background:var(--d-card);display:flex;align-items:center;gap:7px;padding:0 15px 0 12px;cursor:pointer;color:var(--d-ink2);font-size:13px;font-weight:700;flex:none'), '--hbg': 'var(--d-card-hover)' }}>
+              <Icon name="chevronLeft" size={16} /> Back
+            </div>
+          )}
           <div style={s('flex:1')} />
 
           {/* ⌘K search */}
           <div onClick={() => setPaletteOpen(true)} className="hv" title="Search (⌘K)"
-            style={{ ...s('height:46px;border-radius:23px;background:var(--d-card);display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer;margin-right:10px;width:230px'), '--hbg': 'var(--d-card-hover)' }}>
+            style={{ ...s('height:44px;border-radius:22px;background:var(--d-card);display:flex;align-items:center;gap:10px;padding:0 16px;cursor:pointer;width:260px;max-width:38vw'), '--hbg': 'var(--d-card-hover)' }}>
             <Icon name="search" size={17} />
-            <span style={s('flex:1;font-size:13px;font-weight:500;color:var(--d-muted)')}>Search…</span>
+            <span style={s('flex:1;font-size:13px;font-weight:500;color:var(--d-muted)')}>Search carers, clients, pages…</span>
             <kbd style={s('font-size:11px;font-weight:700;color:var(--d-muted);background:var(--d-field);border-radius:7px;padding:2px 6px')}>⌘K</kbd>
           </div>
 
-          <div style={s('margin-right:10px')}><NotificationsBell /></div>
+          <NotificationsBell />
 
-          <div ref={accountRef} style={s('position:relative')}>
-            <div
-              className="hv"
-              onClick={() => setMenuOpen((v) => !v)}
-              title="Account"
-              style={{
-                ...s('height:46px;border-radius:24px;background:var(--d-card);display:flex;align-items:center;gap:12px;padding:0 14px 0 6px;cursor:pointer;color:var(--d-ink)'),
-                '--hbg': 'var(--d-card-hover)',
-              }}
-            >
-              <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatarPick} />
-              <div onClick={(e) => { e.stopPropagation(); avatarInput.current?.click(); }} title="Change your photo"
-                style={s('width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none;cursor:pointer')}>
-                {admin?.avatar_url
-                  ? <img src={admin.avatar_url} alt="" style={s('width:34px;height:34px;object-fit:cover;display:block')} />
-                  : <div style={s('width:34px;height:34px;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700')}>{initials || 'BP'}</div>}
-              </div>
-              <div style={s('font-size:13.5px;font-weight:600;letter-spacing:-0.1px')}>{admin?.full_name ?? 'Account'}</div>
-              <Icon name="chevronDown" size={16} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          {/* Avatar — profile link (click opens your profile). No dropdown; the
+              account actions live on the rail. Click the small badge to change
+              your photo. */}
+          <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatarPick} />
+          <div onClick={() => navigate('/profile')} title="Your profile" className="hv"
+            style={{ ...s('height:46px;border-radius:24px;background:var(--d-card);display:flex;align-items:center;gap:11px;padding:0 14px 0 6px;cursor:pointer;color:var(--d-ink);flex:none'), '--hbg': 'var(--d-card-hover)' }}>
+            <div onClick={(e) => { e.stopPropagation(); avatarInput.current?.click(); }} title="Change your photo"
+              style={s('width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center')}>
+              {admin?.avatar_url
+                ? <img src={admin.avatar_url} alt="" style={s('width:34px;height:34px;object-fit:cover;display:block')} />
+                : <div style={s('width:34px;height:34px;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700')}>{initials || 'BP'}</div>}
             </div>
-
-            {menuOpen && (
-              <div style={s('position:absolute;top:54px;right:0;width:214px;background:var(--d-card);border-radius:18px;border:1px solid var(--d-border);box-shadow:0 20px 50px rgba(0,0,0,0.22);padding:8px;display:flex;flex-direction:column;gap:2px;z-index:60')}>
-                <div onClick={() => { setMenuOpen(false); navigate('/profile'); }} className="hv" style={menuRow}>
-                  <Icon name="user" size={18} /><span>My profile</span>
-                </div>
-                {/* Settings hidden pre-launch — most policy toggles aren't wired
-                    to backend behaviour yet; needs a Jesse ↔ Best Pinnacle pass. */}
-                {/* <div onClick={() => { setMenuOpen(false); navigate('/settings'); }} className="hv" style={menuRow}>
-                  <Icon name="settings" size={18} /><span>Settings</span>
-                </div> */}
-                <div onClick={toggle} className="hv" style={menuRow}>
-                  <Icon name={dark ? 'sun' : 'moon'} size={18} /><span>{dark ? 'Light mode' : 'Dark mode'}</span>
-                </div>
-                <div style={s('height:1px;background:var(--d-border);margin:4px 6px')} />
-                <div onClick={async () => { setMenuOpen(false); await logout(); navigate('/login'); }} className="hv" style={{ ...menuRow, color: 'var(--d-danger-dot)' }}>
-                  <Icon name="logout" size={18} /><span>Sign out</span>
-                </div>
-              </div>
-            )}
+            <div style={s('font-size:13.5px;font-weight:600;letter-spacing:-0.1px;white-space:nowrap')}>{admin?.full_name ?? 'Account'}</div>
           </div>
+        </div>
+
+        {/* Page title — its own heading row directly under the nav bar. Sits tight
+            to the bar above and close to the content below (negative bottom margin
+            cancels most of the main gap) so it reads as the page heading. */}
+        <div style={s('flex:none;padding:2px 6px;margin-bottom:-8px')}>
+          <div style={s('font-size:28px;font-weight:700;letter-spacing:-0.6px;color:var(--d-ink)')}>{title}</div>
         </div>
 
         {/* Page content — the office pages render here, unchanged */}

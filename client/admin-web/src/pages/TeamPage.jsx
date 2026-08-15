@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
 import { listAdmins, inviteAdmin, updateAdmin } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
 
 // Office users (the admins table). Inviting / editing is the registered
 // manager's job — the API enforces that too; here we just hide the controls.
@@ -61,6 +61,11 @@ export default function TeamPage() {
     const q = query.trim().toLowerCase();
     return rows.filter((a) => (q ? `${a.full_name} ${a.email} ${ROLE_LABELS[a.role] ?? ''}`.toLowerCase().includes(q) : true));
   }, [rows, query]);
+
+  const PER_PAGE = 20;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [query]);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   function openInvite() { setForm(EMPTY); setEditing(null); setActive(true); setErrors({}); setModalOpen(true); }
@@ -129,7 +134,7 @@ export default function TeamPage() {
           <TableWrap minWidth={860}>
             <thead><tr><Th>Person</Th><Th>Role</Th><Th>Two-step</Th><Th>Status</Th>{isOwner && <Th align="right">Actions</Th>}</tr></thead>
             <tbody>
-              {filtered.map((a) => {
+              {paged.map((a) => {
                 const st = statusOf(a);
                 return (
                   <Row key={a.id}>
@@ -160,6 +165,7 @@ export default function TeamPage() {
           </TableWrap>
         )}
       </div>
+      <Pager page={page} perPage={PER_PAGE} total={filtered.length} onPage={setPage} />
 
       {modalOpen && (
         <div onClick={closeModal} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>

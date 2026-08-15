@@ -84,6 +84,7 @@ module Clocking
           client_event_id:      @client_event_id,
           reason:               @reason,
           corrects_id:          @corrects_id,
+          origin:               origin,
           created_by:           @actor
         )
         advance_lifecycle(anomaly:)
@@ -97,6 +98,16 @@ module Clocking
     end
 
     private
+
+    # How this event reached us — recorded so the CQC visit-attendance audit can
+    # report offline-taken taps. An admin correction is manual_admin; the offline
+    # sync ingest calls us with on_block: :flag (the live endpoint uses :reject).
+    def origin
+      return "manual_admin" if @method == "manual_admin"
+      return "offline_sync" if @on_block == :flag
+
+      "live"
+    end
 
     # Returns an error code if this clock action can't apply to the visit's
     # current state, else nil. Guards against clocking a cancelled/missed/already-

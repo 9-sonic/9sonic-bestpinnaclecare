@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getExceptions, correctClock, resolveAlert, getSettings, listAudit } from '../api/index.js';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getExceptions, correctClock, resolveAlert, listAudit } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs } from '../ds/console.jsx';
+import Tabs, { panelRadius } from '../ds/Tabs.jsx';
+import AlertsPage from './AlertsPage.jsx';
+import LifecyclePage from './LifecyclePage.jsx';
 import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.js';
 
 const SEV = { danger: 'high', warn: 'medium', neutral: 'low', info: 'low', active: 'low', success: 'low' };
@@ -131,18 +135,19 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
   );
 }
 
-export default function ExceptionsPage() {
+function ExceptionsInner() {
   const [data, setData] = useState(null);
   const [resolved, setResolved] = useState([]);
-  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [checked, setChecked] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
-    const [ex, audit, st] = await Promise.all([getExceptions(), listAudit({ limit: 30 }).catch(() => []), getSettings().catch(() => null)]);
-    setData(ex); setResolved(audit ?? []); setSettings(st);
+    const [ex, audit] = await Promise.all([getExceptions(), listAudit({ limit: 30 }).catch(() => [])]);
+    setData(ex); setResolved(audit ?? []);
   }, []);
   useEffect(() => { let a = true; load().finally(() => a && setLoading(false)); return () => { a = false; }; }, [load]);
 
@@ -167,6 +172,19 @@ export default function ExceptionsPage() {
     }));
     return [...al, ...rev];
   }, [data]);
+
+  // Deep-link from the live board: /exceptions?va=<id> opens that visit's review
+  // drawer directly, so an "Awaiting review" item is one click from resolving.
+  useEffect(() => {
+    const va = searchParams.get('va');
+    if (!va || selected) return;
+    const match = exceptions.find((e) => String(e.vaId) === String(va));
+    if (match) {
+      setSelected(match);
+      searchParams.delete('va');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, exceptions, selected, setSearchParams]);
 
   if (loading) return <Spinner fullscreen />;
 
@@ -243,29 +261,46 @@ export default function ExceptionsPage() {
             )}
           </Panel>
 
-          <Panel>
-            <PanelTitle hint="What happens automatically, from your settings">Automatic escalation</PanelTitle>
-            <ol style={s('display:flex;flex-direction:column;gap:11px;margin:0;padding:0;list-style:none')}>
-              {[
-                ['Grace period', `${settings?.late_grace_minutes ?? '—'} min after the scheduled start`],
-                ['Marked late', 'Once the grace period passes, the office is alerted'],
-                ['Missed visit', `Flagged ${settings?.missed_threshold_minutes ?? '—'} min after the start`],
-                ['Overdue', `Escalated ${settings?.overdue_threshold_minutes ?? '—'} min after the start`],
-              ].map(([title, sub], i) => (
-                <li key={title} style={s('display:flex;gap:11px')}>
-                  <span className="d-num" style={s('width:24px;height:24px;border-radius:8px;background:var(--d-primary-soft);color:var(--d-primary-deep);display:flex;align-items:center;justify-content:center;flex:none;font-size:11px;font-weight:700')}>{i + 1}</span>
-                  <span>
-                    <span style={s('display:block;font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{title}</span>
-                    <span style={s('display:block;font-size:11.5px;font-weight:500;color:var(--d-muted)')}>{sub}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Panel>
+          <div style={s('background:var(--d-note-bg);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:10px')}>
+            <div style={s('font-size:12.5px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>How exceptions escalate — grace period, late, missed and overdue timings — is in the Guide.</div>
+            <Button size="sm" icon="chevronRight" onClick={() => navigate('/guide')}>Open the Guide</Button>
+          </div>
         </div>
       </div>
 
       {selected && <ExceptionDrawer ex={selected} onClose={() => setSelected(null)} onDone={load} />}
+    </div>
+  );
+}
+
+// Exceptions, Alerts and Lifecycle live under one nav item as page tabs, without
+// new routes. Each tab renders its existing page unchanged. The active tab is in
+// the URL (?tab=alerts|lifecycle) so refresh, back and deep-links behave; the
+// Exceptions tab keeps its own ?va= deep-link from the live board.
+const AREA_TABS = [
+  { key: 'exceptions', label: 'Exceptions', icon: 'alert' },
+  { key: 'alerts', label: 'Alerts', icon: 'bell' },
+  { key: 'lifecycle', label: 'Lifecycle', icon: 'sync' },
+];
+
+export default function ExceptionsPage() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('tab');
+  const tab = raw === 'alerts' || raw === 'lifecycle' ? raw : 'exceptions';
+
+  const select = (key) => {
+    const next = new URLSearchParams(params);
+    if (key === 'exceptions') next.delete('tab');
+    else next.set('tab', key);
+    setParams(next, { replace: true });
+  };
+
+  return (
+    <div style={s('display:flex;flex-direction:column')}>
+      <Tabs tabs={AREA_TABS} active={tab} onSelect={select} />
+      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(AREA_TABS, tab) }}>
+        {tab === 'alerts' ? <AlertsPage /> : tab === 'lifecycle' ? <LifecyclePage /> : <ExceptionsInner />}
+      </div>
     </div>
   );
 }

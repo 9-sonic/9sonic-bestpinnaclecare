@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_13_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -22,6 +22,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_000000) do
   create_enum "alert_state", ["open", "acknowledged", "resolved"]
   create_enum "availability_slot", ["morning", "afternoon", "evening", "night"]
   create_enum "clock_kind", ["clock_in", "clock_out", "break_start", "break_end"]
+  create_enum "clock_origin", ["live", "offline_sync", "manual_admin"]
   create_enum "conversation_kind", ["direct", "group", "channel"]
   create_enum "employee_role", ["carer"]
   create_enum "geofence_result", ["pass", "fail", "no_fix", "not_checked"]
@@ -161,6 +162,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_000000) do
     t.decimal "lng", precision: 10, scale: 7
     t.text "method", default: "gps", null: false
     t.timestamptz "occurred_at", null: false
+    t.enum "origin", default: "live", null: false, enum_type: "clock_origin"
     t.text "reason"
     t.timestamptz "recorded_at", default: -> { "now()" }, null: false
     t.bigint "visit_assignment_id", null: false

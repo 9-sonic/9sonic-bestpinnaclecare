@@ -40,9 +40,14 @@ export function Tag({ tone = 'muted', children }) {
 }
 
 export function Avatar({ initials, size = 'md', src }) {
-  const px = size === 'sm' ? 32 : 40;
-  if (src) return <img src={src} alt="" style={{ ...s('border-radius:12px;object-fit:cover;flex:none;display:block'), width: px, height: px }} />;
-  return <span style={{ ...s('border-radius:12px;background:var(--d-sage);display:inline-flex;align-items:center;justify-content:center;flex:none;font-weight:700;color:var(--d-ink2)'), width: px, height: px, fontSize: size === 'sm' ? 11 : 13 }}>{initials}</span>;
+  // size accepts the named 'sm'/'md' or an explicit pixel number (larger avatars
+  // on the detail pages). Radius and font scale with the box so big avatars read
+  // right instead of a tiny label in a large square.
+  const px = typeof size === 'number' ? size : size === 'sm' ? 32 : 40;
+  const radius = Math.round(px * 0.28);
+  const font = px >= 64 ? Math.round(px * 0.34) : px === 32 ? 11 : 13;
+  if (src) return <img src={src} alt="" style={{ ...s('object-fit:cover;flex:none;display:block'), width: px, height: px, borderRadius: radius }} />;
+  return <span style={{ ...s('background:var(--d-sage);display:inline-flex;align-items:center;justify-content:center;flex:none;font-weight:700;color:var(--d-ink2)'), width: px, height: px, borderRadius: radius, fontSize: font }}>{initials}</span>;
 }
 
 export function SeverityPill({ severity }) {
@@ -229,3 +234,25 @@ export const CHART = {
   primary: 'var(--d-primary)', lime: 'var(--d-lime)', magenta: 'var(--d-magenta)',
   ok: 'var(--d-ok-ink)', warn: 'var(--d-warn-dot)', danger: 'var(--d-danger-dot)', track: 'var(--d-track)',
 };
+
+// Prev/Next pager for admin list pages. Shows the current window and totals and
+// hides itself when everything fits on one page. Works for server-side paging
+// (pass page/total/perPage + onPage) or client-side (same props, slice locally).
+export function Pager({ page, perPage, total, onPage }) {
+  const pages = Math.max(1, Math.ceil((total ?? 0) / (perPage || 1)));
+  if (pages <= 1) return null;
+  const from = (page - 1) * perPage + 1;
+  const to = Math.min(page * perPage, total);
+  const btn = (dis) => ({
+    ...s('height:36px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;padding:0 14px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid var(--d-border);background:var(--d-card)'),
+    color: dis ? 'var(--d-faint)' : 'var(--d-ink2)', opacity: dis ? 0.55 : 1, pointerEvents: dis ? 'none' : 'auto', fontFamily: 'inherit',
+  });
+  return (
+    <div style={s('display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:6px 2px')}>
+      <span className="d-num" style={s('font-size:12px;font-weight:600;color:var(--d-muted)')}>{from}–{to} of {total}</span>
+      <button type="button" style={btn(page <= 1)} onClick={() => onPage(page - 1)}><Icon name="chevronLeft" size={15} /> Prev</button>
+      <span className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{page} / {pages}</span>
+      <button type="button" style={btn(page >= pages)} onClick={() => onPage(page + 1)}>Next <Icon name="chevronRight" size={15} /></button>
+    </div>
+  );
+}

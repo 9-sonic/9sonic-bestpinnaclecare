@@ -6,7 +6,7 @@ module Api
         before_action -> { authorize_role!(:registered_manager) }, except: :index
 
         def index
-          render json: ::Admin.order(:last_name, :first_name).map { |a| AdminSerializer.call(a) }
+          paginate(::Admin.order(:last_name, :first_name)) { |a| AdminSerializer.call(a) }
         end
 
         def show

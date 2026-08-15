@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listConversations, listMessages, sendMessage, createChannel, createGroup, addConversationParticipants, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
+import { listConversations, listMessages, sendMessage, createChannel, createGroup, createDirect, addConversationParticipants, searchConversations, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
@@ -34,6 +34,9 @@ export default function MessagesPage() {
   // Add-member picker on the members panel: null when closed, [] of employee ids when open.
   const [adding, setAdding] = useState(null);
   const [addBusy, setAddBusy] = useState(false);
+  // Conversation ids whose MESSAGE TEXT matches the current query (backend search),
+  // so a thread surfaces even when the term isn't in its title or member names.
+  const [msgHitIds, setMsgHitIds] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [draft, setDraft] = useState('');
@@ -113,6 +116,22 @@ export default function MessagesPage() {
     return off;
   }, [admin?.id]);
 
+  // Backend message-text search, debounced. A thread whose message body matches
+  // the query surfaces even when the term isn't in its title or member names
+  // (the client filter below only sees title/preview/participants). Short terms
+  // are allowed — searching "hi" should find the DM whose last message is "hi".
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) { setMsgHitIds([]); return undefined; }
+    let live = true;
+    const t = setTimeout(() => {
+      searchConversations(term)
+        .then((r) => { if (live) setMsgHitIds((r?.results ?? []).map((x) => x.conversation_id)); })
+        .catch(() => { if (live) setMsgHitIds([]); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [query]);
+
   const active = useMemo(() => convos.find((c) => c.id === activeId), [convos, activeId]);
   const mine = (m) => m.sender_type === 'Admin' && m.sender_id === admin?.id;
 
@@ -127,17 +146,27 @@ export default function MessagesPage() {
     } catch (e) { toast.error(e.message || 'Could not send'); } finally { setSending(false); }
   }
 
+  // A direct message needs exactly one carer and no name; a group/channel needs a
+  // name and at least one member.
+  const canCreate = composer === 'direct' ? members.length === 1 : (name.trim() && members.length > 0);
+
   async function create() {
-    if (!name.trim() || members.length === 0) return;
+    if (!canCreate) return;
     try {
-      const label = composer === 'group' ? name.trim() : (name.trim().startsWith('#') ? name.trim() : `#${name.trim()}`);
-      const c = composer === 'group'
-        ? await createGroup(label, members, purpose.trim() || undefined)
-        : await createChannel(label, members, purpose.trim() || undefined, autoPost);
-      toast.success(`${composer === 'group' ? 'Group' : 'Channel'} created`);
+      let c;
+      if (composer === 'direct') {
+        c = await createDirect(members[0]); // dedupes to the existing thread if any
+      } else {
+        const label = composer === 'group' ? name.trim() : (name.trim().startsWith('#') ? name.trim() : `#${name.trim()}`);
+        c = composer === 'group'
+          ? await createGroup(label, members, purpose.trim() || undefined)
+          : await createChannel(label, members, purpose.trim() || undefined, autoPost);
+      }
+      const noun = composer === 'direct' ? 'Message' : composer === 'group' ? 'Group' : 'Channel';
+      toast.success(composer === 'direct' ? 'Conversation opened' : `${noun} created`);
       setComposer(null); setName(''); setPurpose(''); setAutoPost(false); setMembers([]);
       await reload(); setActiveId(c.id);
-    } catch (e) { toast.error(e.message || 'Could not create'); }
+    } catch (e) { toast.error(e.message || 'Could not open the conversation'); }
   }
 
   // Staff not already in the active conversation — the pool the add-picker draws from.
@@ -179,7 +208,17 @@ export default function MessagesPage() {
   if (loading) return <Spinner fullscreen />;
 
   const q = query.trim().toLowerCase();
-  const match = (c) => !q || convoTitle(c, admin?.id).toLowerCase().includes(q);
+  const msgHits = new Set(msgHitIds);
+  // A thread matches when the term is in its title (or DM participant names, via
+  // convoTitle), in any participant's name, OR in a message body (backend search
+  // -> msgHits). The message-text path is what lets searching "hi" find the DM
+  // whose last message is "hi".
+  const match = (c) => {
+    if (!q) return true;
+    if (convoTitle(c, admin?.id).toLowerCase().includes(q)) return true;
+    if ((c.participants ?? []).some((p) => (p.full_name ?? '').toLowerCase().includes(q))) return true;
+    return msgHits.has(c.id);
+  };
   const groups = [
     { kind: 'channel', label: 'Channels', icon: 'chat', items: convos.filter((c) => c.kind === 'channel' && match(c)) },
     { kind: 'group', label: 'Groups', icon: 'users', items: convos.filter((c) => c.kind === 'group' && match(c)) },
@@ -217,6 +256,7 @@ export default function MessagesPage() {
       <div style={s('background:var(--d-card);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;min-height:0')}>
         <div style={s('padding:14px 14px 10px;display:flex;align-items:center;gap:8px')}>
           <div style={s('flex:1;font-size:15px;font-weight:700;color:var(--d-ink)')}>Messages</div>
+          <div onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv" title="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
           <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv" title="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
           <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv" title="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
         </div>
@@ -414,34 +454,38 @@ export default function MessagesPage() {
         )}
       </div>
 
-      {/* Create channel / group dialog */}
+      {/* Create direct / group / channel dialog */}
       {composer && (
         <div onClick={() => setComposer(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
           <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:480px;max-height:88vh;background:var(--d-card);border-radius:26px;display:flex;flex-direction:column;overflow:hidden')}>
             <div style={s('padding:20px 24px 12px;display:flex;align-items:center')}>
-              <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>New {composer}</div>
+              <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{composer === 'direct' ? 'New message' : `New ${composer}`}</div>
               <div style={s('flex:1')} />
               <div onClick={() => setComposer(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
             </div>
             <div style={s('padding:0 24px 4px')}>
               <div style={s('display:inline-flex;gap:3px;background:var(--d-panel);border-radius:12px;padding:3px')}>
-                {['channel', 'group'].map((k) => (
-                  <button key={k} type="button" onClick={() => setComposer(k)} style={{ ...s('border:0;border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;text-transform:capitalize'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k}</button>
+                {['direct', 'channel', 'group'].map((k) => (
+                  <button key={k} type="button" onClick={() => { setComposer(k); setMembers([]); }} style={{ ...s('border:0;border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k === 'direct' ? 'Message' : k[0].toUpperCase() + k.slice(1)}</button>
                 ))}
               </div>
             </div>
             <div style={s('flex:1;overflow-y:auto;padding:14px 24px;display:flex;flex-direction:column;gap:14px')}>
-              <label style={s('display:flex;flex-direction:column;gap:6px')}>
-                <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
-                <div style={s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 15px')}>
-                  {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
-                  <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
-                </div>
-              </label>
-              <label style={s('display:flex;flex-direction:column;gap:6px')}>
-                <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
-                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:0;outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
-              </label>
+              {composer !== 'direct' && (
+                <label style={s('display:flex;flex-direction:column;gap:6px')}>
+                  <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
+                  <div style={s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 15px')}>
+                    {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
+                    <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
+                  </div>
+                </label>
+              )}
+              {composer !== 'direct' && (
+                <label style={s('display:flex;flex-direction:column;gap:6px')}>
+                  <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
+                  <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:0;outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+                </label>
+              )}
               {composer === 'channel' && (
                 <div onClick={() => setAutoPost((v) => !v)} style={s('display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--d-panel);border-radius:12px;padding:11px 13px')}>
                   <div style={{ ...s('width:34px;height:20px;border-radius:10px;position:relative;flex:none'), background: autoPost ? 'var(--d-primary)' : 'var(--d-field)' }}><div style={{ ...s('position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff'), left: autoPost ? '17px' : '3px' }} /></div>
@@ -451,12 +495,14 @@ export default function MessagesPage() {
                   </div>
                 </div>
               )}
-              <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Members ({members.length})</div>
+              <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'direct' ? 'To' : `Members (${members.length})`}</div>
               <div style={s('display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto')}>
                 {staff.map((e) => {
                   const on = members.includes(e.id);
+                  // Direct is single-select: picking someone replaces the choice.
+                  const toggle = () => setMembers((m) => (composer === 'direct' ? (on ? [] : [e.id]) : (on ? m.filter((x) => x !== e.id) : [...m, e.id])));
                   return (
-                    <div key={e.id} onClick={() => setMembers((m) => (on ? m.filter((x) => x !== e.id) : [...m, e.id]))} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
+                    <div key={e.id} onClick={toggle} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
                       <Avatar initials={`${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`} size="sm" />
                       <div style={s('flex:1;font-size:13px;font-weight:700;color:var(--d-ink)')}>{fullName(e)}</div>
                       <div style={{ ...s('width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center'), background: on ? 'var(--d-primary)' : 'var(--d-panel)', color: '#fff' }}>{on && <Icon name="check" size={13} />}</div>
@@ -467,7 +513,7 @@ export default function MessagesPage() {
             </div>
             <div style={s('padding:14px 24px 20px;display:flex;justify-content:flex-end;gap:10px')}>
               <Button onClick={() => setComposer(null)}>Cancel</Button>
-              <Button variant="primary" icon="plus" disabled={!name.trim() || members.length === 0} onClick={create}>Create {composer}</Button>
+              <Button variant="primary" icon={composer === 'direct' ? 'send' : 'plus'} disabled={!canCreate} onClick={canCreate ? create : undefined}>{composer === 'direct' ? 'Open conversation' : `Create ${composer}`}</Button>
             </div>
           </div>
         </div>

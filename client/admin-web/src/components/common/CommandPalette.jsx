@@ -11,7 +11,7 @@ const PAGES = [
   ['Live board', '/', 'target'], ['Lifecycle', '/lifecycle', 'sync'],
   ['Exceptions', '/exceptions', 'alert'], ['Alerts', '/alerts', 'bell'], ['Cover', '/cover', 'refresh'],
   ['Requests', '/requests', 'note'], ['Timesheets', '/timesheets', 'wallet'], ['Rota', '/rota', 'calendar'],
-  ['Clients', '/clients', 'user'], ['Staff', '/employees', 'users'], ['Messages', '/messages', 'chat'],
+  ['Clients', '/clients', 'user'], ['Employees', '/employees', 'users'], ['Messages', '/messages', 'chat'],
   ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'],
   // Settings hidden pre-launch: ['Settings', '/settings', 'settings'],
 ];
@@ -43,7 +43,7 @@ export default function CommandPalette({ open, onClose }) {
     if (q) {
       const st = staff.filter((e) => `${e.full_name} ${e.email}`.toLowerCase().includes(q))
         .slice(0, 6).map((e) => ({ kind: 'staff', label: fullName(e), sub: e.role === 'senior_carer' ? 'Senior carer' : 'Carer', icon: 'users', to: '/employees' }));
-      if (st.length) groups.push({ title: 'Staff', items: st });
+      if (st.length) groups.push({ title: 'Employees', items: st });
       const cl = clients.filter((c) => `${c.full_name} ${c.reference ?? ''} ${c.postcode ?? ''}`.toLowerCase().includes(q))
         .slice(0, 6).map((c) => ({ kind: 'client', label: fullName(c), sub: addressOf(c), icon: 'user', to: '/clients' }));
       if (cl.length) groups.push({ title: 'Clients', items: cl });

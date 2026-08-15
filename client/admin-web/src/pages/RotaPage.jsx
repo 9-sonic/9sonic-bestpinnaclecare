@@ -66,14 +66,13 @@ function VisitBlock({ v, view, selected, onToggle, onOpen }) {
   );
 }
 
-// Read-only reflection of the rules that actually apply to a visit: geofence is
-// per-client, grace/late thresholds are the one provider setting. Not editable
-// per visit by design — the office changes these on the client or in Settings.
-const geofenceLabel = (mode) => (mode === 'strict' ? 'strict — must be on site' : mode === 'warn' ? 'warn carer if away' : 'record only');
-function RulesNote({ su, settings }) {
+// Read-only reflection of the rules that actually apply to a visit: the geofence
+// is on-site-only within a fixed 150 m for every client; grace/late thresholds
+// are the one provider setting. Not editable per visit by design.
+function RulesNote({ settings }) {
   return (
     <div style={s('background:var(--d-note-bg);border-radius:12px;padding:11px 14px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.45')}>
-      <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="pin" size={14} />Geofence: {su?.geofence_radius_m ?? '—'}m · {geofenceLabel(su?.geofence_mode)} <span style={s('opacity:0.7')}>· client rule</span></div>
+      <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="pin" size={14} />Geofence: on site only — clock-in within 150 m <span style={s('opacity:0.7')}>· enforced</span></div>
       <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="clock" size={14} />Late after {settings?.late_grace_minutes ?? '—'} min grace <span style={s('opacity:0.7')}>· provider setting</span></div>
       <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="fingerprint" size={14} />Clocked on the app (GPS); PIN tablet or manager attestation as fallbacks</div>
     </div>
@@ -140,13 +139,13 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
         </div>
         <div style={s('height:44px;background:var(--d-field);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px;margin-top:14px')}>
           <Icon name="search" size={16} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search staff by name or reference" autoFocus style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search employees by name or reference" autoFocus style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
         </div>
         <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);margin:16px 0 8px')}>Suggested carers</div>
       </div>
       <div style={s('flex:1;overflow-y:auto;padding:0 22px 20px;display:flex;flex-direction:column;gap:8px')}>
         {ranked.length === 0 ? (
-          <div style={s('padding:26px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>No staff match that search.</div>
+          <div style={s('padding:26px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>No employees match that search.</div>
         ) : ranked.slice(0, 12).map(({ e, regular, conflict }) => (
           <button key={e.id} type="button" disabled={!!conflict}
             onClick={() => (busyId || conflict ? null : assign(e))}
@@ -221,7 +220,7 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
           <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
           <div style={field}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
         </div>
-        <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Rules that will apply</span><RulesNote su={client} settings={settings} /></div>
+        <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Rules that will apply</span><RulesNote settings={settings} /></div>
       </div>
     </Drawer>
   );
@@ -333,7 +332,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
           <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{a ? fullName(a.employee) : 'Unassigned'}</div>
           <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:6px')}>{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
         </div>
-        <RulesNote su={visit.service_user} settings={settings} />
+        <RulesNote settings={settings} />
         <VisitDelivery delivery={delivery} />
         {started ? (
           <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>The carer has already clocked in, so the scheduled time is locked — the original record is never rewritten. Use a clock correction if the actual time is wrong.</div>

@@ -23,8 +23,8 @@ RSpec.describe "Admin visits & scheduling", type: :request do
     expect(response.parsed_body["created"]).to eq(3)
 
     get "/api/v1/admin/visits", params: { from: (Date.current + 1).iso8601, to: (Date.current + 3).iso8601 }, headers: auth
-    expect(response.parsed_body.size).to eq(3)
-    visit_id = response.parsed_body.first["id"]
+    expect(response.parsed_body["items"].size).to eq(3)
+    visit_id = response.parsed_body["items"].first["id"]
 
     post "/api/v1/admin/visits/#{visit_id}/publish", headers: auth
     expect(response).to have_http_status(:ok)

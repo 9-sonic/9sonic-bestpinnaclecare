@@ -21,8 +21,8 @@ const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage.jsx'));
 const CoverPage = lazy(() => import('./pages/CoverPage.jsx'));
 const RequestsPage = lazy(() => import('./pages/RequestsPage.jsx'));
-const AuditPage = lazy(() => import('./pages/AuditPage.jsx'));
-const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
+const ReportsHub = lazy(() => import('./pages/ReportsHub.jsx'));
+const GuidePage = lazy(() => import('./pages/GuidePage.jsx'));
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 
@@ -61,9 +61,11 @@ export default function App() {
           <Route path="/cover" element={<CoverPage />} />
           <Route path="/requests" element={<RequestsPage />} />
           <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/audit" element={<AuditPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports" element={<ReportsHub />} />
+          {/* Audit merged into the reporting hub; keep the path as a deep-link. */}
+          <Route path="/audit" element={<ReportsHub />} />
           <Route path="/team" element={<TeamPage />} />
+          <Route path="/guide" element={<GuidePage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
 

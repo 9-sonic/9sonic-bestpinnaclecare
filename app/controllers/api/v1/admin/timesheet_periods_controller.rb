@@ -5,7 +5,7 @@ module Api
         before_action -> { authorize_role!(:registered_manager, :manager, :finance) }, only: %i[create approve approve_carer lock]
 
         def index
-          render json: TimesheetPeriod.order(starts_on: :desc).map { |p| TimesheetPeriodSerializer.call(p) }
+          paginate(TimesheetPeriod.order(starts_on: :desc)) { |p| TimesheetPeriodSerializer.call(p) }
         end
 
         def show

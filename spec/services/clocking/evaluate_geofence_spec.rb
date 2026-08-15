@@ -12,23 +12,21 @@ RSpec.describe Clocking::EvaluateGeofence, type: :model do
     expect(r.distance_m).to be <= 150
   end
 
-  it "fails and blocks outside the radius in block mode" do
+  it "fails and blocks a tap outside the radius" do
     r = described_class.call(service_user: su, lat: 53.60, lng: -2.60)
     expect(r.result).to eq("fail")
     expect(r.blocked).to be(true)
     expect(r.distance_m).to be > 150
   end
 
-  it "fails but does NOT block in warn mode" do
-    r = described_class.call(service_user: su(mode: "warn"), lat: 53.60, lng: -2.60)
-    expect(r.result).to eq("fail")
-    expect(r.blocked).to be(false)
-  end
-
-  it "is not_checked (allowed) in off mode" do
-    r = described_class.call(service_user: su(mode: "off"), lat: 53.60, lng: -2.60)
-    expect(r.result).to eq("not_checked")
-    expect(r.blocked).to be(false)
+  it "always blocks outside the radius regardless of any stored mode" do
+    # The fence is on-site-only for everyone now; legacy warn/off modes on the
+    # record are ignored — an outside tap is refused either way.
+    %w[warn off block].each do |mode|
+      r = described_class.call(service_user: su(mode: mode), lat: 53.60, lng: -2.60)
+      expect(r.result).to eq("fail")
+      expect(r.blocked).to be(true)
+    end
   end
 
   it "is no_fix when the device sends no coordinates" do

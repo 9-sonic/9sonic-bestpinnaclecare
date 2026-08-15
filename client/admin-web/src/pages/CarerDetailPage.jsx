@@ -6,7 +6,7 @@ import { s } from '../lib/ui.jsx';
 import { fullName } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Tag, Avatar, Button } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
 import {
   getEmployee, updateEmployee, uploadEmployeeAvatar, removeEmployeeAvatar,
   getEmployeeAvailability, getCarerProfile, listCarerNotes, listCarerVisits,
@@ -78,7 +78,7 @@ export default function CarerDetailPage() {
   }, [tab, id, tabData]);
 
   if (loading) return <Spinner fullscreen />;
-  if (!carer) return <div style={s('padding:40px;font-size:14px;color:var(--d-muted)')}>That staff member could not be found. <Button size="sm" onClick={() => navigate('/employees')}>Back to staff</Button></div>;
+  if (!carer) return <div style={s('padding:40px;font-size:14px;color:var(--d-muted)')}>That employee could not be found. <Button size="sm" onClick={() => navigate('/employees')}>Back to employees</Button></div>;
 
   function openEdit() {
     setForm({ first_name: carer.first_name, last_name: carer.last_name, phone: carer.phone ?? '', employee_reference: carer.employee_reference ?? '' });
@@ -111,49 +111,56 @@ export default function CarerDetailPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      <div><Button size="sm" icon="chevronLeft" onClick={() => navigate('/employees')}>Back to staff</Button></div>
-
       {/* Profile header */}
-      <Panel style={{ padding: '22px 24px' }}>
-        <div style={s('display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap')}>
+      <Panel style={{ padding: '26px 28px' }}>
+        <div style={s('display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap')}>
           <div style={s('position:relative;flex:none')}>
-            <Avatar initials={inits} src={carer.avatar_url} size={64} />
+            <Avatar initials={inits} src={carer.avatar_url} size={92} />
             {canManage && (
               <>
                 <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatar} />
                 <div onClick={() => avatarInput.current?.click()} title="Change photo" className="hv"
-                  style={{ ...s('position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;background:var(--d-card);border:1px solid var(--d-border);display:flex;align-items:center;justify-content:center;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>
-                  <Icon name="edit" size={13} />
+                  style={{ ...s('position:absolute;bottom:0;right:0;width:30px;height:30px;border-radius:50%;background:var(--d-card);border:1.5px solid var(--d-border);display:flex;align-items:center;justify-content:center;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>
+                  <Icon name="edit" size={14} />
                 </div>
               </>
             )}
           </div>
           <div style={s('flex:1;min-width:0')}>
-            <div style={s('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-              <div style={s('font-size:22px;font-weight:700;color:var(--d-ink)')}>{fullName(carer)}</div>
+            <div style={s('display:flex;align-items:center;gap:11px;flex-wrap:wrap')}>
+              <div style={s('font-size:27px;font-weight:700;letter-spacing:-0.5px;color:var(--d-ink)')}>{fullName(carer)}</div>
               <Tag tone={carer.active ? 'success' : 'muted'}>{carer.active ? 'Active' : 'Inactive'}</Tag>
               {carer.mfa_enabled && <Tag tone="info">MFA on</Tag>}
             </div>
-            <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);margin-top:4px')}>{carer.email}{carer.employee_reference ? ` · ${carer.employee_reference}` : ''}{carer.phone ? ` · ${carer.phone}` : ''}</div>
-            <div style={s('display:flex;gap:16px;margin-top:12px;flex-wrap:wrap')}>
-              {/* Stats live on the profile payload (Staff::Stats merge), not on
-                  the bare #show employee — read them from there. */}
-              {(() => { const st = profile?.employee ?? carer; return [
-                ['Hours this week', st.hours_this_week != null ? `${st.hours_this_week}h` : '—'],
-                ['Punctuality', st.punctuality != null ? `${st.punctuality}%` : '—'],
-                ['Contracted', carer.contracted_hours_per_week ? `${carer.contracted_hours_per_week}h` : '—'],
-              ]; })().map(([l, v]) => (
-                <div key={l}><div className="d-num" style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{v}</div><div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{l}</div></div>
-              ))}
+            <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:500;color:var(--d-muted);margin-top:5px')}>
+              <span>{carer.email}</span>
+              {carer.employee_reference && <><span style={s('opacity:0.5')}>·</span><span>{carer.employee_reference}</span></>}
+              {carer.phone && <><span style={s('opacity:0.5')}>·</span><span style={s('display:inline-flex;align-items:center;gap:5px')}><Icon name="phone" size={13} />{carer.phone}</span></>}
             </div>
           </div>
           {canManage && (
-            <div style={s('display:flex;gap:8px;flex:none')}>
+            <div style={s('display:flex;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end')}>
               <Button size="sm" icon="edit" onClick={openEdit}>Edit</Button>
               <Button size="sm" variant={carer.active ? 'danger' : 'ghost'} onClick={toggleActive}>{carer.active ? 'Deactivate' : 'Reactivate'}</Button>
               {carer.avatar_url && <Button size="sm" onClick={removeAvatar}>Remove photo</Button>}
             </div>
           )}
+        </div>
+
+        {/* Stat strip */}
+        <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:20px')}>
+          {/* Stats live on the profile payload (Staff::Stats merge), not on the
+              bare #show employee — read them from there. */}
+          {(() => { const st = profile?.employee ?? carer; return [
+            ['Hours this week', st.hours_this_week != null ? `${st.hours_this_week}h` : '—'],
+            ['Punctuality', st.punctuality != null ? `${st.punctuality}%` : '—'],
+            ['Contracted', carer.contracted_hours_per_week ? `${carer.contracted_hours_per_week}h` : '—'],
+          ]; })().map(([l, v]) => (
+            <div key={l} style={s('background:var(--d-panel);border-radius:14px;padding:14px 16px')}>
+              <div className="d-num" style={s('font-size:22px;font-weight:700;color:var(--d-ink);line-height:1')}>{v}</div>
+              <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:6px')}>{l}</div>
+            </div>
+          ))}
         </div>
 
         {editing && (
@@ -171,14 +178,7 @@ export default function CarerDetailPage() {
       </Panel>
 
       {/* Tabs */}
-      <div style={s('display:flex;gap:4px;flex-wrap:wrap')}>
-        {TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            style={{ ...s('border:0;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer'), background: tab === t.key ? 'var(--d-pill)' : 'var(--d-card)', color: tab === t.key ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegTabs tabs={TABS.map((t) => ({ key: t.key, label: t.label }))} active={tab} onSelect={setTab} />
 
       <Panel style={{ padding: '18px 20px' }}>
         {tab === 'overview' ? (

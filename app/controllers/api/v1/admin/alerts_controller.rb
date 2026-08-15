@@ -7,7 +7,7 @@ module Api
         # the "resolved" count and filter have something to show.
         def index
           scope = Alert.where("state <> 'resolved' OR resolved_at >= ?", Time.current.beginning_of_day)
-          render json: scope.order(raised_at: :desc).map { |a| AlertSerializer.call(a) }
+          paginate(scope.order(raised_at: :desc)) { |a| AlertSerializer.call(a) }
         end
 
         # POST /api/v1/admin/alerts/:id/acknowledge

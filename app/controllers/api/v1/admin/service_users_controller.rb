@@ -5,7 +5,7 @@ module Api
         before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create update]
         def index
           stats = ::ServiceUsers::Stats.call
-          render json: ServiceUser.order(:last_name, :first_name).map { |su| ServiceUserSerializer.call(su).merge(stats[su.id] || {}) }
+          paginate(ServiceUser.order(:last_name, :first_name)) { |su| ServiceUserSerializer.call(su).merge(stats[su.id] || {}) }
         end
 
         def show

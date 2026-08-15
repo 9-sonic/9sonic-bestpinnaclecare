@@ -1,0 +1,152 @@
+import { useEffect, useState } from 'react';
+import Icon from '../components/common/Icon.jsx';
+import { s } from '../lib/ui.jsx';
+import { getSettings } from '../api/index.js';
+import Spinner from '../components/common/Spinner.jsx';
+import { Panel, PanelTitle, Tag } from '../ds/console.jsx';
+import { LIFECYCLE_LABELS, LIFECYCLE_TONE } from '../api/format.js';
+
+// The Guide — how clocking, escalation and the record work. This is reference
+// material, not a live tool: it was scattered across the Lifecycle, Reports and
+// Audit pages as explainer blocks; it now lives in one place. Grace and radius
+// read from the real Setting so the numbers match what the system enforces.
+const HAPPY = ['scheduled', 'check_in_window', 'grace_period', 'in_progress', 'completed'];
+const BRANCH = ['late', 'overdue', 'pending_review', 'missed'];
+const DESC = {
+  scheduled: 'On the rota, not yet due to start.',
+  check_in_window: 'Start time reached, within the grace period.',
+  grace_period: 'Grace period running before a visit is marked late.',
+  in_progress: 'Carer clocked in and currently delivering care.',
+  completed: 'Shift finished, verified and released to payroll.',
+  late: 'Clock in landed after the grace period.',
+  overdue: 'Past the scheduled end with no clock out.',
+  pending_review: 'Sitting with a manager in the exceptions queue.',
+  missed: 'No clock in recorded — escalation pathway triggered.',
+};
+const DOT = { neutral: 'var(--d-faint)', info: 'var(--d-info-ink)', warn: 'var(--d-warn-dot)', active: 'var(--d-info-ink)', danger: 'var(--d-danger-dot)', success: 'var(--d-ok-ink)' };
+const dot = (state) => DOT[LIFECYCLE_TONE[state]] ?? DOT.neutral;
+
+const COMPLIANCE = [
+  'Every entry is append-only. Records are written once and never altered or deleted — a correction adds a new row that points at what it supersedes.',
+  'Amendments carry the author, the exact time, and a mandatory reason. The original clock event is always preserved.',
+  'Location is captured only at clock moments, never between visits. UK-hosted; UK GDPR and NHS Data Security Standards apply.',
+];
+
+export default function GuidePage() {
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getSettings()
+      .then((st) => { if (active) setSettings(st); })
+      .catch(() => {})
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, []);
+
+  if (loading) return <Spinner fullscreen />;
+
+  const grace = settings?.late_grace_minutes ?? 5;
+  const autoClose = settings?.auto_close_after_minutes ?? 30;
+  const radius = 150;
+
+  const tiers = [
+    { tier: 1, title: 'Carer reminder', delay: `+${grace} min after start`, audience: 'Assigned carer', channel: 'Push notification', description: 'A gentle nudge in the app: your shift has started, tap to clock in.', icon: 'bell' },
+    { tier: 2, title: 'Coordinator alert', delay: '+15 min', audience: 'Team coordinator', channel: 'In-app + email', description: "The shift appears in the coordinator's exceptions queue for a phone check.", icon: 'alert' },
+    { tier: 3, title: 'Manager SMS', delay: '+30 min', audience: 'Registered manager', channel: 'SMS', description: 'Urgent text to nominated managers — the visit is now at risk.', icon: 'phone' },
+    { tier: 4, title: 'Cover reassignment', delay: '+45 min', audience: 'On-call carers', channel: 'SMS broadcast', description: 'Cover is offered to available carers so the client is never left without care.', icon: 'send' },
+  ];
+
+  const behaviours = [
+    { t: 'Grace period', d: `Clock-ins within ${grace} minutes of the scheduled start are treated as on time.` },
+    { t: 'Missed clock-out', d: `Open records are auto-flagged ${autoClose} minutes past the scheduled end and the carer is prompted.` },
+    { t: 'Geofence check', d: `Carers can only clock in at the client's address, within ${radius}m — a tap outside the fence is refused.` },
+    { t: 'Offline capture', d: 'No signal? Times are stored on the device with the original timestamps and synced later.' },
+    { t: 'Break handling', d: 'Breaks pause paid time and are deducted automatically from timesheet totals.' },
+    { t: 'Lone-worker check', d: 'Long visits without activity prompt a welfare check to the coordinator.' },
+  ];
+
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:16px')}>
+      {/* Shift states */}
+      <Panel>
+        <PanelTitle hint="The happy path every completed visit follows">Shift states</PanelTitle>
+        <div style={s('display:flex;flex-wrap:wrap;align-items:center;gap:8px')}>
+          {HAPPY.map((st, i) => (
+            <div key={st} style={s('display:flex;align-items:center;gap:8px')}>
+              <div style={s('display:flex;align-items:center;gap:8px;border:1px solid var(--d-border);border-radius:12px;padding:9px 12px;background:var(--d-card)')}>
+                <span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: dot(st) }} />
+                <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{LIFECYCLE_LABELS[st]}</span>
+              </div>
+              {i < HAPPY.length - 1 && <Icon name="chevronRight" size={15} />}
+            </div>
+          ))}
+        </div>
+
+        <div style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.06em;margin:18px 0 8px')}>Exception branches</div>
+        <div style={s('display:flex;flex-wrap:wrap;gap:8px')}>
+          {BRANCH.map((st) => (
+            <div key={st} style={s('display:flex;align-items:center;gap:8px;border:1px dashed var(--d-border);border-radius:12px;padding:9px 12px')}>
+              <span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: dot(st) }} />
+              <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{LIFECYCLE_LABELS[st]}</span>
+              <span style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>{DESC[st]}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start')}>
+        {/* Escalation pathway */}
+        <Panel>
+          <PanelTitle hint="Triggered automatically when a shift start passes without a clock in">Tiered escalation pathway</PanelTitle>
+          <div style={s('display:flex;flex-direction:column;gap:12px;border-left:1px solid var(--d-border);padding-left:22px;position:relative')}>
+            {tiers.map((t) => (
+              <div key={t.tier} style={s('position:relative')}>
+                <div style={s('position:absolute;top:12px;left:-33px;width:24px;height:24px;border-radius:50%;background:var(--d-primary);color:var(--d-primary-ink);display:flex;align-items:center;justify-content:center')}><Icon name={t.icon} size={13} /></div>
+                <div style={s('border:1px solid var(--d-border);border-radius:14px;padding:14px 16px')}>
+                  <div style={s('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
+                    <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);flex:1;min-width:0')}>Tier {t.tier} · {t.title}</div>
+                    <Tag tone={t.tier >= 3 ? 'danger' : 'primary'}>{t.delay}</Tag>
+                  </div>
+                  <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);margin-top:4px;line-height:1.5')}>{t.description}</div>
+                  <div style={s('display:flex;gap:6px;flex-wrap:wrap;margin-top:9px')}>
+                    <Tag tone="muted">{t.audience}</Tag>
+                    <Tag tone="muted">{t.channel}</Tag>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={s('margin-top:14px;background:var(--d-panel);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-muted);line-height:1.55')}>Timings, recipients and channels are configurable per team in Settings. The defaults shown assume a {grace} minute grace period on shift start.</div>
+        </Panel>
+
+        {/* Automated behaviours */}
+        <Panel>
+          <PanelTitle hint="Rules the system applies without asking">Automated behaviours</PanelTitle>
+          <div style={s('display:flex;flex-direction:column;gap:9px')}>
+            {behaviours.map((r) => (
+              <div key={r.t} style={s('border:1px solid var(--d-border);border-radius:14px;padding:12px 14px')}>
+                <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{r.t}</div>
+                <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px;line-height:1.5')}>{r.d}</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      {/* How the record is governed */}
+      <Panel>
+        <PanelTitle hint="How this data is governed">Record &amp; compliance</PanelTitle>
+        <div style={s('display:flex;flex-direction:column;gap:10px')}>
+          {COMPLIANCE.map((t) => (
+            <div key={t} style={s('display:flex;gap:11px;align-items:flex-start')}>
+              <div style={s('width:22px;height:22px;border-radius:7px;background:var(--d-ok-bg);display:flex;align-items:center;justify-content:center;flex:none;color:var(--d-ok-ink);margin-top:1px')}><Icon name="shield" size={13} /></div>
+              <div style={s('font-size:13px;font-weight:500;color:var(--d-ink2);line-height:1.5')}>{t}</div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}

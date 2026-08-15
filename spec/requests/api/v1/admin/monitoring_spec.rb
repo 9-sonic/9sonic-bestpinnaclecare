@@ -34,7 +34,7 @@ RSpec.describe "Admin monitoring & corrections", type: :request do
       alert = Alerts::Raise.call(subject: va, alert_type: "missed_visit", severity: "high")
 
       get "/api/v1/admin/alerts", headers: auth
-      expect(response.parsed_body.map { |a| a["id"] }).to include(alert.id)
+      expect(response.parsed_body["items"].map { |a| a["id"] }).to include(alert.id)
 
       post "/api/v1/admin/alerts/#{alert.id}/acknowledge", headers: auth
       expect(response).to have_http_status(:ok)

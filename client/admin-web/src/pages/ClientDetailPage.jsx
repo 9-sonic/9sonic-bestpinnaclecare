@@ -6,15 +6,9 @@ import { s } from '../lib/ui.jsx';
 import { fullName, addressOf } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Tag, Avatar, Button } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
 import { getServiceUser, updateServiceUser, listCarePlanItems, createCarePlanItem, deleteCarePlanItem, listServiceUserNotes } from '../api/index.js';
 
-const GEOFENCE_HELP = {
-  block: 'Clock-in is blocked outside the fence.',
-  warn: 'Carer is warned but can still clock in.',
-  off: 'Location is recorded only, never enforced.',
-};
-const MODE_LABEL = { block: 'Block', warn: 'Warn', off: 'Record only' };
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'careplan', label: 'Care plan' },
@@ -23,7 +17,7 @@ const TABS = [
 const EMPTY = {
   first_name: '', last_name: '', reference: '', phone: '',
   address_line1: '', address_line2: '', city: '', postcode: '',
-  lat: '', lng: '', geofence_radius_m: 150, geofence_mode: 'block', access_notes: '',
+  lat: '', lng: '', access_notes: '',
 };
 const fmtNoteDate = (iso) => {
   if (!iso) return '';
@@ -88,7 +82,7 @@ export default function ClientDetailPage() {
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   async function save() {
     setSaving(true);
-    const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng), geofence_radius_m: Number(form.geofence_radius_m) };
+    const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng) };
     try { await updateServiceUser(client.id, payload); toast.success('Record updated'); setEditing(false); await load(); }
     catch (e) { toast.error(e.message || 'Could not save'); } finally { setSaving(false); }
   }
@@ -115,25 +109,19 @@ export default function ClientDetailPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      <div><Button size="sm" icon="chevronLeft" onClick={() => navigate('/clients')}>Back to clients</Button></div>
-
-      <Panel style={{ padding: '22px 24px' }}>
-        <div style={s('display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap')}>
-          <Avatar initials={inits} size={64} />
+      <Panel style={{ padding: '26px 28px' }}>
+        <div style={s('display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap')}>
+          <Avatar initials={inits} size={92} />
           <div style={s('flex:1;min-width:0')}>
-            <div style={s('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-              <div style={s('font-size:22px;font-weight:700;color:var(--d-ink)')}>{fullName(client)}</div>
+            <div style={s('display:flex;align-items:center;gap:11px;flex-wrap:wrap')}>
+              <div style={s('font-size:27px;font-weight:700;letter-spacing:-0.5px;color:var(--d-ink)')}>{fullName(client)}</div>
               <Tag tone={client.active ? 'success' : 'muted'}>{client.active ? 'Active' : 'Archived'}</Tag>
             </div>
-            <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);margin-top:4px')}>{client.reference ?? 'No reference'}{client.phone ? ` · ${client.phone}` : ''}</div>
-            <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink);margin-top:8px;display:flex;align-items:center;gap:6px')}><Icon name="pin" size={14} />{addressOf(client) || 'No address'}</div>
-            <div style={s('display:flex;gap:16px;margin-top:12px;flex-wrap:wrap')}>
-              {[['Visits / week', client.visits_per_week ?? 0],
-                ['Adherence', client.adherence == null ? '—' : `${client.adherence}%`],
-                ['Regular carers', (client.carers ?? []).length]].map(([l, v]) => (
-                <div key={l}><div className="d-num" style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{v}</div><div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{l}</div></div>
-              ))}
+            <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:500;color:var(--d-muted);margin-top:5px')}>
+              <span>{client.reference ?? 'No reference'}</span>
+              {client.phone && <><span style={s('opacity:0.5')}>·</span><span style={s('display:inline-flex;align-items:center;gap:5px')}><Icon name="phone" size={13} />{client.phone}</span></>}
             </div>
+            <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink2);margin-top:9px;display:flex;align-items:center;gap:7px')}><Icon name="pin" size={15} />{addressOf(client) || 'No address on file'}</div>
           </div>
           {canManage && (
             <div style={s('display:flex;gap:8px;flex:none')}>
@@ -141,6 +129,18 @@ export default function ClientDetailPage() {
               <Button size="sm" variant={client.active ? 'danger' : 'ghost'} onClick={toggleActive}>{client.active ? 'Archive' : 'Reactivate'}</Button>
             </div>
           )}
+        </div>
+
+        {/* Stat strip — one card row, aligned and evenly weighted. */}
+        <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:20px')}>
+          {[['Visits / week', client.visits_per_week ?? 0],
+            ['Adherence', client.adherence == null ? '—' : `${client.adherence}%`],
+            ['Regular carers', (client.carers ?? []).length]].map(([l, v]) => (
+            <div key={l} style={s('background:var(--d-panel);border-radius:14px;padding:14px 16px')}>
+              <div className="d-num" style={s('font-size:22px;font-weight:700;color:var(--d-ink);line-height:1')}>{v}</div>
+              <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:6px')}>{l}</div>
+            </div>
+          ))}
         </div>
 
         {editing && (
@@ -153,15 +153,10 @@ export default function ClientDetailPage() {
               <L label="Address line 1"><input style={inp} value={form.address_line1} onChange={setField('address_line1')} /></L>
               <L label="City"><input style={inp} value={form.city} onChange={setField('city')} /></L>
               <L label="Postcode"><input style={inp} value={form.postcode} onChange={setField('postcode')} /></L>
-              <L label="Latitude"><input style={inp} value={form.lat} onChange={setField('lat')} /></L>
-              <L label="Longitude"><input style={inp} value={form.lng} onChange={setField('lng')} /></L>
-              <L label="Fence radius (m)"><input style={inp} type="number" value={form.geofence_radius_m} onChange={setField('geofence_radius_m')} /></L>
-              <L label="Geofence mode">
-                <select style={inp} value={form.geofence_mode} onChange={setField('geofence_mode')}>
-                  <option value="block">Block</option><option value="warn">Warn</option><option value="off">Record only</option>
-                </select>
-              </L>
+              <L label="Latitude"><input style={inp} value={form.lat} onChange={setField('lat')} placeholder="53.4808" /></L>
+              <L label="Longitude"><input style={inp} value={form.lng} onChange={setField('lng')} placeholder="-2.2426" /></L>
             </div>
+            <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers can only clock in at these coordinates, within 150&nbsp;m. Keep them accurate so the fence enforces correctly.</div>
             <L label="Access notes for carers"><textarea rows={2} style={{ ...inp, height: 'auto', padding: '10px 13px' }} value={form.access_notes} onChange={setField('access_notes')} /></L>
             <div style={s('display:flex;gap:8px')}>
               <Button variant="primary" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Save'}</Button>
@@ -171,23 +166,19 @@ export default function ClientDetailPage() {
         )}
       </Panel>
 
-      <div style={s('display:flex;gap:4px;flex-wrap:wrap')}>
-        {TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            style={{ ...s('border:0;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer'), background: tab === t.key ? 'var(--d-pill)' : 'var(--d-card)', color: tab === t.key ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegTabs tabs={TABS.map((t) => ({ key: t.key, label: t.label }))} active={tab} onSelect={setTab} />
 
       {tab === 'overview' && (
         <Panel style={{ padding: '18px 20px' }}>
           <div style={s('display:flex;flex-direction:column;gap:16px')}>
             <div>
-              <PanelTitle>Clocking rules</PanelTitle>
-              <div style={s('background:var(--d-panel);border-radius:14px;padding:14px 16px;margin-top:6px')}>
-                <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{client.lat == null ? 'No coordinates set' : `${client.geofence_radius_m}m · ${MODE_LABEL[client.geofence_mode ?? 'block']}`}</div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:6px')}>{GEOFENCE_HELP[client.geofence_mode ?? 'block']}</div>
+              <PanelTitle>Clocking rule</PanelTitle>
+              <div style={s('background:var(--d-panel);border-radius:14px;padding:14px 16px;margin-top:6px;display:flex;align-items:center;gap:12px')}>
+                <div style={s('width:36px;height:36px;border-radius:11px;background:var(--d-ok-bg);color:var(--d-ok-ink);display:flex;align-items:center;justify-content:center;flex:none')}><Icon name="shield" size={18} /></div>
+                <div style={s('min-width:0')}>
+                  <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{client.lat == null ? 'No coordinates set' : 'On site only — within 150 m'}</div>
+                  <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:3px')}>{client.lat == null ? 'Add coordinates so the fence can be enforced.' : "A carer can only clock in at this client's address; a tap outside 150 m is refused."}</div>
+                </div>
               </div>
             </div>
             {client.access_notes && (
