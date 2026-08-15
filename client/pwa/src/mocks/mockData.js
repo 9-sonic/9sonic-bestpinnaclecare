@@ -240,6 +240,9 @@ function seed() {
 
     // Local only, no API equivalent yet.
     local: { visitNotes: {}, tasks: {}, breaks: {}, availability: null },
+
+    // Carer requests (simulates /staff/requests). Matches CarerRequestSerializer shape.
+    carer_requests: [],
   };
 }
 

@@ -80,6 +80,10 @@ export default function HelpPage() {
       </div>
 
       <div className="page-actions">
+        <Button block variant="white" onClick={() => navigate('/clock?assist=1')}>
+          <Icon name="clock" size={16} />
+          Request help with clocking in
+        </Button>
         <Button block variant="white" onClick={() => navigate('/messages')}>
           <Icon name="chat" size={16} />
           Message my manager
