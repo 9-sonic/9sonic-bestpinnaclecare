@@ -17,17 +17,29 @@ import { useId } from 'react';
 //   Opt in per page; the vector stays the default so the other headers that use
 //   this component are unaffected.
 //
-// The wave path is expressed in objectBoundingBox units (0..1) rather than a
+// Wave paths are expressed in objectBoundingBox units (0..1) rather than a
 // viewBox, so one path scales to any width without preserveAspectRatio or
-// pixel maths. Its coordinates come from the Penpot board, normalised to the
+// pixel maths. Coordinates come from the Penpot boards, normalised to the
 // visible slice of the artwork.
-const WAVE_PATH = `M0,0 L1,0 L1,0.6001
-  C1,0.6001 0.9812,0.7154 0.8995,0.8182
-  C0.7945,0.9504 0.6059,1.0678 0.4346,0.9541
-  C0.3338,0.8872 0.2603,0.8347 0.1976,0.8257
-  C0.0597,0.806 0,0.9088 0,0.9088 Z`;
+//
+// The two screens do not share a curve: sign in drops steeply from the right
+// and troughs near the middle, while profile is shallower and troughs further
+// right, leaving room for the avatar to straddle it.
+const WAVE_PATHS = {
+  signin: `M0,0 L1,0 L1,0.6001
+    C1,0.6001 0.9812,0.7154 0.8995,0.8182
+    C0.7945,0.9504 0.6059,1.0678 0.4346,0.9541
+    C0.3338,0.8872 0.2603,0.8347 0.1976,0.8257
+    C0.0597,0.806 0,0.9088 0,0.9088 Z`,
+  profile: `M0,0 L1,0 L1,0.7636
+    L0.97,0.8045 L0.8952,0.8773 L0.79,0.9364 L0.6522,0.9818
+    C0.6522,0.9818 0.5609,1.0098 0.4466,0.9955
+    C0.3315,0.981 0.2028,0.9353 0.1101,0.8773
+    C0.1004,0.8712 0.0767,0.8528 0.0611,0.8364
+    C0.0321,0.8058 0.0005,0.7752 0,0.7591 Z`,
+};
 
-export default function WaveHeader({ height = 210, photo = false, children }) {
+export default function WaveHeader({ height = 210, photo = false, curve = 'signin', children }) {
   const clipId = useId();
 
   return (
@@ -37,7 +49,7 @@ export default function WaveHeader({ height = 210, photo = false, children }) {
           <svg className="wave__clip" aria-hidden="true">
             <defs>
               <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-                <path d={WAVE_PATH} />
+                <path d={WAVE_PATHS[curve] ?? WAVE_PATHS.signin} />
               </clipPath>
             </defs>
           </svg>

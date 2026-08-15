@@ -4492,8 +4492,9 @@ body {
 
   .clock-screen { padding: var(--space-2) var(--space-3) var(--space-4); }
 
-  /* Profile header: less dead space above the fold. */
-  .profile__hero { margin-top: -38px; }
+  /* The hero offset is no longer tuned per breakpoint: it is tied to where the
+     avatar meets the wave, which is the same fraction of the header at every
+     width. See .profile__hero in the Profile section. */
   .profile__name { font-size: var(--text-lg); }
 
   .detail-head { padding: var(--space-3); }
@@ -7922,12 +7923,27 @@ body:has(.drawer-backdrop) .app-content {
 
 /* --------------------------------- Profile -------------------------------- */
 
-/* The header is the wave rather than a flat band, tying the screen back to
-   sign in. */
+/* The header is the same artwork as sign in and the launch screen, cropped to
+   its bottom section. It is dark in both themes, so the bar sitting on it is
+   always white rather than following the theme's text colour. */
 .profile__bar-title {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: var(--text-lg);
+  color: #fff;
+}
+
+/* Pulls the avatar up so it straddles the wave, as on the board: its top sits
+   141px down a 220px header. */
+.profile__hero {
+  margin-top: -79px;
+}
+
+/* On the artwork the ring reads as a cut-out, so it is white rather than the
+   brand tint the ring uses elsewhere. */
+.profile__avatar-btn .avatar--ring {
+  border-color: #fff;
+  box-shadow: none;
 }
 
 .profile__name {

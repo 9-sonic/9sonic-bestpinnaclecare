@@ -84,7 +84,7 @@ export default function ProfilePage() {
 
   return (
     <div className="page--flush">
-      <WaveHeader height={124}>
+      <WaveHeader height={220} photo curve="profile">
         <div className="profile__bar">
           <span className="profile__bar-spacer" />
           <span className="profile__bar-title">Profile</span>
@@ -106,7 +106,7 @@ export default function ProfilePage() {
           onClick={() => { tapFeedback(); setEditing(true); }}
           aria-label="Edit profile photo"
         >
-          <Avatar name={user?.name ?? ''} src={user?.avatar} size={88} ring />
+          <Avatar name={user?.name ?? ''} src={user?.avatar} size={104} ring />
           <span className="profile__avatar-edit">
             <Icon name="camera" size={13} />
           </span>
