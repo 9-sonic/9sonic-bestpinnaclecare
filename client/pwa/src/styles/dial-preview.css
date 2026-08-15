@@ -1,0 +1,81 @@
+/* ===========================================================================
+   Dial workbench (/dev/dial).
+
+   Development only. This lives outside global.css on purpose: global.css is
+   bundled whole, so rules put there would ship to carers even though the route
+   itself is compiled out. Imported by DialPreviewPage.jsx instead, which means
+   it is dropped with the route. Nothing else may depend on it.
+
+   Deliberately plain — anything decorative here would compete with the thing
+   being looked at.
+   =========================================================================== */
+
+.dialpreview {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  background: var(--color-bg);
+}
+
+.dialpreview__banner {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.dialpreview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: center;
+}
+
+/* The numbers behind the picture, so a wrong-looking arc can be checked
+   against the progress that produced it. */
+.dialpreview__readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.dialpreview__readout div { text-align: center; }
+
+.dialpreview__readout dt {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.dialpreview__readout dd {
+  margin: 2px 0 0;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dialpreview__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.dialpreview__live {
+  color: var(--brand-deep);
+  animation: dial-pulse 2.4s var(--ease) infinite;
+}

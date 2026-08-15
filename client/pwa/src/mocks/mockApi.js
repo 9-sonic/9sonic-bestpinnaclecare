@@ -5,7 +5,7 @@
 // no endpoint (visit notes, breaks, profile edits) the function is marked as
 // local only and is listed in api_missing.md.
 
-import { loadDb, saveDb, participantName as nameOf } from './mockData.js';
+import { loadDb, saveDb, participantName as nameOf, carePlanFor, tasksFor } from './mockData.js';
 import { ApiError } from '../api/client.js';
 
 export { participantName } from './mockData.js';
@@ -70,11 +70,22 @@ export async function listVisits({ from, to } = {}) {
   return list.slice().sort((a, b) => startOf(a) - startOf(b));
 }
 
+// Mirrors GET /staff/visit_assignments/:id, which returns the assignment plus
+// the care plan, the visit's tasks and its notes. Returning the bare assignment
+// left the detail screen's care plan and task sections permanently empty in
+// demo mode, so nobody could see or test them without a seeded API.
 export async function getVisit(id) {
   await delay(150);
   const va = loadDb().visit_assignments.find((v) => String(v.id) === String(id));
   if (!va) throw new ApiError('We could not find that.', { status: 404, code: 'not_found' });
-  return va;
+
+  const suId = va.visit?.service_user_id;
+  return {
+    ...va,
+    care_plan: carePlanFor(suId),
+    tasks: tasksFor(va.id, suId),
+    notes: [],
+  };
 }
 
 /* ------------------------------- Clocking -------------------------------- */

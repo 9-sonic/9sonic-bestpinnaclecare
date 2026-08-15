@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
+import { getBreak, clearBreak } from '../utils/breaks.js';
 import { getCurrentLocation } from '../utils/geolocation.js';
 import { formatElapsed, formatTime } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
@@ -29,6 +30,11 @@ export default function ClockPage() {
   const [gps, setGps] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
+  // Break state lives on the device, not on the shift. The API models
+  // `break_minutes` but has no endpoint for starting or ending a break, so
+  // nothing comes back from the server to merge into the shift — it has to be
+  // read from local storage and held here. See utils/breaks.js.
+  const [breakState, setBreakState] = useState({ totalMs: 0, startedAt: null });
   const tickRef = useRef(null);
 
   const selectedId = searchParams.get('shift');
@@ -80,7 +86,17 @@ export default function ClockPage() {
     }
   }, [shift, selectedId, setSearchParams]);
 
-  const onBreak = !!shift?.breakStartedAt;
+  // Load the stored break whenever the shown shift changes, so switching shifts
+  // (or reloading mid-break) picks up where the carer left off. Keyed on the id
+  // rather than the shift: `refresh()` hands back a new object every poll, and
+  // depending on that would re-read storage — and stamp on a break just
+  // toggled — several times a minute.
+  const shiftId = shift?.id ?? null;
+  useEffect(() => {
+    setBreakState(shiftId ? getBreak(shiftId) : { totalMs: 0, startedAt: null });
+  }, [shiftId]);
+
+  const onBreak = !!breakState.startedAt;
   const isActive = shift?.status === 'active';
 
   // Tick once a second only while a shift is running (saves battery otherwise).
@@ -98,35 +114,37 @@ export default function ClockPage() {
     if (!shift?.clockInAt) return 0;
     const start = new Date(shift.clockInAt).getTime();
     const end = shift.clockOutAt ? new Date(shift.clockOutAt).getTime() : now;
-    const runningBreak = shift.breakStartedAt
-      ? Date.now() - new Date(shift.breakStartedAt).getTime()
+    // `now` rather than Date.now(): the ticker is stopped during a break, so
+    // using the frozen `now` on both sides is what holds the timer still.
+    const runningBreak = breakState.startedAt
+      ? now - new Date(breakState.startedAt).getTime()
       : 0;
-    return Math.max(0, end - start - (shift.breakMs ?? 0) - runningBreak);
-  }, [shift, now]);
+    return Math.max(0, end - start - breakState.totalMs - runningBreak);
+  }, [shift, breakState, now]);
 
   // Break time so far, including one currently running. Shown in the summary
   // strip, where it explains why the timer and the wall clock disagree.
   const breakLabel = useMemo(() => {
     if (!shift) return '---';
-    const running = shift.breakStartedAt
-      ? now - new Date(shift.breakStartedAt).getTime()
+    const running = breakState.startedAt
+      ? now - new Date(breakState.startedAt).getTime()
       : 0;
-    const mins = Math.round(((shift.breakMs ?? 0) + running) / 60000);
+    const mins = Math.round((breakState.totalMs + running) / 60000);
     if (mins <= 0) return shift.clockInAt ? '0 min' : '---';
     if (mins < 60) return `${mins} min`;
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     return m === 0 ? `${h}h` : `${h}h ${m}m`;
-  }, [shift, now]);
+  }, [shift, breakState, now]);
 
   // The lifecycle state, said once, in the chip under the header.
   const [statusTone, statusLabel] = useMemo(() => {
     if (!shift) return ['upcoming', 'No visit'];
     if (shift.status === 'completed') return ['done', 'Completed'];
-    if (shift.breakStartedAt) return ['break', 'On break'];
+    if (onBreak) return ['break', 'On break'];
     if (shift.status === 'active') return ['onshift', 'On shift'];
     return ['upcoming', 'Upcoming'];
-  }, [shift]);
+  }, [shift, onBreak]);
 
   // Progress around the dial = elapsed / scheduled duration.
   const progress = useMemo(() => {
@@ -193,6 +211,14 @@ export default function ClockPage() {
         }
       }
 
+      // The shift is over, so the device-local break record has nothing left to
+      // measure. Clearing it stops a stale break leaking into a later visit
+      // that happens to reuse the id.
+      if (kind === 'clock_out') {
+        clearBreak(shift.id);
+        setBreakState({ totalMs: 0, startedAt: null });
+      }
+
       await refresh();
     } catch (err) {
       errorFeedback();
@@ -210,8 +236,12 @@ export default function ClockPage() {
     tapFeedback();
     setBusy(true);
     try {
-      await toggleBreak({ shiftId: shift.id });
-      await refresh();
+      // toggleBreak returns the updated record, so there is no need to read it
+      // back. Resetting `now` at the same moment stops the timer jumping by up
+      // to a second when the break starts or ends.
+      const next = await toggleBreak({ shiftId: shift.id });
+      setNow(Date.now());
+      setBreakState(next);
     } catch (err) {
       toast.error(err.message || 'Could not update break');
     } finally {
@@ -293,7 +323,7 @@ export default function ClockPage() {
           {/* A paused timer looks identical to a stopped one, so it says so. */}
           {onBreak && (
             <p className="clock-note">
-              On break since {formatTime(shift.breakStartedAt)} — time is paused
+              On break since {formatTime(breakState.startedAt)} — time is paused
             </p>
           )}
 
