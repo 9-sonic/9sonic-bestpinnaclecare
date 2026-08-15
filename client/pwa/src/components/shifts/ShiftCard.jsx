@@ -25,9 +25,14 @@ const LABELS = {
 // silently collapsed into an unreadable strip. There is a test for it now, but
 // the real fix is not having a second copy to drift.
 //
-// Layout follows the redesign: when and what day first, since a carer scanning
-// their day is looking for a time, then the person, then where and what the
-// visit is for.
+// Layout follows the Penpot board: the person leads, with the status opposite
+// their name, then the time and day as one line beneath, then where and what
+// the visit is for.
+//
+// This reverses an earlier pass that led with the time on the grounds that a
+// carer scanning their day looks for a time first. Both readings are
+// defensible; the board is the tie-breaker for now. If that rationale still
+// holds, it is Athaliah's call to make on the board rather than in here.
 //
 // `compact` hides the address, note and actions, for places that list visits
 // only so one can be picked.
@@ -72,25 +77,14 @@ export default function ShiftCard({
         }
       }}
     >
-      <div className="vcard__lead">
-        <div className="vcard__timing">
-          <span className="vcard__range">
-            {formatTimeRange(shift.startsAt, shift.endsAt)}
-          </span>
-          <span className="vcard__day">{formatDayLabel(shift.startsAt)}</span>
-        </div>
-        <span className={`badge badge--${shift.status}`}>
-          {LABELS[shift.status] ?? shift.status}
-        </span>
-      </div>
-
       <div className="vcard__head">
         <div className="vcard__avatar">
-          {/* 46px, per the export. Avatar sizes itself with an inline style,
-              so this has to be the prop — a stylesheet cannot win against it
-              without !important, and reaching for that here would be fighting
-              the component rather than configuring it. */}
-          <Avatar name={shift.client} size={46} />
+          {/* The board draws this at 40; 44 to sit with the roomier spacing.
+              Avatar sizes itself with an inline style, so this has to be the
+              prop — a stylesheet cannot win against it without !important,
+              and reaching for that here would be fighting the component
+              rather than configuring it. */}
+          <Avatar name={shift.client} size={44} />
           {/* A finished visit is marked rather than dimmed: greying the whole
               card made it look broken instead of done. */}
           {done && (
@@ -101,10 +95,27 @@ export default function ShiftCard({
         </div>
 
         <div className="vcard__id">
-          <h3 className="vcard__name">
-            {typeof index === 'number' && <span className="vcard__index">{index}</span>}
-            {shift.client}
-          </h3>
+          <div className="vcard__topline">
+            <h3 className="vcard__name">
+              {typeof index === 'number' && <span className="vcard__index">{index}</span>}
+              {shift.client}
+            </h3>
+            <span className={`badge badge--${shift.status}`}>
+              {LABELS[shift.status] ?? shift.status}
+            </span>
+          </div>
+
+          {/* Time and day read as one line, separated by a dot, at the same
+              size and weight — the board treats them as a single fact about
+              the visit rather than a heading with a subtitle. */}
+          <p className="vcard__timing">
+            <Icon name="clock" size={13} />
+            <span className="vcard__range">
+              {formatTimeRange(shift.startsAt, shift.endsAt)}
+            </span>
+            <span className="vcard__dot" aria-hidden="true">•</span>
+            <span className="vcard__day">{formatDayLabel(shift.startsAt)}</span>
+          </p>
         </div>
       </div>
 

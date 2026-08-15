@@ -167,23 +167,47 @@ body {
   padding-bottom: var(--space-4);
 }
 
+/* Both page wrappers carry the side gutter; they differ only in vertical
+   rhythm. Inner sections must NOT add their own side padding — see .bleed for
+   the few pieces of chrome that deliberately span the full width. */
 .page {
-  padding: var(--space-3) var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--page-gutter) var(--space-5);
 }
 
 .page--flush {
-  padding: 0 0 var(--space-4);
+  padding: 0 var(--page-gutter) var(--space-4);
+}
+
+/* Full-width inside a padded page: headers and banners whose background has to
+   reach both edges. Cancels the gutter rather than fighting it.
+   Direct children only, and only under the padded roots — the same header
+   components are also used inside their own full-bleed layouts (.signin,
+   .login, .chat), which never had a gutter to cancel. */
+:is(.page, .page--flush, .clockscreen)
+  > :is(
+    .screen-header,
+    .screen-header--large,
+    .home2__bar,
+    .home-top,
+    .notif-head,
+    .page-title,
+    .wave
+  ) {
+  margin-inline: calc(var(--page-gutter) * -1);
+  /* An explicit width: 100% would be measured against the padded content box,
+     so the negative margin would slide the element left instead of widening
+     it. Letting the width resolve from the margins is what makes it span. */
+  width: auto;
 }
 
 .inset {
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .stack {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
 }
 
 .form-stack {
@@ -193,7 +217,7 @@ body {
 }
 
 .page-actions {
-  padding: var(--space-4) var(--space-4) var(--space-2);
+  padding: var(--space-4) 0 var(--space-2);
 }
 
 /* ------------------------------ Bottom nav ------------------------------- */
@@ -738,7 +762,7 @@ body {
 }
 
 .stack-card {
-  margin: 0 var(--space-4);
+  margin: 0;
   overflow: hidden;
 }
 
@@ -1068,7 +1092,7 @@ body {
 }
 
 .section-head--inset {
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .section-head__title {
@@ -1107,7 +1131,7 @@ body {
   letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--color-text-faint);
-  margin: var(--space-5) var(--space-4) var(--space-2);
+  margin: var(--space-5) 0 var(--space-2);
 }
 
 /* Spinner and skeletons */
@@ -1174,7 +1198,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .skeleton-card {
@@ -1260,11 +1284,12 @@ body {
 
 /* ---------------------------- Status strips ------------------------------ */
 
+/* Sits in .app-shell, above the page wrapper, so it carries the gutter itself. */
 .status-strips {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--page-gutter) 0;
 }
 
 .strip {
@@ -1504,7 +1529,7 @@ body {
 }
 
 .home-greeting {
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  padding: var(--space-2) 0 var(--space-3);
 }
 
 .home-greeting__hello {
@@ -1547,7 +1572,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-2) var(--space-4) var(--space-5);
+  padding: var(--space-2) 0 var(--space-5);
 }
 
 .clock-screen__head {
@@ -1681,7 +1706,7 @@ body {
 /* ------------------------------- Calendar -------------------------------- */
 
 .calendar {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-3);
 }
 
@@ -1826,7 +1851,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .shift-card {
@@ -1889,7 +1914,7 @@ body {
 /* ----------------------------- Shift detail ------------------------------ */
 
 .detail-hero {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-3);
   display: flex;
   flex-direction: column;
@@ -2024,7 +2049,7 @@ body {
 /* ------------------------------- Overview -------------------------------- */
 
 .range-card {
-  margin: 0 var(--space-4) var(--space-3);
+  margin: 0 0 var(--space-3);
   padding: var(--space-3);
 }
 
@@ -2057,7 +2082,7 @@ body {
 }
 
 .chart-card {
-  margin: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
   padding: var(--space-3);
 }
 
@@ -2174,7 +2199,7 @@ body {
 /* ------------------------------ Timesheet -------------------------------- */
 
 .pay-card {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-4);
   background: var(--color-primary);
   color: var(--color-primary-contrast);
@@ -2373,7 +2398,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 var(--space-4) var(--space-2);
+  margin: 0 0 var(--space-2);
   padding: 0.6rem 0.9rem;
   border-radius: var(--radius);
   background: var(--color-surface-alt);
@@ -3056,7 +3081,7 @@ body {
 
 .nav-map {
   position: relative;
-  margin: 0 var(--space-4);
+  margin: 0;
   height: 250px;
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -3088,7 +3113,7 @@ body {
 }
 
 .nav-dest {
-  margin: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
   padding: var(--space-3);
 }
 
@@ -3773,7 +3798,7 @@ body {
 }
 
 .home-greeting {
-  padding: var(--space-4) var(--space-4) var(--space-3);
+  padding: var(--space-4) 0 var(--space-3);
 }
 
 .home-greeting__hello {
@@ -3792,7 +3817,7 @@ body {
 
 /* The focus card: what the carer is doing now or next. */
 .focus-card {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -3947,7 +3972,7 @@ body {
 /* Week strip: quiet supporting numbers, not four competing cards. */
 .week-strip,
 .upnext {
-  margin: var(--space-5) var(--space-4) 0;
+  margin: var(--space-5) 0 0;
 }
 
 .week-strip__head {
@@ -4200,7 +4225,7 @@ body {
 }
 
 .app-meta {
-  padding: var(--space-5) var(--space-4) var(--space-2);
+  padding: var(--space-5) 0 var(--space-2);
   text-align: center;
   font-size: var(--text-xs);
   color: var(--color-text-faint);
@@ -4882,7 +4907,7 @@ body {
 .seg-row {
   display: flex;
   gap: 6px;
-  padding: 0 var(--space-4) var(--space-3);
+  padding: 0 0 var(--space-3);
 }
 
 .seg {
@@ -4929,7 +4954,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-4) var(--space-2);
+  padding: 0 0 var(--space-2);
 }
 
 .notif-group__day {
@@ -4953,7 +4978,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 /* Notification card. The left icon carries the category colour, which is the
@@ -5174,7 +5199,7 @@ body {
 
 .map-wrap {
   position: relative;
-  margin: 0 var(--space-4);
+  margin: 0;
   height: 260px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -5244,7 +5269,7 @@ body {
 .access-note {
   display: flex;
   gap: var(--space-3);
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-3);
   background: var(--color-warn-bg);
   border-color: var(--color-warn);
@@ -5534,7 +5559,7 @@ body {
 /* ----------------------------- Shortcuts --------------------------------- */
 
 .shortcuts {
-  margin: var(--space-5) var(--space-4) 0;
+  margin: var(--space-5) 0 0;
 }
 
 .shortcut-grid {
@@ -5605,7 +5630,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin: var(--space-5) var(--space-4) var(--space-2);
+  margin: var(--space-5) 0 var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius);
   background: var(--color-surface-alt);
@@ -6239,7 +6264,7 @@ body:has(.drawer-backdrop) .app-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3) 0 0;
 }
 
 .hero {
@@ -6367,7 +6392,7 @@ body:has(.drawer-backdrop) .app-content {
 
 /* Up next. */
 .upnext2 {
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .upnext2__card {
@@ -6428,7 +6453,7 @@ body:has(.drawer-backdrop) .app-content {
 /* ------------------------------ Clock screen ----------------------------- */
 
 .clockscreen {
-  padding: var(--space-2) var(--space-4) var(--space-6);
+  padding: var(--space-2) var(--page-gutter) var(--space-6);
 }
 
 /* Title block is left aligned with the History pill opposite. */
@@ -6605,7 +6630,7 @@ body:has(.drawer-backdrop) .app-content {
 /* -------------------------------- Calendar ------------------------------- */
 
 .cal {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-4) var(--space-3);
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -6827,7 +6852,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .shift-list--flush {
@@ -6840,7 +6865,7 @@ body:has(.drawer-backdrop) .app-content {
 /* The date range card: a year with chevrons, then the two dates either side of
    a small TO. */
 .range-card {
-  margin: 0 var(--space-4) var(--space-4);
+  margin: 0 0 var(--space-4);
   padding: var(--space-4);
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -6883,7 +6908,7 @@ body:has(.drawer-backdrop) .app-content {
 /* Chart: rounded bars, pale for the rest of the week, brand for the day in
    focus, with a light y axis behind. */
 .chart-card {
-  margin: var(--space-4);
+  margin: var(--space-4) 0;
   padding: var(--space-4) var(--space-3) var(--space-3);
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -7037,7 +7062,7 @@ body:has(.drawer-backdrop) .app-content {
 /* The destination panel lifts over the bottom of the map. */
 .nav-dest {
   position: relative;
-  margin: calc(var(--space-5) * -1) var(--space-4) var(--space-4);
+  margin: calc(var(--space-5) * -1) 0 var(--space-4);
   padding: var(--space-4);
   background: var(--color-surface);
   border-radius: var(--radius-xl);
@@ -7258,7 +7283,7 @@ body:has(.drawer-backdrop) .app-content {
 /* ------------------------------- Home, v2 -------------------------------- */
 
 .greet {
-  padding: var(--space-3) var(--space-4) var(--space-1);
+  padding: var(--space-3) 0 var(--space-1);
 }
 
 .greet__hello {
@@ -7282,7 +7307,7 @@ body:has(.drawer-backdrop) .app-content {
 
 /* Weekly progress. */
 .weekbar-card {
-  margin: 0 var(--space-4) var(--space-2);
+  margin: 0 0 var(--space-2);
   padding: var(--space-4);
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -7349,7 +7374,7 @@ body:has(.drawer-backdrop) .app-content {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .quick__item {
@@ -7391,7 +7416,7 @@ body:has(.drawer-backdrop) .app-content {
 }
 
 .today__list {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-2) 0;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -7506,7 +7531,7 @@ body:has(.drawer-backdrop) .app-content {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin: var(--space-4) var(--space-4) 0;
+  margin: var(--space-4) 0 0;
   padding: var(--space-3);
   border-radius: var(--radius);
   font-size: var(--text-xs);
@@ -7535,7 +7560,7 @@ body:has(.drawer-backdrop) .app-content {
 /* The summary panel. Carries the brand gradient because it is the answer the
    screen exists to give; everything below it is detail. */
 .paysum {
-  margin: 0 var(--space-4);
+  margin: 0;
   padding: var(--space-5) var(--space-4) var(--space-4);
   border-radius: var(--radius-xl);
   background: var(--grad-brand);
@@ -7622,7 +7647,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: var(--space-3) var(--space-4) 0;
+  margin: var(--space-3) 0 0;
   padding: var(--space-3);
   border-radius: var(--radius);
   background: var(--color-surface-alt);
@@ -7746,7 +7771,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 var(--space-4) var(--space-4);
+  margin: 0 0 var(--space-4);
   padding: 0 var(--space-4);
   min-height: 46px;
   border: none;
@@ -7772,7 +7797,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0;
 }
 
 .thread-row {
@@ -8004,7 +8029,7 @@ body:has(.drawer-backdrop) .app-content {
 
 /* Settings groups as floating cards. */
 .stack-card {
-  margin: 0 var(--space-4);
+  margin: 0;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -8037,7 +8062,7 @@ body:has(.drawer-backdrop) .app-content {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-text-faint);
-  margin: var(--space-5) var(--space-4) var(--space-2);
+  margin: var(--space-5) 0 var(--space-2);
 }
 
 .switch--on {
@@ -10014,15 +10039,20 @@ body:has(.drawer-backdrop) .app-content {
   overflow-wrap: anywhere;
 }
 
+/* Two equal halves filling the row, exactly as .fvisit__actions does on the
+   featured visit card — the same pair of actions should have the same shape
+   whichever card a carer meets it on. */
 .vcard__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-4);
 }
 
+/* Width comes from the grid column it sits in. */
 .vcard__go {
-  flex: 1;
+  padding: 0 var(--space-4);
   min-height: 42px;
   border-radius: var(--radius-pill);
   background: var(--grad-brand);
@@ -10044,9 +10074,12 @@ body:has(.drawer-backdrop) .app-content {
   box-shadow: none;
 }
 
+/* Rounded to match the primary action beside it — as a bare text label it
+   read as a link rather than as the second of two buttons. */
 .vcard__details {
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-4);
   min-height: 42px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--color-text-muted);
@@ -10086,9 +10119,14 @@ body:has(.drawer-backdrop) .app-content {
 /* These are buttons, and the user-agent border was showing through. */
 .ministat,
 .vcard__go,
-.vcard__details,
 .fvisit__call {
   border: none;
+}
+
+/* The quiet half of the pair: same pill, outline instead of fill. */
+.vcard__details {
+  border: 1px solid var(--color-border);
+  background: transparent;
 }
 
 .vcard__go--quiet {
@@ -10103,32 +10141,44 @@ body:has(.drawer-backdrop) .app-content {
    =========================================================================== */
 
 /* Time first, because a carer scanning the day is looking for a time. */
-.vcard__lead {
+/* The name and the status pill share the first line, with the pill pushed to
+   the card's right edge. */
+.vcard__topline {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
+/* Clock icon, time, dot, day — one line, sitting under the name and indented
+   past the avatar with it. */
 .vcard__timing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
   min-width: 0;
 }
 
+.vcard__timing svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
 .vcard__range {
-  display: block;
   font-family: var(--font-display);
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--color-text);
+  font-weight: 600;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
+.vcard__dot {
+  color: var(--color-border-strong);
+}
+
 .vcard__day {
-  display: block;
-  margin-top: 1px;
-  font-size: var(--text-sm);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .vcard__avatar {
@@ -10205,8 +10255,10 @@ body:has(.drawer-backdrop) .app-content {
   padding: var(--space-3);
 }
 
-.vcard--compact .vcard__lead {
-  margin-bottom: var(--space-2);
+/* Compact drops the address, note and actions, so the head is the whole card
+   and needs no trailing space. */
+.vcard--compact .vcard__head {
+  margin-bottom: 0;
 }
 
 /* The clickable card needs to look clickable and respond to a tap. */
@@ -10263,15 +10315,15 @@ body:has(.drawer-backdrop) .app-content {
 .cal-legend__swatch--missed { background: var(--danger); }
 .cal-legend__swatch--late { background: var(--warning); }
 
-/* The avatar row. Centre-aligned because the name is a single line here;
-   flex-start left the name floating above a gap. */
+/* The avatar row. The name and the time line stack beside the avatar, so this
+   aligns to the top — centring it pushed the pair off the avatar's centre.
+   (It was centred when the name was the only thing here.) */
 .vcard__head {
-  align-items: center;
+  align-items: flex-start;
 }
 
 .vcard__id {
-  display: flex;
-  align-items: center;
+  display: block;
   min-width: 0;
 }
 
@@ -10429,8 +10481,11 @@ body:has(.drawer-backdrop) .app-content {
   gap: var(--space-2);
 }
 
+/* Even padding on all four sides. The board specifies 18px; this runs a little
+   more open than that — matched exactly, the card read as cramped on a real
+   phone, where the address wraps far more often than it does in the mock. */
 .vcard {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-5);
 }
 
 /* ===========================================================================
@@ -10738,7 +10793,7 @@ body:has(.drawer-backdrop) .app-content {
 }
 
 .thread-group__label {
-  padding: 0 var(--space-4);
+  padding: 0;
   margin-bottom: var(--space-2);
   font-size: 10.5px;
   font-weight: 700;
@@ -11004,7 +11059,7 @@ body:has(.drawer-backdrop) .app-content {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: 0 var(--space-4);
+  padding: 0;
   margin-bottom: var(--space-4);
 }
 
@@ -11030,7 +11085,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
-  padding: 0 var(--space-4) var(--space-4);
+  padding: 0 0 var(--space-4);
   scrollbar-width: none;
 }
 
@@ -11073,7 +11128,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0;
   margin-bottom: var(--space-2);
 }
 
@@ -11098,7 +11153,7 @@ body:has(.drawer-backdrop) .app-content {
 }
 
 .chist__card {
-  margin: 0 var(--space-4);
+  margin: 0;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-xs);
@@ -11224,7 +11279,7 @@ body:has(.drawer-backdrop) .app-content {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  margin: var(--space-2) var(--space-4) var(--space-4);
+  margin: var(--space-2) 0 var(--space-4);
   font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--color-text-muted);
@@ -11454,7 +11509,7 @@ body {
   font-weight: 600;
 }
 
-/* Times. Figtree at 14/600, with the date under it at 11/600. */
+/* Times, in Figtree at 600. */
 .vcard__range,
 .fvisit__time,
 .clockstat__value,
@@ -11463,13 +11518,11 @@ body {
   font-weight: 600;
 }
 
-.vcard__range {
-  font-size: 14px;
-  color: var(--color-text-strong, var(--color-text));
-}
-
+/* On the visit card the two are one line and matched, per the board: same
+   size, same weight, same colour, with only the dot between them. */
+.vcard__range,
 .vcard__day {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text-muted);
 }
@@ -11525,17 +11578,26 @@ body {
   color: var(--brand-text);
 }
 
-/* Address and note, both quieter than they were. */
+/* Address and note, to the board: 12.5/500 and 12/400. Both had drifted down
+   to 11px, which is at the floor for reading outdoors. */
 .vcard__addr {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-muted);
+  /* The board runs these rows as one block rather than as separated
+     sections, but with a little more air between them than it specifies. */
+  margin-top: 10px;
 }
 
+/* No rule above the note on the board: the card is one block, and a divider
+   inside a card this size cut it in half. */
 .vcard__note {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.45;
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* -- the calendar --------------------------------------------------------- */
