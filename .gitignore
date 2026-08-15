@@ -64,3 +64,6 @@ pnpm-debug.log*
 # absolute temp paths from that machine. The shared project brain (.claude/CLAUDE.md,
 # skills/) is tracked; this is not.
 **/.claude/settings.local.json
+
+# Bundler local install — never push gems
+/vendor/bundle/

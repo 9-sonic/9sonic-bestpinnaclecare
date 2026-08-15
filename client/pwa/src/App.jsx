@@ -28,11 +28,19 @@ const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPag
 const SetPasswordPage = lazyWithRetry(() => import('./pages/SetPasswordPage.jsx'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage.jsx'));
 
+// A workbench for the clock dial, on a 15-second shift so the arc can actually
+// be watched. Behind import.meta.env.DEV so the route — and the chunk — are
+// dropped from a production build rather than merely being hard to find.
+const DialPreviewPage = import.meta.env.DEV
+  ? lazyWithRetry(() => import('./pages/DialPreviewPage.jsx'))
+  : null;
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner fullscreen />}>
       <Routes>
         {/* Public */}
+        {DialPreviewPage && <Route path="/dev/dial" element={<DialPreviewPage />} />}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         {/* Onboarding + recovery — reached from the emailed invite / reset link. */}

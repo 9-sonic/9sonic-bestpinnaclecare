@@ -54,7 +54,39 @@ export default function ShiftDetailPage() {
 
   if (!shift) return <Spinner fullscreen />;
 
-  const doneCount = tasks.filter((t) => t.done).length;
+  // Care plan and tasks are the same things twice: the API seeds one visit task
+  // per active care plan item, copying its label, so every task points back at
+  // the item it came from. Listed separately, a carer read the instruction in
+  // one card and ticked it off in another. One list instead — the item's own
+  // wording and detail, with its task's checkbox.
+  //
+  // An allergy is the exception: the API seeds a task for it like anything
+  // else, but "Penicillin allergy" is a standing warning, not something a
+  // carer completes. It shows as a flag with no checkbox.
+  const claimed = new Set();
+  const plan = [
+    ...(shift.carePlan ?? []).map((item) => {
+      const task = tasks.find((t) => String(t.carePlanItemId) === String(item.id));
+      if (task) claimed.add(task.id);
+      const tickable = item.category !== 'allergy';
+      return {
+        key: `plan-${item.id}`,
+        label: item.label,
+        detail: item.detail,
+        category: item.category,
+        task: tickable ? task : null,
+      };
+    }),
+    // Anything recorded straight against the visit rather than the care plan.
+    ...tasks
+      .filter((t) => !claimed.has(t.id))
+      .map((t) => ({ key: `task-${t.id}`, label: t.label, detail: '', task: t })),
+  ];
+
+  // Counted over what can actually be ticked, so a flag never makes the visit
+  // look permanently unfinished.
+  const tickable = plan.filter((p) => p.task);
+  const doneCount = tickable.filter((p) => p.task.done).length;
 
   return (
     <div className="page--flush">
@@ -97,48 +129,54 @@ export default function ShiftDetailPage() {
         </div>
       </Card>
 
-      {shift.carePlan?.length > 0 && (
+      {plan.length > 0 && (
         <>
           <div className="section-head section-head--inset">
             <span className="section-head__title">Care plan</span>
+            {tickable.length > 0 && (
+              <span className="section-head__link">
+                {doneCount}/{tickable.length} done
+              </span>
+            )}
           </div>
           <Card className="stack-card">
-            {shift.carePlan.map((item, i) => (
-              <div key={i} className="plan-row">
-                <span className="plan-row__icon">
-                  <Icon name={item.icon ?? 'check'} size={15} />
-                </span>
-                <span>
-                  <span className="plan-row__label">{item.label}</span>
-                  {item.detail && <span className="plan-row__detail">{item.detail}</span>}
-                </span>
-              </div>
-            ))}
-          </Card>
-        </>
-      )}
-
-      {tasks.length > 0 && (
-        <>
-          <div className="section-head section-head--inset">
-            <span className="section-head__title">Tasks</span>
-            <span className="section-head__link">
-              {doneCount}/{tasks.length} done
-            </span>
-          </div>
-          <Card className="stack-card">
-            {tasks.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={`task-row${t.done ? ' task-row--done' : ''}`}
-                onClick={() => toggleTask(t.id)}
-                aria-pressed={t.done}
-              >
-                <span className="task-row__box">{t.done && <Icon name="check" size={13} />}</span>
-                <span className="task-row__label">{t.label}</span>
-              </button>
-            ))}
+            {plan.map(({ key, label, detail, category, task }) =>
+              task ? (
+                <button
+                  key={key}
+                  type="button"
+                  className={`task-row${task.done ? ' task-row--done' : ''}`}
+                  onClick={() => toggleTask(task.id)}
+                  aria-pressed={task.done}
+                >
+                  <span className="task-row__box">
+                    {task.done && <Icon name="check" size={13} />}
+                  </span>
+                  <span className="task-row__body">
+                    <span className="task-row__label">{label}</span>
+                    {detail && <span className="task-row__detail">{detail}</span>}
+                  </span>
+                </button>
+              ) : (
+                // Standing guidance rather than something to complete: an
+                // allergy, or a care plan item the office added after this
+                // visit's tasks were seeded. Read, not ticked.
+                <div
+                  key={key}
+                  className={`task-row task-row--readonly${
+                    category === 'allergy' ? ' task-row--flag' : ''
+                  }`}
+                >
+                  <span className="task-row__box task-row__box--none" aria-hidden="true">
+                    <Icon name={category === 'allergy' ? 'alert' : 'info'} size={14} />
+                  </span>
+                  <span className="task-row__body">
+                    <span className="task-row__label">{label}</span>
+                    {detail && <span className="task-row__detail">{detail}</span>}
+                  </span>
+                </div>
+              )
+            )}
           </Card>
         </>
       )}

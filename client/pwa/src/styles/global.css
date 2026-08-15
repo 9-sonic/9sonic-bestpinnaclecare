@@ -2046,6 +2046,65 @@ body {
   text-decoration: line-through;
 }
 
+/* The row now carries the care plan item's own wording and detail, so the
+   label and its instruction stack beside the checkbox. Top-aligned, because a
+   two-line instruction centred against a checkbox looks unmoored. */
+.task-row {
+  align-items: flex-start;
+}
+
+.task-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-row__label {
+  font-weight: 600;
+}
+
+/* The instruction: "Blister pack in the kitchen drawer". Quieter than the
+   label, and it wraps — a half-shown care instruction is worse than a tall
+   card. */
+.task-row__detail {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Struck through, the detail goes with it. */
+.task-row--done .task-row__detail {
+  text-decoration: line-through;
+}
+
+/* A care plan item with no task behind it: readable, not tickable. */
+.task-row--readonly {
+  cursor: default;
+}
+
+.task-row__box--none {
+  border: none;
+  color: var(--color-text-faint);
+}
+
+/* An allergy or similar standing warning. Carries the warning colour rather
+   than a tick box, so it does not read as an outstanding job. */
+.task-row--flag .task-row__box--none {
+  color: var(--color-warn-text, var(--warning));
+}
+
+.task-row--flag .task-row__label {
+  color: var(--color-warn-text, var(--warning));
+}
+
+/* The checkbox sits on the label's first line rather than the row's centre. */
+.task-row__box {
+  margin-top: 1px;
+}
+
 /* ------------------------------- Overview -------------------------------- */
 
 .range-card {
@@ -9252,7 +9311,50 @@ body:has(.drawer-backdrop) .app-content {
   aspect-ratio: 1;
   flex-shrink: 0;
   margin: 0 auto var(--space-5);
+
+  /* The four bands of the arc's cylinder gradient, the colour it glows and the
+     colour it casts. The state classes below redefine these rather than
+     swapping in a whole different gradient, so there is one gradient in the
+     SVG and the colour of the dial is decided here. The defaults are the
+     running arc; idle draws no arc at all so it does not need its own set. */
+  --dial-arc-shade: #068a94;
+  --dial-arc-body: #0bb6c0;
+  --dial-arc-rim: #5dd8e0;
+  --dial-arc-lip: #e8fcfd;
+  --dial-arc-glow: #92f0f7;
+  --dial-arc-shadow: #0e9aae;
+  --dial-tick-lit: #0e9aae;
 }
+
+/* Amber, because a paused shift must not look like a running one — and running
+   past the booked end is worth seeing for the same reason. */
+.dial--break,
+.dial--over {
+  --dial-arc-shade: #9a5c03;
+  --dial-arc-body: #d4842a;
+  --dial-arc-rim: #f0b268;
+  --dial-arc-lip: #fdf0dc;
+  --dial-arc-glow: #f8d5a4;
+  --dial-arc-shadow: #b26b04;
+  --dial-tick-lit: #b26b04;
+}
+
+.dial--complete {
+  --dial-arc-shade: #0a5c3c;
+  --dial-arc-body: var(--success);
+  --dial-arc-rim: #63d6a1;
+  --dial-arc-lip: #e4faf0;
+  --dial-arc-glow: #a5ecca;
+  --dial-arc-shadow: var(--success);
+  --dial-tick-lit: var(--success);
+}
+
+/* On a dark face the near-white lip reads as a blown-out edge rather than as a
+   highlight, so the top of the cylinder is pulled down a step. */
+:root[data-theme='dark'] .dial { --dial-arc-lip: var(--brand-cyan); }
+:root[data-theme='dark'] .dial--break,
+:root[data-theme='dark'] .dial--over { --dial-arc-lip: #f2a852; }
+:root[data-theme='dark'] .dial--complete { --dial-arc-lip: #63d6a1; }
 
 .dial__svg {
   width: 100%;
@@ -9273,17 +9375,14 @@ body:has(.drawer-backdrop) .app-content {
   transition: stroke var(--dur) var(--ease);
 }
 
+/* A passed tick does not merely change colour, it lights up. The halo is what
+   makes the scale read as something the arc has swept through rather than as
+   two static bands of colour. The colour follows the arc, so the state classes
+   above are the only place it is decided. */
 .dial__ticks line.is-past {
-  stroke: var(--brand-teal);
-}
-
-.dial--break .dial__ticks line.is-past,
-.dial--over .dial__ticks line.is-past {
-  stroke: var(--warning);
-}
-
-.dial--complete .dial__ticks line.is-past {
-  stroke: var(--success);
+  stroke: var(--dial-tick-lit);
+  opacity: 1;
+  filter: drop-shadow(0 0 4px var(--dial-arc-shadow));
 }
 
 /* -- the ring ------------------------------------------------------------- */
@@ -9294,33 +9393,77 @@ body:has(.drawer-backdrop) .app-content {
   stroke: var(--dial-track);
 }
 
+/* The arc, drawn as a cylinder bent around the ring rather than as a flat
+   stroke — see the note at the top of Dial.jsx for how the gradient does that.
+   The easing happens in the component now, on the progress value itself, so
+   that the arc, the bead and the lit ticks all advance off one number instead
+   of three transitions racing each other.
+
+   `transition: none` is not redundant. Three earlier dial blocks above this one
+   set `transition: stroke-dashoffset 0.9s` on this same selector, and a later
+   rule only overrides what it actually declares — so merely deleting the line
+   here left the old transition in force. That is what detached the bead from
+   the arc: the bead moved off the eased value while the arc was still being
+   dragged towards it by a stale CSS transition. */
 .dial__arc {
   fill: none;
-  stroke: url(#dialArc);
+  stroke: url(#dialCylinder);
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.9s var(--ease-out);
+  filter: url(#dialArcShadow);
+  transition: none;
 }
 
+/* Every state uses the one gradient — the colour comes from the custom
+   properties above, not from a different gradient per state. Saying so
+   explicitly is required, not tidy: the older blocks point the break, over and
+   complete states at #dialArcWarn and #dialArcDone, which no longer exist, and
+   an SVG stroke referencing a missing gradient paints nothing at all. Left
+   alone, the break dial rendered with no arc whatsoever. */
 .dial--break .dial__arc,
-.dial--over .dial__arc {
-  stroke: url(#dialArcWarn);
-}
-
+.dial--over .dial__arc,
 .dial--complete .dial__arc {
-  stroke: url(#dialArcDone);
+  stroke: url(#dialCylinder);
 }
 
-/* The bead on the leading edge. White with a coloured rim, which stays
+.dial__arc-shadow {
+  flood-color: var(--dial-arc-shadow);
+  flood-opacity: 0.28;
+}
+
+/* A wider, blurred copy of the arc underneath it. Cheap, and it is most of what
+   separates a lit ring from a painted one. */
+.dial__glow {
+  fill: none;
+  stroke: var(--dial-arc-glow);
+  stroke-linecap: round;
+  opacity: 0.45;
+  filter: blur(2px);
+  transition: none;
+}
+
+/* The bead on the leading edge: a pale disc with a coloured core, which stays
    findable against the arc in daylight. */
-.dial__cap-ring {
-  fill: var(--color-surface);
-  stroke: var(--brand-teal);
-  stroke-width: 3;
+.dial__pin {
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.25));
 }
 
-.dial--break .dial__cap-ring,
-.dial--over .dial__cap-ring {
-  stroke: var(--warning);
+.dial__pin-outer { fill: var(--color-surface); }
+.dial__pin-inner { fill: var(--dial-arc-body); }
+
+/* A running dial breathes; a paused one holds still. With the timer stopped and
+   the number frozen, that movement is most of what tells the two apart from
+   across a room. The glow goes with it — on the board the running arc is lit
+   and the break arc is flat, which says "nothing is accruing" before the colour
+   has even been read. */
+.dial--running .dial__pin {
+  animation: dial-pulse 2.4s var(--ease) infinite;
+}
+
+.dial--break .dial__glow { opacity: 0; }
+.dial--break .dial__arc { filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dial--running .dial__pin { animation: none; }
 }
 
 /* -- the face ------------------------------------------------------------- */
