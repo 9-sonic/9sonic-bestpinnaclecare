@@ -41,6 +41,20 @@ module Api
         render json: { chased: result.chased }
       end
 
+      # POST /api/v1/conversations/:id/participants { participants: [{ type, id }, ...] }
+      # Add people to a group/channel the caller is already in. 404 if the caller
+      # isn't a member; 422 for a direct thread (can't add a third person to a DM).
+      def add_participants
+        convo  = my_participant(params[:id]).conversation
+        result = Messaging::AddParticipants.call(
+          conversation: convo, actor: current_identity,
+          people: resolve_people(params[:participants])
+        )
+        return render json: { error: result.error }, status: :unprocessable_entity unless result.ok
+
+        render json: ConversationSerializer.call(convo.reload, viewer: current_identity)
+      end
+
       private
 
       # The caller's active participant row for a conversation, or 404.
