@@ -124,6 +124,9 @@
   --shadow-focus: 0 0 0 3px rgba(10, 165, 181, 0.28);
 
   /* Layout */
+  /* The side gutter every screen sits inside. Owned here rather than repeated
+     per list, so the whole app moves together and no new screen can drift. */
+  --page-gutter: var(--space-4);
   --nav-height: 60px;
   --header-height: 52px;
   --app-max-width: 460px;
