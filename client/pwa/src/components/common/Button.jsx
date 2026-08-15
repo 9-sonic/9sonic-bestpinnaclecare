@@ -11,6 +11,7 @@ export default function Button({
   variant = 'primary',
   size = 'md',
   block = false,
+  pill = false,
   loading = false,
   type = 'button',
   className = '',
@@ -28,7 +29,7 @@ export default function Button({
   return (
     <button
       type={type}
-      className={`btn btn--${variant} btn--${size}${block ? ' btn--block' : ''} ${className}`.trim()}
+      className={`btn btn--${variant} btn--${size}${block ? ' btn--block' : ''}${pill ? ' btn--pill' : ''} ${className}`.trim()}
       onClick={handleClick}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
