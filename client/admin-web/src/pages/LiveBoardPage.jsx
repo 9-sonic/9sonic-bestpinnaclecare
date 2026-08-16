@@ -6,8 +6,7 @@ import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import Tabs, { panelRadius } from '../ds/Tabs.jsx';
-import { StatCard, Panel, PanelTitle, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { StatCard, Panel, PanelTitle, Tag, Avatar, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
 import {
   LIFECYCLE_LABELS, LIFECYCLE_TONE, ATTENTION_ORDER,
   formatTime, formatTimeRange, fullName, minutesToHours,
@@ -19,8 +18,6 @@ const StatusPill = ({ state }) => <Tag tone={L2TAG[LIFECYCLE_TONE[state]] ?? 'mu
 const inits = (p) => (p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '');
 const ALERT_LABEL = { missed_visit: 'Visit missed', no_clock_out: 'No clock out', geo_anomaly: 'Clocked away from address', visit_late: 'Carer late', unassigned_visit: 'No carer', clock_in_failed: 'Could not clock in' };
 
-// Which states count as "arriving" (not yet delivering / drifting).
-const ARRIVAL_META = { scheduled: { label: 'Upcoming', tone: 'muted' }, check_in_window: { label: 'Due now', tone: 'info' }, grace_period: { label: 'In grace', tone: 'warning' }, late: { label: 'Late', tone: 'danger' } };
 function inLabel(iso) {
   const mins = Math.round((new Date(iso) - Date.now()) / 60000);
   if (mins < -1) return `${-mins} min late`;
@@ -82,7 +79,9 @@ export default function LiveBoardPage() {
   const all = board?.assignments ?? [];
   const counts = board?.counts ?? {};
   const attention = all.filter((a) => ATTENTION_ORDER.includes(a.lifecycle_state));
+  const SCHEDULED_STATES = ['scheduled', 'check_in_window', 'grace_period'];
   const match = (a) => {
+    if (filter === 'scheduled') return SCHEDULED_STATES.includes(a.lifecycle_state);
     if (filter === 'active') return a.lifecycle_state === 'in_progress';
     if (filter === 'late') return a.lifecycle_state === 'late';
     if (filter === 'missed') return ['missed', 'overdue'].includes(a.lifecycle_state);
@@ -90,8 +89,10 @@ export default function LiveBoardPage() {
     return true;
   };
   const rows = all.filter(match);
+  const scheduledCount = all.filter((a) => SCHEDULED_STATES.includes(a.lifecycle_state)).length;
   const tabDefs = [
     { key: 'all', label: 'All shifts', icon: 'calendar', count: all.length },
+    { key: 'scheduled', label: 'Scheduled', icon: 'calendar', count: scheduledCount },
     { key: 'active', label: 'On shift', icon: 'target', count: counts.in_progress ?? 0 },
     { key: 'late', label: 'Late', icon: 'clock', count: counts.late ?? 0 },
     { key: 'missed', label: 'Missed', icon: 'alert', count: (counts.missed ?? 0) + (counts.overdue ?? 0), alert: (counts.missed ?? 0) > 0 },
@@ -99,22 +100,12 @@ export default function LiveBoardPage() {
   ];
 
   // Derived-from-real sections
-  const arrivals = all
-    .filter((a) => ARRIVAL_META[a.lifecycle_state])
-    .sort((x, y) => new Date(x.visit?.scheduled_start) - new Date(y.visit?.scheduled_start))
-    .slice(0, 6);
   const openAlerts = alerts.filter((a) => a.state === 'open').slice(0, 4);
   const escalation = [...alerts].sort((x, y) => new Date(y.raised_at) - new Date(x.raised_at)).slice(0, 5);
   const coverage = (cover.open_shifts ?? []).slice(0, 4);
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const handover = [
-    ['Visits completed', counts.completed ?? 0],
-    ['On shift now', counts.in_progress ?? 0],
-    ['Exceptions outstanding', attention.length],
-    ['Unfilled visits', cover.counts?.open ?? 0],
-  ];
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
@@ -147,34 +138,11 @@ export default function LiveBoardPage() {
 
       <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start')}>
         <div style={s('display:flex;flex-direction:column;gap:16px;min-width:0')}>
-          {/* Arrivals board — real, from board assignments */}
-          <Panel>
-            <PanelTitle hint="The next arrivals and anyone drifting past their start time">Arrivals board</PanelTitle>
-            {arrivals.length === 0 ? (
-              <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);padding:4px 2px')}>Nobody due to arrive right now.</div>
-            ) : (
-              <div style={s('display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px')}>
-                {arrivals.map((a) => {
-                  const m = ARRIVAL_META[a.lifecycle_state];
-                  return (
-                    <div key={a.id} onClick={() => setDetail(a)} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;border:1px solid var(--d-border);border-radius:14px;padding:11px 13px;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>
-                      <Avatar initials={inits(a.employee) || '—'} size="sm" />
-                      <div style={s('flex:1;min-width:0')}>
-                        <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{a.employee ? fullName(a.employee) : 'Unassigned'} → {fullName(a.visit?.service_user)}</div>
-                        <div className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>{formatTimeRange(a.visit?.scheduled_start, a.visit?.scheduled_end)}</div>
-                      </div>
-                      <Tag tone={m.tone}>{inLabel(a.visit?.scheduled_start)}</Tag>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Panel>
 
           {/* Roster */}
-          <div style={s('display:flex;flex-direction:column')}>
-            <Tabs tabs={tabDefs} active={filter} onSelect={setFilter} />
-            <div style={{ ...s('background:var(--d-panel);padding:14px'), borderRadius: panelRadius(tabDefs, filter) }}>
+          <div style={s('display:flex;flex-direction:column;gap:12px')}>
+            <SegTabs tabs={tabDefs} active={filter} onSelect={setFilter} />
+            <div style={s('background:var(--d-panel);border-radius:20px;padding:14px')}>
               <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
                 {rows.length === 0 ? (
                   <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>No shifts match this view.</div>
@@ -206,13 +174,16 @@ export default function LiveBoardPage() {
         {/* Aside */}
         <div style={s('display:flex;flex-direction:column;gap:16px')}>
           <Panel>
-            <PanelTitle hint="System-raised, still open — attend so records stay right">Open alerts</PanelTitle>
+            <PanelTitle hint="System-raised, still open — attend so records stay right"
+              action={<Button size="sm" icon="chevronRight" onClick={() => navigate('/exceptions?tab=alerts')}>Alerts</Button>}>
+              Open alerts
+            </PanelTitle>
             {openAlerts.length === 0 ? (
               <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);padding:2px')}>No open alerts.</div>
             ) : (
               <div style={s('display:flex;flex-direction:column;gap:9px')}>
                 {openAlerts.map((c) => (
-                  <div key={c.id} style={s('border:1px solid var(--d-border);border-radius:14px;padding:12px 13px')}>
+                  <div key={c.id} onClick={() => navigate('/exceptions?tab=alerts')} className="hv" style={{ ...s('border:1px solid var(--d-border);border-radius:14px;padding:12px 13px;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>
                     <div style={s('display:flex;align-items:center;gap:9px')}>
                       <div style={{ ...s('width:8px;height:8px;border-radius:50%;flex:none'), background: c.severity === 'high' ? 'var(--d-danger-dot)' : 'var(--d-warn-dot)' }} />
                       <div style={s('flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{c.carer ? `${c.carer} → ${c.client}` : (ALERT_LABEL[c.alert_type] ?? c.alert_type)}</div>
@@ -226,7 +197,10 @@ export default function LiveBoardPage() {
           </Panel>
 
           <Panel>
-            <PanelTitle hint="Highest priority right now">Needs attention now</PanelTitle>
+            <PanelTitle hint="Highest priority right now"
+              action={<Button size="sm" icon="chevronRight" onClick={() => navigate('/exceptions')}>Exceptions</Button>}>
+              Needs attention now
+            </PanelTitle>
             {attention.length === 0 ? (
               <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);padding:2px')}>Nothing outstanding.</div>
             ) : (
@@ -245,7 +219,10 @@ export default function LiveBoardPage() {
           </Panel>
 
           <Panel>
-            <PanelTitle hint="Alerts raised — the escalation record">Escalation feed</PanelTitle>
+            <PanelTitle hint="Alerts raised — the escalation record"
+              action={<Button size="sm" icon="chevronRight" onClick={() => navigate('/exceptions?tab=lifecycle')}>Escalation log</Button>}>
+              Escalation feed
+            </PanelTitle>
             {escalation.length === 0 ? (
               <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);padding:2px')}>No escalations today.</div>
             ) : (
@@ -253,7 +230,7 @@ export default function LiveBoardPage() {
                 {escalation.map((e) => {
                   const tier = e.severity === 'high' ? 3 : e.severity === 'medium' ? 2 : 1;
                   return (
-                    <div key={e.id} style={s('display:flex;gap:10px')}>
+                    <div key={e.id} onClick={() => navigate('/exceptions?tab=lifecycle')} className="hv" style={{ ...s('display:flex;gap:10px;cursor:pointer;border-radius:10px;padding:4px;margin:-4px'), '--hbg': 'var(--d-panel)' }}>
                       <div className="d-num" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;font-size:11px;font-weight:700'), background: e.state === 'resolved' ? 'var(--d-ok-bg)' : 'var(--d-danger-bg)', color: e.state === 'resolved' ? 'var(--d-ok-ink)' : 'var(--d-danger-ink)' }}>T{tier}</div>
                       <div style={s('min-width:0')}>
                         <div style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>{e.carer ? `${e.carer} · ${e.client}` : (ALERT_LABEL[e.alert_type] ?? e.alert_type)}</div>
@@ -296,18 +273,6 @@ export default function LiveBoardPage() {
         )}
       </Panel>
 
-      {/* Daily handover — real counts */}
-      <Panel>
-        <PanelTitle hint="End-of-day summary from today's real activity">Daily handover</PanelTitle>
-        <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px')}>
-          {handover.map(([l, v]) => (
-            <div key={l} style={s('background:var(--d-panel);border-radius:14px;padding:13px 15px')}>
-              <div style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{l}</div>
-              <div className="d-num" style={s('font-size:22px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </Panel>
 
       {/* Detail drawer */}
       {detail && (

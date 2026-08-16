@@ -2,7 +2,7 @@ module Api
   module V1
     module Admin
       class VisitsController < BaseController
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[update cancel]
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[update cancel destroy]
 
         # GET /api/v1/admin/visits?from=&to=  (the rota)
         def index
@@ -39,8 +39,16 @@ module Api
         def create
           attrs = visit_params
           start = attrs[:scheduled_start].present? ? Time.zone.parse(attrs[:scheduled_start].to_s) : nil
+          finish = attrs[:scheduled_end].present? ? Time.zone.parse(attrs[:scheduled_end].to_s) : nil
           if start&.past?
             return render json: { error: "visit_in_past" }, status: :unprocessable_entity
+          end
+
+          # One service user, one carer at a time — a client can't have two visits
+          # that overlap in time. Refuse before creating the clashing visit rather
+          # than only blocking the second carer's assignment later.
+          if start && finish && client_visit_overlap(attrs[:service_user_id], start, finish)
+            return render json: { error: "client_overlap" }, status: :unprocessable_entity
           end
 
           visit = Visit.create!(attrs.merge(status: :draft))
@@ -113,6 +121,33 @@ module Api
           render json: VisitSerializer.call(visit, include_service_user: true)
         end
 
+        # DELETE /api/v1/admin/visits/:id
+        # Hard-delete a visit that will never happen and carries NO clock history —
+        # a mistaken or genuinely dropped call. The moment a carer has clocked in,
+        # deletion is refused: that visit holds an official record which is never
+        # erased (use cancel instead, which preserves the audit trail). Assignments
+        # cascade away with the visit, freeing the carer(s); clock_events /
+        # visit_notes are guarded by dependent: :restrict_with_error as a backstop.
+        def destroy
+          visit = Visit.find(params[:id])
+
+          if visit.visit_assignments.any? { |va| va.actual_start.present? }
+            return render json: { error: "visit_started" }, status: 422
+          end
+
+          ActiveRecord::Base.transaction do
+            Events::Record.call(
+              aggregate: visit, actor: current_admin, event_type: "visit.deleted",
+              payload: { service_user_id: visit.service_user_id, scheduled_start: visit.scheduled_start&.iso8601 }
+            )
+            visit.destroy!
+          end
+          head :no_content
+        rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::InvalidForeignKey
+          # A note or clock record blocked the cascade — never erase held history.
+          render json: { error: "visit_has_records" }, status: 422
+        end
+
         # POST /api/v1/admin/visits/generate  { from, to }  — from care packages
         def generate
           from = Date.parse(params.require(:from))
@@ -122,6 +157,15 @@ module Api
         end
 
         private
+
+        # True if this client already has a non-cancelled visit overlapping the
+        # given window. Half-open overlap: starts < b_end && a_start < ends.
+        def client_visit_overlap(service_user_id, start, finish)
+          Visit.where(service_user_id: service_user_id)
+               .where.not(status: :cancelled)
+               .where("scheduled_start < ? AND scheduled_end > ?", finish, start)
+               .exists?
+        end
 
         def visit_params
           params.permit(:service_user_id, :care_package_slot_id, :scheduled_start, :scheduled_end,

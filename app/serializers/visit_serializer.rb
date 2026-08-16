@@ -9,7 +9,10 @@ class VisitSerializer
       staff_required:  visit.staff_required,
       notes:           visit.notes,
       published_at:    visit.published_at&.iso8601,
-      assignments:     visit.visit_assignments.map { |va| assignment(va) }
+      # Only the active carer(s) on the visit — withdrawn/cancelled assignments
+      # are history, not "who is on this visit". Including them made the rota show
+      # a phantom carer and "Remove carer" act on an already-withdrawn record.
+      assignments:     visit.visit_assignments.select { |va| va.assignment_status == "assigned" }.map { |va| assignment(va) }
     }
     payload[:service_user] = ServiceUserSerializer.call(visit.service_user) if include_service_user
     payload

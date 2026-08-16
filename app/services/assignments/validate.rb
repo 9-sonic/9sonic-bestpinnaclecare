@@ -20,6 +20,19 @@ module Assignments
               .find { |va| va.visit.scheduled_start < visit.scheduled_end && visit.scheduled_start < va.visit.scheduled_end }
     end
 
+    # One service user, one carer at a time: the client's OTHER assigned visit
+    # that clashes in time with this one, or nil. Used to HARD-BLOCK putting a
+    # second carer on a client during a window they're already being visited —
+    # a client can't be in two visits at once. Excludes this visit itself.
+    def self.client_conflict(visit:)
+      VisitAssignment.assigned.non_terminal
+                     .joins(:visit)
+                     .where(visits: { service_user_id: visit.service_user_id })
+                     .where.not(visit_id: visit.id)
+                     .includes(:visit)
+                     .find { |va| va.visit.scheduled_start < visit.scheduled_end && visit.scheduled_start < va.visit.scheduled_end }
+    end
+
     def self.overlap(visit, others)
       clash = others.any? { |va| va.visit.scheduled_start < visit.scheduled_end && visit.scheduled_start < va.visit.scheduled_end }
       warn("overlap", "Overlaps another assigned visit") if clash

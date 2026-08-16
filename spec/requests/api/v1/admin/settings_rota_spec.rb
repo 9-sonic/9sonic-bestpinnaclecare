@@ -37,6 +37,30 @@ RSpec.describe "Admin settings, validators, rota copy & dashboard", type: :reque
       expect(VisitAssignment.where(visit: v2, assignment_status: "assigned")).not_to exist
     end
 
+    it "hard-blocks a SECOND carer on the same client at an overlapping time (one service user, one carer)" do
+      c1 = create(:employee)
+      c2 = create(:employee)
+      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+      create(:visit_assignment, visit: v1, employee: c1)
+      v2 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now + 30.minutes, scheduled_end: 4.hours.from_now)
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: c2.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("client_unavailable")
+      expect(VisitAssignment.where(visit: v2, assignment_status: "assigned")).not_to exist
+    end
+
+    it "allows a second carer on the same client when the visits DON'T overlap in time" do
+      c1 = create(:employee)
+      c2 = create(:employee)
+      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+      create(:visit_assignment, visit: v1, employee: c1)
+      v2 = create(:visit, service_user: su, scheduled_start: 4.hours.from_now, scheduled_end: 5.hours.from_now)
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: c2.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+    end
+
     it "returns non-blocking rest/weekly warnings when there is no time overlap" do
       carer = create(:employee)
       v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)

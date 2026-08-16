@@ -6,7 +6,10 @@ module Assignments
   # and then sees the first). Used by admin assign, reassign and cover-accept.
   #
   # Returns a Result: ok + assignment, or blocked + conflict.
-  Result = Struct.new(:ok, :assignment, :conflict, keyword_init: true)
+  # reason: :carer  -> the carer is already booked in an overlapping visit
+  # reason: :client -> the client already has a carer in an overlapping visit
+  #                    (one service user, one carer at a time)
+  Result = Struct.new(:ok, :assignment, :conflict, :reason, keyword_init: true)
 
   class Assign
     def self.call(visit:, employee:, assigned_by:, withdraw: nil)
@@ -14,10 +17,24 @@ module Assignments
         # Serialise concurrent assigns for THIS carer: the lock makes a second
         # request wait here until the first commits, so its re-check sees it.
         employee.visit_assignments.assigned.lock("FOR UPDATE").load
+        # Same for THIS client's assignments, so two carers can't be booked onto
+        # the same service user at once under a race.
+        VisitAssignment.assigned.joins(:visit)
+                       .where(visits: { service_user_id: visit.service_user_id })
+                       .lock("FOR UPDATE").load
 
-        clash = Validate.conflicting_visit(visit: visit, employee: employee)
-        if clash
-          return Result.new(ok: false, conflict: clash)
+        if (clash = Validate.conflicting_visit(visit: visit, employee: employee))
+          return Result.new(ok: false, conflict: clash, reason: :carer)
+        end
+        # One service user, one carer at a time — block a second carer overlapping
+        # the client's existing visit. The visit being reassigned is excluded, so
+        # swapping the carer on the SAME visit is fine.
+        if (clash = Validate.client_conflict(visit: visit))
+          # A reassignment withdraws the old assignment first, so its own visit
+          # never counts as a clash; but guard against the withdraw target too.
+          unless withdraw && clash.visit_id == withdraw.visit_id
+            return Result.new(ok: false, conflict: clash, reason: :client)
+          end
         end
 
         withdraw&.update!(assignment_status: "withdrawn", lifecycle_state: :cancelled)
