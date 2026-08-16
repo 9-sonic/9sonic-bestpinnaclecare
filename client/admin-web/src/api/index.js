@@ -97,6 +97,7 @@ export const createVisit = (payload) => api.post('/admin/visits', payload);
 export const editVisit = (id, payload) => api.patch(`/admin/visits/${id}`, payload);
 export const publishVisit = (id) => api.post(`/admin/visits/${id}/publish`);
 export const cancelVisit = (id, reason) => api.post(`/admin/visits/${id}/cancel`, { reason });
+export const deleteVisit = (id) => api.delete(`/admin/visits/${id}`);
 export const generateVisits = ({ from, to }) => api.post('/admin/visits/generate', { from, to });
 
 // Returns the assignment plus any soft warnings (overlap, rest, weekly hours).

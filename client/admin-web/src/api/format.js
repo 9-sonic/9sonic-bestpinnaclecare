@@ -53,7 +53,15 @@ export function formatDate(iso) {
 }
 
 export function isoDate(d) {
-  return new Date(d).toISOString().slice(0, 10);
+  // Local Y-M-D, NOT toISOString() — the latter converts to UTC first, which in a
+  // positive-offset zone (e.g. BST, UTC+1) rolls local midnight back to the
+  // previous day and drops the last day of the range. That silently excluded
+  // Sunday's visits from the rota's from..to window.
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Monday-first week containing the given date.

@@ -72,7 +72,7 @@ module Api
           end
 
           return render json: { error: "visit_already_filled" }, status: :unprocessable_entity if result == :already_filled
-          return render_conflict(result.conflict) unless result.ok
+          return render_conflict(result.conflict, result.reason) unless result.ok
 
           render json: { offer: CoverOfferSerializer.call(offer), assignment: VisitAssignmentSerializer.call(va) }
         end

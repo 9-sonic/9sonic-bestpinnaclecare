@@ -77,6 +77,27 @@ RSpec.describe "Admin visits & scheduling", type: :request do
     expect(response).to have_http_status(:created)
   end
 
+  it "refuses a second visit for the same client that overlaps in time (422 client_overlap)" do
+    su = create(:service_user)
+    create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+    expect {
+      post "/api/v1/admin/visits",
+           params: { service_user_id: su.id, scheduled_start: (2.hours.from_now + 30.minutes).iso8601, scheduled_end: 4.hours.from_now.iso8601 },
+           headers: auth, as: :json
+    }.not_to change(Visit, :count)
+    expect(response).to have_http_status(422)
+    expect(response.parsed_body["error"]).to eq("client_overlap")
+  end
+
+  it "allows a second visit for the same client that does NOT overlap" do
+    su = create(:service_user)
+    create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+    post "/api/v1/admin/visits",
+         params: { service_user_id: su.id, scheduled_start: 4.hours.from_now.iso8601, scheduled_end: 5.hours.from_now.iso8601 },
+         headers: auth, as: :json
+    expect(response).to have_http_status(:created)
+  end
+
   describe "POST /admin/visits/:id/cancel — cancel + free the carer" do
     let(:su)    { create(:service_user) }
     let(:visit) { create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now, status: :published) }
@@ -102,6 +123,42 @@ RSpec.describe "Admin visits & scheduling", type: :request do
       expect(response).to have_http_status(422)
       expect(response.parsed_body["error"]).to eq("visit_started")
       expect(visit.reload.status).not_to eq("cancelled")
+    end
+  end
+
+  describe "DELETE /admin/visits/:id — hard-delete a visit with no clock history" do
+    let(:su)    { create(:service_user) }
+    let(:visit) { create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now, status: :draft) }
+    let!(:va)   { create(:visit_assignment, visit: visit, employee: create(:employee)) }
+
+    it "deletes the visit and its assignment (freeing the carer), and audits it" do
+      expect do
+        delete "/api/v1/admin/visits/#{visit.id}", headers: auth
+      end.to change(Visit, :count).by(-1).and change(VisitAssignment, :count).by(-1)
+      expect(response).to have_http_status(:no_content)
+      expect(Event.where(event_type: "visit.deleted", aggregate_id: visit.id).count).to eq(1)
+    end
+
+    it "refuses to delete once a carer has clocked in (use cancel; record is kept)" do
+      va.update!(actual_start: 1.minute.ago, lifecycle_state: :in_progress)
+      expect do
+        delete "/api/v1/admin/visits/#{visit.id}", headers: auth
+      end.not_to change(Visit, :count)
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("visit_started")
+    end
+
+    it "refuses (backstop) when an assignment holds a clock event but no actual_start" do
+      # A held clock record with actual_start NOT set on the assignment — proves the
+      # DB restrict (dependent: :restrict_with_error), not just the actual_start guard,
+      # protects the record.
+      ClockEvent.create!(visit_assignment: va, kind: "clock_in", occurred_at: Time.current,
+                         client_event_id: SecureRandom.uuid, created_by: va.employee)
+      expect do
+        delete "/api/v1/admin/visits/#{visit.id}", headers: auth
+      end.not_to change(Visit, :count)
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("visit_has_records")
     end
   end
 

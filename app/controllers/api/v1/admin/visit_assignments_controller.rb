@@ -11,7 +11,7 @@ module Api
           employee = Employee.find(params.require(:employee_id))
 
           result = Assignments::Assign.call(visit: visit, employee: employee, assigned_by: current_admin)
-          return render_conflict(result.conflict) unless result.ok
+          return render_conflict(result.conflict, result.reason) unless result.ok
 
           va = result.assignment
           Events::Record.call(
@@ -40,7 +40,7 @@ module Api
 
           # Race-safe withdraw-old + assign-new in one locked transaction.
           result = Assignments::Assign.call(visit: visit, employee: employee, assigned_by: current_admin, withdraw: current)
-          return render_conflict(result.conflict) unless result.ok
+          return render_conflict(result.conflict, result.reason) unless result.ok
 
           new_va = result.assignment
           Events::Record.call(

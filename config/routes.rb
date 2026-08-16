@@ -61,7 +61,7 @@ Rails.application.routes.draw do
           member { get :notes }   # the client's visit-note journal across visits
         end
         resources :care_package_slots, only: %i[index create update]
-        resources :visits, only: %i[index show create update] do
+        resources :visits, only: %i[index show create update destroy] do
           member do
             post :publish
             post :cancel    # soft-cancel + free the assigned carer(s)

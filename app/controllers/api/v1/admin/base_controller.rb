@@ -27,10 +27,13 @@ module Api
           render json: { items: rows, page: page, per_page: per, total: total }
         end
 
-        # Shared 422 for a double-booked carer (used by assign/reassign/cover).
-        def render_conflict(clash)
+        # Shared 422 for an assignment conflict (used by assign/reassign/cover).
+        # reason: :carer -> the carer is already booked in an overlapping visit.
+        # reason: :client -> the client already has a carer then (one service
+        # user, one carer at a time).
+        def render_conflict(clash, reason = :carer)
           render json: {
-            error: "carer_unavailable",
+            error: reason == :client ? "client_unavailable" : "carer_unavailable",
             conflict: {
               visit_id: clash.visit_id,
               service_user: clash.visit.service_user&.full_name,

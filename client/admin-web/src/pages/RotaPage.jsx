@@ -1,8 +1,9 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
   assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit,
-  exportRota, getVisit, reassignAssignment, cancelVisit,
+  exportRota, getVisit, reassignAssignment, cancelVisit, deleteVisit,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -12,49 +13,159 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
 } from '../api/format.js';
-import { Panel, PanelTitle, Button, Tag, Avatar, SegTabs } from '../ds/console.jsx';
+import { Button, Tag, Avatar, SegTabs } from '../ds/console.jsx';
 
-const isShort = (v) => (v.assignments ?? []).length < v.staff_required;
+// A cancelled visit is not "short-staffed" — it's cancelled. Only a live visit
+// with fewer active carers than required counts as unfilled.
+const isShort = (v) => v.status !== 'cancelled' && (v.assignments ?? []).length < v.staff_required;
 const sameDay = (iso, d) => new Date(iso).toDateString() === d.toDateString();
 const inits = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || '—';
 const toMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 
 // Lifecycle state -> chip colour, mirroring the design's lifecycleMeta.
+// The six shared tones, but with a DISTINCT colour each — previously `info` and
+// `active` were both blue, so "due now" and "on shift" looked identical. Every
+// token exists in both light and dark themes, so these read in either mode.
+// Main's soft-card design (light tinted background + coloured text), but with the
+// distinct colours: blue/violet/yellow/red/green — none alike. `bg` is a light
+// wash of the colour over the card; `ink`/`dot` is the full colour.
+const soft = (hex) => `color-mix(in srgb, ${hex} 16%, var(--d-card))`;
 const CHIP = {
-  neutral: { bg: 'var(--d-panel)', ink: 'var(--d-ink2)', dot: 'var(--d-muted)' },
-  info: { bg: 'var(--d-info-bg)', ink: 'var(--d-info-ink)', dot: 'var(--d-primary)' },
-  active: { bg: 'var(--d-info-bg)', ink: 'var(--d-info-ink)', dot: 'var(--d-ok-ink)' },
-  warn: { bg: 'var(--d-warn-bg)', ink: 'var(--d-warn-ink)', dot: 'var(--d-warn-dot)' },
-  danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', dot: 'var(--d-danger-dot)' },
-  success: { bg: 'var(--d-ok-bg)', ink: 'var(--d-ok-ink)', dot: 'var(--d-ok-ink)' },
+  neutral: { bg: soft('#2563eb'), ink: '#2563eb', dot: '#2563eb' }, // scheduled — blue
+  info: { bg: soft('#2563eb'), ink: '#2563eb', dot: '#2563eb' },    // check-in — blue
+  active: { bg: soft('#7c3aed'), ink: '#7c3aed', dot: '#7c3aed' },  // on shift — violet
+  warn: { bg: soft('#a16207'), ink: '#a16207', dot: '#eab308' },    // late — yellow/amber
+  danger: { bg: soft('#dc2626'), ink: '#dc2626', dot: '#dc2626' },  // missed — red
+  success: { bg: soft('#16a34a'), ink: '#15803d', dot: '#16a34a' }, // completed — green
 };
-const stateOf = (v) => (v.assignments?.[0]?.lifecycle_state) ?? 'scheduled';
+// A cancelled visit reads its state from the visit status, not the assignment
+// (its carer was withdrawn, so there's no active assignment to read from).
+const stateOf = (v) => (v.status === 'cancelled' ? 'cancelled' : (v.assignments?.[0]?.lifecycle_state) ?? 'scheduled');
 const chipFor = (v) => (isShort(v) ? null : CHIP[LIFECYCLE_TONE[stateOf(v)] ?? 'neutral']);
 
-// Legend entries (design: scheduled / clocked-in / late / missed / unfilled).
+// A visit is editable only while it is still in the future and untouched: a past
+// shift, or one a carer has already clocked into, or a cancelled one, is
+// read-only — its record stands. Drives both the drawer (form vs read-only) and
+// which right-click quick actions are offered.
+const hasStarted = (v) => (v.assignments ?? []).some((x) => x.actual_start);
+const isEditable = (v) =>
+  v.status !== 'cancelled' && !hasStarted(v) && new Date(v.scheduled_start) > new Date();
+
+// Legend — each dot's colour matches exactly what the block renders for that
+// state, so a block on the grid can always be read against the key.
 const LEGEND = [
-  ['Scheduled', CHIP.neutral.dot], ['On shift', CHIP.active.dot],
-  ['Late', CHIP.warn.dot], ['Missed', CHIP.danger.dot], ['Completed', CHIP.success.dot],
+  ['Scheduled', CHIP.neutral.dot], ['On shift', CHIP.active.dot], ['Late', CHIP.warn.dot],
+  ['Missed', CHIP.danger.dot], ['Completed', CHIP.success.dot],
+  ['Unfilled', '#ea580c'], ['Cancelled', '#6b7280'],
 ];
 
+/* ---------- right-click quick-action menu ---------- */
+// Rendered at the cursor. Closes on any outside click, scroll, or Escape.
+// `items` is [{ label, icon, danger, onClick }]; a null item is a divider.
+function ContextMenu({ x, y, items, onClose }) {
+  const ref = useRef(null);
+  // Start at the cursor; after render, measure the real menu box and nudge it
+  // back inside the viewport so it never runs off the bottom or right edge.
+  const [pos, setPos] = useState({ left: x, top: y });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const M = 8; // keep a small gap from the edge
+    setPos({
+      left: Math.max(M, Math.min(x, window.innerWidth - width - M)),
+      top: Math.max(M, Math.min(y, window.innerHeight - height - M)),
+    });
+  }, [x, y, items]);
+
+  useEffect(() => {
+    const close = () => onClose();
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  const { left, top } = pos;
+
+  return (
+    <div ref={ref} onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
+      style={{ ...s('position:fixed;z-index:200;width:200px;background:var(--d-card);border:1px solid var(--d-border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,0.26);padding:6px'), left, top, fontFamily: "'Figtree', system-ui, sans-serif" }}>
+      {items.map((it, i) => (it === null ? (
+        <div key={`d-${i}`} style={s('height:1px;background:var(--d-border);margin:5px 8px')} />
+      ) : (
+        <div key={it.label} className="hv"
+          onClick={() => { onClose(); it.onClick(); }}
+          style={{ ...s('display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600'), color: it.danger ? 'var(--d-danger-ink)' : 'var(--d-ink)', '--hbg': it.danger ? 'var(--d-danger-bg)' : 'var(--d-panel)' }}>
+          <Icon name={it.icon} size={16} />{it.label}
+        </div>
+      )))}
+    </div>
+  );
+}
+
+/* ---------- confirm / reason dialog (replaces window.prompt/confirm) ---------- */
+// dialog = { title, body, confirmLabel, danger, needReason, reasonLabel, onConfirm(reason) }
+function ConfirmDialog({ dialog, onClose }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!dialog) return null;
+  const submit = async () => {
+    if (dialog.needReason && !reason.trim()) return;
+    setBusy(true);
+    try { await dialog.onConfirm(reason.trim()); onClose(); }
+    finally { setBusy(false); }
+  };
+  const control = { ...s('width:100%;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' };
+  return (
+    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
+      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:440px;background:var(--d-card);border-radius:22px;padding:22px 24px;display:flex;flex-direction:column;gap:14px')}>
+        <div style={s('font-size:17px;font-weight:700;color:var(--d-ink);letter-spacing:-0.2px')}>{dialog.title}</div>
+        {dialog.body && <div style={s('font-size:13px;font-weight:500;color:var(--d-ink2);line-height:1.5')}>{dialog.body}</div>}
+        {dialog.needReason && (
+          <div style={s('display:flex;flex-direction:column;gap:6px')}>
+            <span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>{dialog.reasonLabel || 'Reason'} <span style={s('color:var(--d-danger-ink)')}>*</span></span>
+            <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Kept in the audit trail with your name and time" style={control} />
+          </div>
+        )}
+        <div style={s('display:flex;justify-content:flex-end;gap:8px;margin-top:2px')}>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant={dialog.danger ? 'danger' : 'primary'} icon="check" onClick={busy || (dialog.needReason && !reason.trim()) ? undefined : submit}>{busy ? 'Working…' : dialog.confirmLabel}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- one visit block inside a grid cell ---------- */
-function VisitBlock({ v, view, selected, onToggle, onOpen }) {
+function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
   const short = isShort(v);
+  const cancelled = v.status === 'cancelled';
   const c = chipFor(v);
   const carer = v.assignments?.[0]?.employee;
   const primary = view === 'client'
     ? (carer ? fullName(carer) : 'Unfilled')
     : fullName(v.service_user);
+  // Solid block, white text. Unfilled = orange, cancelled = grey + struck, else
+  // Main's soft-card style with the distinct colours: unfilled = soft orange,
+  // cancelled = faded grey + struck, else the status chip.
+  const bg = cancelled ? 'var(--d-panel)' : short ? 'color-mix(in srgb, #ea580c 16%, var(--d-card))' : c.bg;
+  const ink = cancelled ? 'var(--d-faint)' : short ? '#c2410c' : c.ink;
+  const border = '1px solid transparent';
   return (
     <div style={s('position:relative')}>
-      <div onClick={onOpen} draggable className="pressable"
+      <div onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onContext?.(e); }} draggable className="pressable"
         style={{
           ...s('border-radius:9px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:1px'),
-          background: short ? 'var(--d-danger-bg)' : c.bg,
-          color: short ? 'var(--d-danger-ink)' : c.ink,
-          border: short ? '1px dashed var(--d-danger-dot)' : '1px solid transparent',
+          background: bg, color: ink, border, opacity: cancelled ? 0.7 : 1,
+          textDecoration: cancelled ? 'line-through' : 'none',
         }}>
-        <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}</span>
+        <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}{cancelled ? ' · cancelled' : ''}</span>
         <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</span>
       </div>
       <div onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="Select visit"
@@ -84,6 +195,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState(null); // { title, body } — shown in-modal
   if (!visit) return null;
   // reassignFrom = the current VisitAssignment id when moving a visit to a
   // different carer (atomic withdraw + assign); null for a fresh assignment.
@@ -122,8 +234,14 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
       onAssigned(); onClose();
     } catch (err) {
       const c = err.data?.conflict;
-      const detail = c ? ` (booked with ${c.service_user ?? 'another client'} at ${formatTime(c.scheduled_start)})` : '';
-      toast.error((err.message || (isReassign ? 'Could not reassign the visit' : 'Could not assign that carer')) + detail);
+      const when = c ? `${new Date(c.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
+      if (err.message === 'carer_unavailable') {
+        setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
+      } else if (err.message === 'client_unavailable') {
+        setError({ title: 'The client already has a carer then', body: `${fullName(visit.service_user)} is already being visited at ${when}. One client, one carer at a time.` });
+      } else {
+        setError({ title: isReassign ? 'Could not reassign the visit' : 'Could not assign that carer', body: err.message || 'Please try again.' });
+      }
     } finally { setBusyId(null); }
   }
 
@@ -132,6 +250,16 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
       subtitle={`${day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
+        {error && (
+          <div style={s('background:var(--d-danger-bg);border:1px solid var(--d-danger-bg2);border-radius:16px;padding:13px 15px;margin-bottom:14px;display:flex;gap:11px;align-items:flex-start')}>
+            <div style={s('width:30px;height:30px;border-radius:9px;background:var(--d-danger-bg2);color:var(--d-danger-ink);display:flex;align-items:center;justify-content:center;flex:none')}><Icon name="alert" size={16} /></div>
+            <div style={s('flex:1;min-width:0')}>
+              <div style={s('font-size:13px;font-weight:700;color:var(--d-danger-ink)')}>{error.title}</div>
+              <div style={s('font-size:12px;font-weight:500;color:var(--d-danger-ink);opacity:0.9;line-height:1.5;margin-top:2px')}>{error.body}</div>
+            </div>
+            <div onClick={() => setError(null)} className="hv" style={{ ...s('width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-danger-ink);flex:none'), '--hbg': 'var(--d-danger-bg2)' }}><Icon name="close" size={14} /></div>
+          </div>
+        )}
         <div style={s('background:var(--d-panel);border-radius:16px;padding:13px 15px')}>
           <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Visit</div>
           <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{fullName(visit.service_user)}</div>
@@ -194,7 +322,12 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
       await createVisit({ service_user_id: Number(clientId), scheduled_start: mk(start), scheduled_end: mk(end) });
       toast.success(`Visit created for ${fullName(client)}`);
       onCreated(); onClose();
-    } catch (err) { toast.error(err.message || 'Could not create the visit'); } finally { setBusy(false); }
+    } catch (err) {
+      const msg = err.message === 'client_overlap' ? `${fullName(client)} already has a visit at that time — one client, one visit at a time.`
+        : err.message === 'visit_in_past' ? "You can't create a visit in the past."
+        : (err.message || 'Could not create the visit');
+      toast.error(msg);
+    } finally { setBusy(false); }
   }
 
   const field = s('display:flex;flex-direction:column;gap:6px');
@@ -265,7 +398,7 @@ function VisitDelivery({ delivery }) {
 }
 
 /* ---------- filled-visit editor drawer (retime + real actions) ---------- */
-function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) {
+function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   const toast = useToast();
   const [start, setStart] = useState(formatTime(visit?.scheduled_start));
   const [end, setEnd] = useState(formatTime(visit?.scheduled_end));
@@ -285,15 +418,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
   const started = (visit.assignments ?? []).some((x) => x.actual_start);
   const tone = { neutral: 'muted', warn: 'warning', active: 'info' }[LIFECYCLE_TONE[stateOf(visit)]] ?? LIFECYCLE_TONE[stateOf(visit)];
 
-  async function withdraw() { try { await withdrawAssignment(a.id); toast.info('Carer removed from that visit'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not remove'); } }
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
-  async function cancel() {
-    if (!reason.trim()) { toast.error('Add a reason for cancelling — it goes in the audit trail.'); return; }
-    if (!window.confirm('Cancel this visit and free the carer? This cannot be undone.')) return;
-    setBusy(true);
-    try { await cancelVisit(visit.id, reason.trim()); toast.success('Visit cancelled — carer freed'); onChanged(); onClose(); }
-    catch (e) { toast.error(e.message || 'Could not cancel the visit'); } finally { setBusy(false); }
-  }
   async function save() {
     if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
     const base = new Date(visit.scheduled_start);
@@ -309,19 +434,19 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
   const label = s('font-size:11.5px;font-weight:700;color:var(--d-ink2)');
   const control = { ...s('height:42px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:0 13px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
 
+  // A past/started/cancelled visit is read-only: the drawer shows the record but
+  // no edit form or save. Quick actions (reassign/cancel/delete/remove carer)
+  // live on the shift's right-click menu, not here.
+  const editable = isEditable(visit);
+
   return (
-    <Drawer title={`Edit visit — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
-      footer={<div style={s('display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap')}>
-        <div style={s('display:flex;gap:8px')}>
-          {a && <Button icon="close" onClick={withdraw}>Remove carer</Button>}
-          {!started && visit.status !== 'cancelled' && <Button variant="danger" icon="close" onClick={busy ? undefined : cancel}>Cancel visit</Button>}
-        </div>
-        <div style={s('display:flex;gap:8px;margin-left:auto')}>
-          {a && !started && <Button icon="user" onClick={() => onReassign(visit, a.id)}>Reassign</Button>}
+    <Drawer title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
+      footer={editable ? (
+        <div style={s('display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap')}>
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
-          {!started && <Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save changes'}</Button>}
+          <Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save changes'}</Button>
         </div>
-      </div>}>
+      ) : null}>
       <div style={s('padding:18px 22px;display:flex;flex-direction:column;gap:15px')}>
         <div style={s('display:flex;align-items:center;gap:8px')}>
           <Tag tone={tone}>{LIFECYCLE_LABELS[stateOf(visit)]}</Tag>
@@ -334,8 +459,12 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
         </div>
         <RulesNote settings={settings} />
         <VisitDelivery delivery={delivery} />
-        {started ? (
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>The carer has already clocked in, so the scheduled time is locked — the original record is never rewritten. Use a clock correction if the actual time is wrong.</div>
+        {!editable ? (
+          <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>
+            {started ? 'The carer has already clocked in, so this visit is locked — the original record is never rewritten. Use a clock correction if the actual time is wrong.'
+              : visit.status === 'cancelled' ? 'This visit was cancelled. Its record is read-only.'
+              : 'This visit is in the past, so it is read-only. Only upcoming visits can be edited.'}
+          </div>
         ) : (
           <>
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
@@ -355,19 +484,21 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged, onReassign }) 
 }
 
 /* ---------- shared right-side drawer shell ---------- */
+// Centered modal shell (was a side drawer). Same props, so every caller flips at
+// once. Body scrolls, so the assign carer list still fits; capped at 88vh.
 function Drawer({ title, subtitle, children, footer, onClose }) {
   return (
-    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-        <div style={s('padding:20px 22px 15px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:12px')}>
+    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
+      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:480px;max-height:88vh;background:var(--d-card);border-radius:22px;display:flex;flex-direction:column;overflow:hidden')}>
+        <div style={s('padding:20px 24px 15px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:12px;flex:none')}>
           <div style={s('flex:1;min-width:0')}>
             <div style={s('font-size:18px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>{title}</div>
             {subtitle && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>{subtitle}</div>}
           </div>
           <div onClick={onClose} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
         </div>
-        <div style={s('flex:1;overflow-y:auto;display:flex;flex-direction:column')}>{children}</div>
-        {footer && <div style={s('padding:14px 22px;border-top:1px solid var(--d-border)')}>{footer}</div>}
+        <div style={s('flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column')}>{children}</div>
+        {footer && <div style={s('padding:14px 24px;border-top:1px solid var(--d-border);flex:none')}>{footer}</div>}
       </div>
     </div>
   );
@@ -391,6 +522,7 @@ export default function RotaPage() {
   const [reassigning, setReassigning] = useState(null); // { visit, assignmentId }
   const [selected, setSelected] = useState([]);
   const [exporting, setExporting] = useState(false);
+  const navigate = useNavigate();
 
   const range = useMemo(() => weekOf(weekStart), [weekStart]);
 
@@ -413,11 +545,26 @@ export default function RotaPage() {
 
   const rows = useMemo(() => {
     if (view === 'carer') {
-      return [...employees].filter((e) => e.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((e) => ({
+      const carerRows = [...employees].filter((e) => e.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((e) => ({
         id: `e${e.id}`, title: e.full_name, initials: inits(e),
         sub: `${e.hours_this_week ?? 0}h${e.contracted_hours_per_week ? ` / ${e.contracted_hours_per_week}h` : ''}${e.punctuality != null ? ` · ${e.punctuality}% on time` : ''}`,
         cell: (d) => visits.filter((v) => (v.assignments ?? []).some((a) => a.employee?.id === e.id) && sameDay(v.scheduled_start, d)),
       }));
+      // Visits with no active carer match no carer row, so surface them in a top
+      // "Unassigned" row — this includes cancelled visits (which lost their carer
+      // on cancel) so they still SHOW on the board, matching the DB. The count in
+      // the label only reflects the live ones that actually still need a carer.
+      const noCarer = visits.filter((v) => !(v.assignments ?? []).some((a) => a.employee?.id));
+      if (noCarer.length === 0) return carerRows;
+      const needCarer = noCarer.filter((v) => v.status !== 'cancelled').length;
+      return [
+        {
+          id: 'unassigned', title: 'Unassigned', initials: '—',
+          sub: needCarer > 0 ? `${needCarer} visit${needCarer === 1 ? '' : 's'} need a carer` : 'Cancelled visits',
+          cell: (d) => noCarer.filter((v) => sameDay(v.scheduled_start, d)),
+        },
+        ...carerRows,
+      ];
     }
     return [...serviceUsers].filter((c) => c.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((c) => ({
       id: `c${c.id}`, title: c.full_name, initials: inits(c),
@@ -426,16 +573,64 @@ export default function RotaPage() {
     }));
   }, [view, employees, serviceUsers, visits]);
 
-  const unfilled = useMemo(() => visits.filter(isShort).sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)), [visits]);
   const drafts = useMemo(() => visits.filter((v) => v.status === 'draft'), [visits]);
-  const overContract = employees.filter((e) => e.hours_this_week != null && e.contracted_hours_per_week && e.hours_this_week > Number(e.contracted_hours_per_week)).length;
-  const underContract = employees.filter((e) => e.hours_this_week != null && e.contracted_hours_per_week && e.hours_this_week < Number(e.contracted_hours_per_week)).length;
-  const assignedCount = visits.filter((v) => !isShort(v)).length;
 
   const move = (w) => { const d = new Date(range.monday); d.setDate(d.getDate() + w * 7); setWeekStart(d); };
   const toggleSel = (id) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const openBlock = (v) => (isShort(v) ? setAssigning(v) : setDetail(v));
+
+  // Right-click quick actions. Left-click still opens the drawer; these are the
+  // fast one-tap actions (reassign / cancel / delete / remove carer) without it.
+  const [menu, setMenu] = useState(null); // { x, y, visit }
+  const [confirm, setConfirm] = useState(null); // ConfirmDialog config
+
+  function quickCancel(v) {
+    setConfirm({
+      title: 'Cancel this visit?',
+      body: 'The visit is marked cancelled and the carer is freed. Its record is kept.',
+      confirmLabel: 'Cancel visit', danger: true, needReason: true, reasonLabel: 'Reason for cancelling',
+      onConfirm: async (reason) => {
+        try { await cancelVisit(v.id, reason); toast.success('Visit cancelled — carer freed'); await load(); }
+        catch (e) { toast.error(e.message || 'Could not cancel the visit'); }
+      },
+    });
+  }
+  function quickDelete(v) {
+    setConfirm({
+      title: 'Delete this visit for good?',
+      body: 'It leaves the rota and the carer is freed. Use Cancel instead if it may need a record — deletion is refused once a carer has clocked in.',
+      confirmLabel: 'Delete visit', danger: true,
+      onConfirm: async () => {
+        try { await deleteVisit(v.id); toast.success('Visit deleted — carer freed'); await load(); }
+        catch (e) { toast.error(e.message === 'visit_started' ? 'A carer has clocked in — cancel it instead so the record is kept.' : (e.message || 'Could not delete the visit')); }
+      },
+    });
+  }
+  async function quickWithdraw(v) {
+    const a = v.assignments?.[0];
+    if (!a) return;
+    try { await withdrawAssignment(a.id); toast.info('Carer removed from that visit'); await load(); }
+    catch (e) { toast.error(e.message || 'Could not remove the carer'); }
+  }
+
+  // Menu items for a visit, gated by editability. A past/started/cancelled visit
+  // only offers "View details" — its record is read-only.
+  function menuItems(v) {
+    const a = v.assignments?.[0];
+    const view = { label: 'View details', icon: 'note', onClick: () => (isShort(v) ? setAssigning(v) : setDetail(v)) };
+    if (!canManage || !isEditable(v)) return [view];
+    const items = [view, null];
+    if (a) items.push({ label: 'Reassign carer', icon: 'user', onClick: () => setReassigning({ visit: v, assignmentId: a.id }) });
+    else items.push({ label: 'Assign carer', icon: 'user', onClick: () => setAssigning(v) });
+    if (a) items.push({ label: 'Remove carer', icon: 'close', onClick: () => quickWithdraw(v) });
+    // Cover — send an unfilled visit to the cover board for carers to claim.
+    if (isShort(v)) items.push({ label: 'Find cover', icon: 'refresh', onClick: () => navigate('/cover') });
+    items.push(null);
+    items.push({ label: 'Cancel visit', icon: 'close', danger: true, onClick: () => quickCancel(v) });
+    items.push({ label: 'Delete visit', icon: 'close', danger: true, onClick: () => quickDelete(v) });
+    return items;
+  }
 
   // Auto-generate the upcoming week's visits from the care packages. Always the
   // NEXT Mon–Sun from today (not the viewed week), then jump the view to it.
@@ -460,7 +655,6 @@ export default function RotaPage() {
     try { await Promise.all(drafts.map((v) => publishVisit(v.id))); toast.success(`Rota published — ${drafts.length} visit${drafts.length === 1 ? '' : 's'} now visible to carers`); await load(); }
     catch (e) { toast.error(e.message || 'Some visits could not be published'); } finally { setBusy(false); }
   }
-  async function offerCover() { toast.info('Posted to the cover board for carers to claim'); }
 
   const selectedVisits = () => visits.filter((v) => selected.includes(v.id));
   const notStarted = (v) => !(v.assignments ?? []).some((a) => a.actual_start);
@@ -514,6 +708,7 @@ export default function RotaPage() {
             <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
           </div>
           <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
+          <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
           <SegTabs tabs={viewTabs} active={view} onSelect={setView} />
           <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
         </div>
@@ -521,7 +716,6 @@ export default function RotaPage() {
           {LEGEND.map(([l, dot]) => (
             <span key={l} style={s('display:inline-flex;align-items:center;gap:5px')}><span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: dot }} />{l}</span>
           ))}
-          <span style={s('display:inline-flex;align-items:center;gap:5px')}><span style={s('width:8px;height:8px;border-radius:50%;border:1px dashed var(--d-danger-dot)')} />Unfilled</span>
         </div>
       </div>
 
@@ -556,7 +750,7 @@ export default function RotaPage() {
                       const cell = row.cell(d.date);
                       return (
                         <div key={d.num} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column;gap:5px')}>
-                          {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onToggle={() => toggleSel(v.id)} onOpen={() => openBlock(v)} />)}
+                          {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onToggle={() => toggleSel(v.id)} onOpen={() => openBlock(v)} onContext={(e) => setMenu({ x: e.clientX, y: e.clientY, visit: v })} />)}
                           {canManage && view === 'client' && (
                             <button type="button" aria-label="Add visit" onClick={() => setCreating({ day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
                               className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
@@ -570,54 +764,6 @@ export default function RotaPage() {
             </div>
           </div>
 
-          {/* Unfilled + Rota health */}
-          <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px')}>
-            <Panel>
-              <PanelTitle hint="No carer assigned — client at risk of a missed visit">Unfilled visits</PanelTitle>
-              {unfilled.length === 0 ? (
-                <div style={s('display:flex;align-items:center;gap:10px;padding:6px 2px')}>
-                  <div style={s('width:34px;height:34px;border-radius:11px;background:var(--d-ok-bg);display:flex;align-items:center;justify-content:center;color:var(--d-ok-ink)')}><Icon name="check" size={17} /></div>
-                  <div style={s('font-size:13px;font-weight:600;color:var(--d-ink2)')}>Every visit this week has a carer.</div>
-                </div>
-              ) : (
-                <div style={s('display:flex;flex-direction:column;gap:9px')}>
-                  {unfilled.map((v) => (
-                    <div key={v.id} style={s('display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--d-danger-bg2);background:var(--d-danger-bg);border-radius:14px;padding:11px 13px')}>
-                      <div style={s('min-width:0')}>
-                        <div style={s('display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--d-danger-ink)')}><Icon name="alert" size={15} />{fullName(v.service_user)}</div>
-                        <div className="d-num" style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{new Date(v.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {formatTimeRange(v.scheduled_start, v.scheduled_end)}</div>
-                      </div>
-                      {canManage && (
-                        <div style={s('display:flex;gap:6px')}>
-                          <Button size="sm" icon="plus" onClick={() => setAssigning(v)}>Assign</Button>
-                          <Button size="sm" icon="send" onClick={offerCover}>Offer cover</Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            <Panel>
-              <PanelTitle hint="This week at a glance, from real records">Rota health</PanelTitle>
-              <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px')}>
-                {[
-                  ['Visits planned', visits.length],
-                  ['Unfilled visits', unfilled.length],
-                  ['Assigned visits', assignedCount],
-                  ['Carers over contract', overContract],
-                  ['Carers under contract', underContract],
-                  ['Awaiting publish', drafts.length],
-                ].map(([l, val]) => (
-                  <div key={l} style={s('background:var(--d-panel);border-radius:13px;padding:12px 14px')}>
-                    <div style={s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--d-muted)')}>{l}</div>
-                    <div className="d-num" style={s('font-size:20px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{val}</div>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          </div>
         </>
       )}
 
@@ -636,7 +782,10 @@ export default function RotaPage() {
       {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
       {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
       {creating && <CreateVisitDrawer preset={creating} serviceUsers={serviceUsers} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
-      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} onReassign={(visit, assignmentId) => { setDetail(null); setReassigning({ visit, assignmentId }); }} />}
+      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} />}
+
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.visit)} onClose={() => setMenu(null)} />}
+      <ConfirmDialog dialog={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
