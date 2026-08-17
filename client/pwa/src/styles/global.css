@@ -250,16 +250,17 @@ body {
    Filled with currentColor so the single `color` below covers both themes. */
 .bottom-nav__wave {
   position: absolute;
-  bottom: calc(100% - 2px);
+  bottom: calc(100% - 1px);
   left: calc((var(--nav-active, 0) + 0.5) * 20%);
-  /* A good deal wider than one column (20%), so the hump spreads past the disc
-     with the gentle shoulders of a water ripple rather than a steep bell. Not
-     unlimited: on the first and last tab the surplus overhangs the end of the
-     bar (harmless — body hides horizontal overflow). */
-  width: 32%;
-  /* Tall enough that the peak clears the top of the lifted disc with room to
-     spare — the disc should read as nested in the wave, not as covering it. */
-  height: calc(var(--nav-height) * 0.46);
+  /* Exactly the SVG's viewBox, 1:1. That is load-bearing, not tidiness: the
+     crest is drawn as a circular arc concentric with the disc behind the
+     active icon (see BottomNav.jsx), and a circle only stays a circle when x
+     and y scale equally. A percentage width would stretch the arc into an
+     ellipse, and would drift out of proportion with the fixed 44px disc as
+     the bar changes width. On the first and last tab the surplus overhangs
+     the end of the bar (harmless — body hides horizontal overflow). */
+  width: 120px;
+  height: 28px;
   transform: translateX(-50%);
   color: var(--color-surface);
   pointer-events: none;
