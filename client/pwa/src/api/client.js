@@ -43,10 +43,15 @@ const MESSAGES = {
   parameter_missing: 'Something was missing from that request.',
   conflict: 'That has already been recorded.',
   too_far: 'You are too far from the address to clock in.',
+  visit_not_clockable: 'This visit is no longer open for clocking.',
+  already_clocked_in: 'You have already clocked in to this visit.',
+  not_clocked_in: 'Clock in first before clocking out.',
+  already_clocked_out: 'You have already clocked out of this visit.',
   forbidden: 'You do not have permission to do that.',
   unauthorized: 'Your session has expired. Please sign in again.',
   too_large: 'That image is too large (max 5 MB).',
   unsupported_type: 'Please choose a PNG, JPG, WEBP or GIF.',
+  minimum_duration_not_met: 'You cannot clock out within 2 minutes of clocking in.',
 };
 
 function messageFor(code, status) {
