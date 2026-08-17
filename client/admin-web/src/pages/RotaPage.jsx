@@ -45,13 +45,11 @@ const CHIP = {
 const stateOf = (v) => (v.status === 'cancelled' ? 'cancelled' : (v.assignments?.[0]?.lifecycle_state) ?? 'scheduled');
 const chipFor = (v) => (isShort(v) ? null : CHIP[LIFECYCLE_TONE[stateOf(v)] ?? 'neutral']);
 
-// A visit is editable only while it is still in the future and untouched: a past
-// shift, or one a carer has already clocked into, or a cancelled one, is
-// read-only — its record stands. Drives both the drawer (form vs read-only) and
-// which right-click quick actions are offered.
-const hasStarted = (v) => (v.assignments ?? []).some((x) => x.actual_start);
-const isEditable = (v) =>
-  v.status !== 'cancelled' && !hasStarted(v) && new Date(v.scheduled_start) > new Date();
+// A visit is editable unless it's cancelled — its record stands. Past and
+// already-started visits can be retimed too (admin reconciliation); every edit
+// is audited (who, before/after, reason) by the backend. Drives both the
+// drawer (form vs read-only) and which right-click quick actions are offered.
+const isEditable = (v) => v.status !== 'cancelled';
 
 // Legend — each dot's colour matches exactly what the block renders for that
 // state, so a block on the grid can always be read against the key.
@@ -436,9 +434,9 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   const label = s('font-size:11.5px;font-weight:700;color:var(--d-ink2)');
   const control = { ...s('height:42px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:0 13px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
 
-  // A past/started/cancelled visit is read-only: the drawer shows the record but
-  // no edit form or save. Quick actions (reassign/cancel/delete/remove carer)
-  // live on the shift's right-click menu, not here.
+  // Only a cancelled visit is read-only: the drawer shows the record but no
+  // edit form or save. Past and started visits can still be retimed here for
+  // reconciliation — the backend audits every change (who, before/after, why).
   const editable = isEditable(visit);
 
   return (
@@ -463,12 +461,15 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
         <VisitDelivery delivery={delivery} />
         {!editable ? (
           <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>
-            {started ? 'The carer has already clocked in, so this visit is locked — the original record is never rewritten. Use a clock correction if the actual time is wrong.'
-              : visit.status === 'cancelled' ? 'This visit was cancelled. Its record is read-only.'
-              : 'This visit is in the past, so it is read-only. Only upcoming visits can be edited.'}
+            This visit was cancelled. Its record is read-only.
           </div>
         ) : (
           <>
+            {started && (
+              <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>
+                The carer already clocked in — retiming here changes the schedule, not the clock record. Use a clock correction to fix the actual clocked time.
+              </div>
+            )}
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
               <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
               <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
