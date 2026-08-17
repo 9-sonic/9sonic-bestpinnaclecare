@@ -250,16 +250,17 @@ body {
    Filled with currentColor so the single `color` below covers both themes. */
 .bottom-nav__wave {
   position: absolute;
-  bottom: calc(100% - 2px);
+  bottom: calc(100% - 1px);
   left: calc((var(--nav-active, 0) + 0.5) * 20%);
-  /* A good deal wider than one column (20%), so the hump spreads past the disc
-     with the gentle shoulders of a water ripple rather than a steep bell. Not
-     unlimited: on the first and last tab the surplus overhangs the end of the
-     bar (harmless — body hides horizontal overflow). */
-  width: 32%;
-  /* Tall enough that the peak clears the top of the lifted disc with room to
-     spare — the disc should read as nested in the wave, not as covering it. */
-  height: calc(var(--nav-height) * 0.46);
+  /* Exactly the SVG's viewBox, 1:1. That is load-bearing, not tidiness: the
+     crest is drawn as a circular arc concentric with the disc behind the
+     active icon (see BottomNav.jsx), and a circle only stays a circle when x
+     and y scale equally. A percentage width would stretch the arc into an
+     ellipse, and would drift out of proportion with the fixed 44px disc as
+     the bar changes width. On the first and last tab the surplus overhangs
+     the end of the bar (harmless — body hides horizontal overflow). */
+  width: 120px;
+  height: 28px;
   transform: translateX(-50%);
   color: var(--color-surface);
   pointer-events: none;
@@ -7476,11 +7477,14 @@ body:has(.drawer-backdrop) .app-content {
   gap: 5px;
 }
 
-:root[data-theme='dark'] .dial__face {
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
+/* The dark-mode companion to the block above used to live here. It shadowed a
+   .dial__face that was a 50% rounded disc; the live .dial__face near the end of
+   this file makes the face a transparent full-bleed square that only holds text,
+   and declares box-shadow: none. That override worked in light mode and lost in
+   dark, because :root[data-theme='dark'] .dial__face outranks a bare
+   .dial__face and specificity beats source order — so the shadow was painted on
+   a square div and read as a box sitting behind the ring. Deleted, not
+   overridden: the live block is meant to be the only definition. */
 
 .dial__state {
   display: inline-flex;
@@ -9493,13 +9497,27 @@ body:has(.drawer-backdrop) .app-content {
 
 .dial {
   position: relative;
-  width: min(300px, 80vw);
+  /* Sized from the Penpot "Clock In Timer" board, where the groove is 288px on
+     a 428px frame — 67% of the width. The groove spans 292 of the SVG's 344
+     units, so it draws at ~0.85 of this box: 0.86vw x 0.85 lands on that 67%.
+     The old min(300px, 80vw) capped out on any phone 375px or wider, so the
+     dial stopped growing while the design's keeps scaling with the frame. */
+  width: min(340px, 86vw);
   /* Both axes are stated. aspect-ratio alone lost to a fixed height in an
      older compact media query, and an ellipse is worse than a small dial. */
-  height: min(300px, 80vw);
+  height: min(340px, 86vw);
   aspect-ratio: 1;
   flex-shrink: 0;
-  margin: 0 auto var(--space-5);
+  /* The tick scale runs to radius 180 in a viewBox that only opens to 172, and
+     .dial__svg is overflow: visible — so the ticks stand roughly 8px proud of
+     this box on every side. Nothing in .clockscreen puts a gap between the
+     verify chip and the dial, so with a top margin of 0 the ticks were drawn
+     over "Verified - <address>". The top margin is the tick bleed plus a real
+     gap; it is not decorative spacing and should not be trimmed to 0.
+     The bottom margin carries the same 8px of tick bleed, and .clock-actions
+     below has no top margin of its own — so this value is the entire gap
+     between the dial and the Clock In button, minus that bleed. */
+  margin: var(--space-4) auto var(--space-8);
 
   /* The four bands of the arc's cylinder gradient, the colour it glows and the
      colour it casts. The state classes below redefine these rather than
@@ -9729,18 +9747,25 @@ body:has(.drawer-backdrop) .app-content {
   display: none;
 }
 
-/* The compact breakpoints scale the whole dial rather than one axis. */
+/* The compact breakpoints scale the whole dial rather than one axis.
+   Both step down more gently than they used to: the old 76vw/62vw were a
+   different design rather than a smaller one, and the height rule in particular
+   fires on an iPhone SE and on most desktop DevTools windows, which is where the
+   dial was being reviewed and why it read as compressed. */
 @media (max-width: 380px) {
   .dial {
-    width: min(260px, 76vw);
-    height: min(260px, 76vw);
+    width: min(300px, 82vw);
+    height: min(300px, 82vw);
   }
 }
 
+/* Short screens are a genuine constraint: the break/clock-out buttons and the
+   started/break/est-end strip have to stay above the bottom nav without
+   scrolling. Reduced, but no longer to two thirds of the intended size. */
 @media (max-height: 700px) {
   .dial {
-    width: min(240px, 62vw);
-    height: min(240px, 62vw);
+    width: min(280px, 74vw);
+    height: min(280px, 74vw);
   }
 }
 
@@ -9908,6 +9933,40 @@ body:has(.drawer-backdrop) .app-content {
   color: var(--success-text);
 }
 
+/* Still looking. Deliberately the plain chip and not amber: no fix *yet* is not
+   a failure, and colouring it as one trains carers to ignore the amber that
+   does matter. */
+.verifychip--pending {
+  color: var(--color-text-muted);
+}
+
+/* No fix, and a reason. Amber rather than red: nothing has gone wrong with the
+   visit and the carer can still clock in — the office simply won't have a
+   location against this event. */
+.verifychip--warn {
+  background: var(--warning-bg);
+  border-color: transparent;
+  color: var(--warning-text);
+}
+
+/* Sized for a thumb at a front door. The 44px comes from the accessibility
+   test, which measures every control on the screen; the negative margins keep
+   the chip itself from growing to fit the target. */
+.verifychip__retry {
+  min-height: 44px;
+  margin: -14px -6px -14px 0;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* -- the note under the dial ---------------------------------------------- */
 
 .clock-note {
@@ -9915,6 +9974,13 @@ body:has(.drawer-backdrop) .app-content {
   text-align: center;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+/* Same voice, different position. The base note tucks up under the dial with a
+   negative top margin; this one sits below the verify chip, where that negative
+   margin pulls it into the chip's pill. */
+.clock-note--privacy {
+  margin-top: var(--space-2);
 }
 
 .clock-error {
