@@ -268,10 +268,21 @@ export async function exportAuditLog(params = {}, type = 'csv') {
   URL.revokeObjectURL(url);
 }
 
+// The same CQC visit-attendance rows as JSON, for the on-screen filterable
+// table (one row per carer x visit) — optionally narrowed to one client and/or
+// one carer.
+export const listAttendanceAudit = ({ from, to, serviceUserId, employeeId } = {}) =>
+  api.get('/admin/attendance_audit_exports/rows', {
+    from, to, service_user_id: serviceUserId || undefined, employee_id: employeeId || undefined,
+  });
+
 // Streams the CQC visit-attendance audit (one row per carer x visit over the
 // date range) as CSV or XLSX and triggers a download.
-export async function exportAttendanceAudit(from, to, type = 'csv') {
-  const qs = new URLSearchParams({ from, to, type }).toString();
+export async function exportAttendanceAudit(from, to, type = 'csv', { serviceUserId, employeeId } = {}) {
+  const params = { from, to, type };
+  if (serviceUserId) params.service_user_id = serviceUserId;
+  if (employeeId) params.employee_id = employeeId;
+  const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${env.apiBaseUrl}/admin/attendance_audit_exports?${qs}`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });

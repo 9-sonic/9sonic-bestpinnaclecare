@@ -268,7 +268,7 @@ export default function ShiftDetailPage() {
             >
               <Icon name="clock" size={14} /> Cover requested
             </Button>
-          ) : (
+          ) : shift.status !== 'completed' ? (
             <Button
               variant="white"
               size="sm"
@@ -280,7 +280,7 @@ export default function ShiftDetailPage() {
             >
               <Icon name="close" size={15} /> Decline
             </Button>
-          )}
+          ) : null}
           <Button
             size="sm"
             pill

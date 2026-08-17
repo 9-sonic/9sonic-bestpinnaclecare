@@ -59,3 +59,55 @@ namespace :admin do
     end
   end
 end
+
+# Bootstrap a single carer for login testing on a real (non-dev) environment.
+# Unlike db/seeds.rb (demo data — truncates and refuses production), this is
+# idempotent and production-safe: it never deletes anything and will not
+# overwrite a carer that already exists.
+#
+#   bin/rails carer:bootstrap
+#   SEED_CARER_EMAIL=someone@bestpinnaclecare.co.uk \
+#     SEED_CARER_NAME="Someone Else" bin/rails carer:bootstrap
+namespace :carer do
+  desc "Create a single carer if none exists with that email (idempotent, prod-safe)"
+  task bootstrap: :environment do
+    email = ENV.fetch("SEED_CARER_EMAIL", "aisha@bestpinnacle.test").strip.downcase
+    name  = ENV.fetch("SEED_CARER_NAME", "Aisha Yusuf").strip
+    first, last = name.split(" ", 2)
+    last = last.presence || "Carer"
+
+    if (existing = Employee.find_by(email: email))
+      warn "Carer #{email.inspect} already exists (id=#{existing.id}). Nothing to do."
+      next
+    end
+
+    generated = ENV["SEED_CARER_PASSWORD"].blank?
+    password = ENV["SEED_CARER_PASSWORD"].presence || begin
+      pools = [ ("a".."z").to_a, ("A".."Z").to_a, ("0".."9").to_a, %w[! @ # $ % ^ & * ? _ -] ]
+      one_each = pools.map { |p| p[SecureRandom.random_number(p.size)] }
+      all      = pools.flatten
+      filler   = Array.new(20) { all[SecureRandom.random_number(all.size)] }
+      (one_each + filler).shuffle.join
+    end
+
+    carer = Employee.create!(
+      email:              email,
+      first_name:         first,
+      last_name:          last,
+      role:               :carer,
+      password:           password,
+      active:             true,
+      accepted_invite_at: Time.current
+    )
+
+    puts "✔ Created carer #{carer.email} (id=#{carer.id})."
+    if generated
+      puts
+      puts "  Generated password — shown once, store it in a password manager now:"
+      puts
+      puts "      #{password}"
+      puts
+      puts "  Log in via the carer PWA at /api/v1/staff/auth/login."
+    end
+  end
+end

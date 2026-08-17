@@ -9,7 +9,7 @@ module Auth
   # secret is stored.
   class RefreshTokens
     LIFETIME   = 30.days
-    ACCESS_TTL = 15.minutes # matches devise-jwt expiration_time
+    ACCESS_TTL = ENV.fetch("JWT_EXPIRATION_HOURS", "24").to_i.hours # matches devise-jwt expiration_time
 
     def self.issue(resource:, scope:, device: nil)
       secret = SecureRandom.urlsafe_base64(48)

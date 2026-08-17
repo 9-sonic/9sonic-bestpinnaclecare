@@ -56,15 +56,12 @@ module Api
         end
 
         # PATCH /api/v1/admin/visits/:id  { scheduled_start?, scheduled_end?, notes?, reason }
-        # Reschedule/retime a visit before it happens. Refuses once a carer has
-        # clocked in — an honest record is never rewritten (§ audit-over-edit) —
-        # and appends a visit.rescheduled event with who, the before/after and why.
+        # Reschedule/retime a visit, including past or already-started ones (admin
+        # reconciliation). Every edit appends a visit.rescheduled event with who,
+        # the before/after and why — the schedule change is audited, not silent.
         def update
           visit = Visit.find(params[:id])
           return render json: { error: "visit_cancelled" }, status: 422 if visit.cancelled?
-          if visit.visit_assignments.any? { |va| va.actual_start.present? }
-            return render json: { error: "visit_started" }, status: 422
-          end
 
           reason = params[:reason].to_s.strip
           return render json: { error: "reason_required" }, status: 422 if reason.blank?

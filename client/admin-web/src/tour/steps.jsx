@@ -157,20 +157,12 @@ export const TOUR_PAGES = [
       {
         anchor: 'timesheets-period',
         content:
-          'Timesheets show the verified hours for one pay period. Use Older and Newer to step through periods, or click the dates in the middle to jump to any period.',
-      },
-      {
-        anchor: 'timesheets-search',
-        content: 'Search for a single carer to see just their hours.',
+          'This is the CQC visit-attendance audit — every clock in and out, one row per carer x visit. Filter by date range, client or carer here, then export CSV or Excel.',
       },
       {
         anchor: 'timesheets-table',
         content:
-          'These hours come straight from verified clock records — this view never changes them. Click a carer for a visit-by-visit breakdown.',
-      },
-      {
-        anchor: 'timesheets-export',
-        content: 'Download the hours for this period as CSV or Excel here.',
+          'These rows come straight from verified clock records — this view never changes them. To fix an actual clocked time, use a clock correction on Exceptions.',
       },
     ],
   },

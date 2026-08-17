@@ -12,13 +12,22 @@ export default function Modal({ open = true, onClose, title, subtitle, children,
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
+  // Keep the latest onClose in a ref rather than the effect's dependency array.
+  // onClose is often an inline function that gets a new identity on every parent
+  // render (e.g. re-rendered on every keystroke in a form) — depending on it
+  // directly re-ran this whole effect each time, including the initial-focus
+  // setTimeout below, which yanked focus back to the modal's first field while
+  // typing in a later one.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return undefined;
     previouslyFocused.current = document.activeElement;
     document.body.style.overflow = 'hidden';
 
     function onKeyDown(e) {
-      if (e.key === 'Escape') { onClose?.(); return; }
+      if (e.key === 'Escape') { onCloseRef.current?.(); return; }
       if (e.key !== 'Tab') return;
       const focusable = panelRef.current?.querySelectorAll(
         'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -38,7 +47,7 @@ export default function Modal({ open = true, onClose, title, subtitle, children,
       clearTimeout(t);
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

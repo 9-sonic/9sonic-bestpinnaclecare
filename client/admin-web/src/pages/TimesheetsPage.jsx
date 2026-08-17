@@ -1,242 +1,168 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listTimesheetPeriods, getTimesheetPeriod, exportTimesheetPeriod } from '../api/index.js';
-// PHASE 2 — PAYROLL. Approval / locking / dispute resolution belong to the
-// payroll module, which isn't built yet. The imports and the flows that use them
-// are commented out below (search "PHASE 2") rather than deleted, so wiring them
-// back is a one-block change once payroll lands. Until then this page is a
-// read-only view of verified hours per carer, per period.
-// import { approvePeriod, approveCarerLines, lockPeriod, listDisputes, resolveDispute } from '../api/index.js';
-import Spinner from '../components/common/Spinner.jsx';
-import Icon from '../components/common/Icon.jsx';
-import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { minutesToHours, formatDate } from '../api/format.js';
-import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { listAttendanceAudit, exportAttendanceAudit, listServiceUsers, listEmployees } from '../api/index.js';
+import { fullName, formatDate, formatTime } from '../api/format.js';
+import Spinner from '../components/common/Spinner.jsx';
+import Icon from '../components/common/Icon.jsx';
+import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 
-const h = (m) => minutesToHours(m ?? 0);
+// CQC visit-attendance audit: one row per carer x visit, filterable by date
+// range, client and carer — the same data as the CSV/XLSX export
+// (AttendanceAudit::Build), read straight from verified clock records. This
+// view never changes them.
+const iso = (d) => d.toISOString().slice(0, 10);
 const initials = (name) => (name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
-const periodLabel = (p) => (p ? `${formatDate(p.starts_on)} – ${formatDate(p.ends_on)}` : '');
+
+const dateField = (label, value, onChange, max) => (
+  <label style={s('display:flex;flex-direction:column;gap:5px')}>
+    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
+    <input type="date" value={value} max={max} onChange={(e) => onChange(e.target.value)}
+      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 13px'), fontFamily: 'inherit', colorScheme: 'light dark' }} />
+  </label>
+);
+
+const selectField = (label, value, onChange, options) => (
+  <label style={s('display:flex;flex-direction:column;gap:5px;min-width:180px')}>
+    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 11px'), fontFamily: 'inherit' }}>
+      <option value="">All</option>
+      {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+    </select>
+  </label>
+);
 
 export default function TimesheetsPage() {
   const toast = useToast();
-  const [periods, setPeriods] = useState([]);      // list newest-first, for the stepper + dropdown
-  const [selected, setSelected] = useState(null);  // full period with lines
-  const [loading, setLoading] = useState(true);
-  const [jumpOpen, setJumpOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [detail, setDetail] = useState(null);
+  const [from, setFrom] = useState(iso(new Date(Date.now() - 6 * 86400000)));
+  const [to, setTo] = useState(iso(new Date()));
+  const [serviceUserId, setServiceUserId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [clients, setClients] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [rows, setRows] = useState(null); // null = loading
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    Promise.all([listServiceUsers().catch(() => []), listEmployees().catch(() => [])])
+      .then(([su, e]) => { setClients(su); setStaff(e); });
+  }, []);
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      const ps = await listTimesheetPeriods();
-      // Newest first so stepping "back" walks into history.
-      const sorted = [...ps].sort((a, b) => new Date(b.starts_on) - new Date(a.starts_on));
-      if (!active) return;
-      setPeriods(sorted);
-      if (sorted[0]) setSelected(await getTimesheetPeriod(sorted[0].id));
-    })().finally(() => active && setLoading(false));
+    setRows(null);
+    listAttendanceAudit({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, serviceUserId, employeeId })
+      .then((r) => { if (active) setRows(r ?? []); })
+      .catch(() => { if (active) setRows([]); });
     return () => { active = false; };
-  }, []);
+  }, [from, to, serviceUserId, employeeId]);
 
-  async function pick(id) {
-    setJumpOpen(false);
-    setSelected(await getTimesheetPeriod(id));
-  }
+  const setRange = (days) => { setTo(iso(new Date())); setFrom(iso(new Date(Date.now() - (days - 1) * 86400000))); };
 
-  // Index of the current period within the (newest-first) list drives the stepper.
-  const idx = useMemo(() => periods.findIndex((p) => p.id === selected?.id), [periods, selected]);
-  const hasNewer = idx > 0;                       // more recent period exists
-  const hasOlder = idx >= 0 && idx < periods.length - 1;
+  const handleExport = async (type) => {
+    setExporting(true);
+    try {
+      await exportAttendanceAudit(`${from}T00:00:00`, `${to}T23:59:59`, type, { serviceUserId, employeeId });
+      toast.success(`${type.toUpperCase()} downloaded`);
+    } catch (e) { toast.error(e.message || 'Export failed'); }
+    finally { setExporting(false); }
+  };
 
-  // One row per carer for the period, aggregated from the lines. Pure attendance:
-  // scheduled vs worked vs breaks vs overtime, plus any exception flags as info.
-  const carers = useMemo(() => {
-    const lines = selected?.lines ?? [];
-    const map = new Map();
-    for (const l of lines) {
-      const key = l.employee_id ?? 'unknown';
-      const g = map.get(key) ?? { employeeId: key, worked: 0, scheduled: 0, breaks: 0, flagged: 0, lines: [] };
-      g.worked += l.worked_minutes ?? 0; g.scheduled += l.scheduled_minutes ?? 0; g.breaks += l.break_minutes ?? 0;
-      g.flagged += (l.flags ?? []).length; g.lines.push(l);
-      map.set(key, g);
-    }
-    const roll = new Map((selected?.carers ?? []).map((c) => [c.employee_id, c.employee_name]));
-    return [...map.values()]
-      .map((g) => ({ ...g, name: roll.get(g.employeeId) ?? 'Unknown carer', overtime: Math.max(g.worked - g.scheduled, 0) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [selected]);
+  const clientOptions = useMemo(() => clients.map((c) => ({ id: c.id, label: fullName(c) })).sort((a, b) => a.label.localeCompare(b.label)), [clients]);
+  const staffOptions = useMemo(() => staff.map((e) => ({ id: e.id, label: fullName(e) })).sort((a, b) => a.label.localeCompare(b.label)), [staff]);
 
-  async function handleExport(type) {
-    try { await exportTimesheetPeriod(selected.id, type); toast.success(`${type.toUpperCase()} hours downloaded`); }
-    catch (e) { toast.error(e.message || 'Export failed'); }
-  }
-
-  if (loading) return <Spinner fullscreen />;
-
-  if (!selected) {
-    return (
-      <Panel style={{ padding: '48px 24px' }}>
-        <div style={s('text-align:center;font-size:14px;font-weight:600;color:var(--d-muted)')}>No timesheet periods yet.
-          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:6px')}>Periods appear once visits are completed and rolled up.</div>
-        </div>
-      </Panel>
-    );
-  }
-
-  const totalWorked = carers.reduce((a, c) => a + c.worked, 0);
-  const totalScheduled = carers.reduce((a, c) => a + c.scheduled, 0);
-  const totalOt = carers.reduce((a, c) => a + c.overtime, 0);
-  const withFlags = carers.filter((c) => c.flagged > 0).length;
-  const q = query.trim().toLowerCase();
-  const rows = q ? carers.filter((c) => c.name.toLowerCase().includes(q)) : carers;
+  // Summary stats for the range currently on screen.
+  const stats = useMemo(() => {
+    const r = rows ?? [];
+    const missedIn = r.filter((x) => !x.clocked_in).length;
+    const missedOut = r.filter((x) => x.clocked_in && !x.clocked_out).length;
+    const late = r.filter((x) => (x.late_in ?? 0) > 0).length;
+    const offline = r.filter((x) => x.offline_in === 'Yes' || x.offline_out === 'Yes').length;
+    return { total: r.length, missedIn, missedOut, late, offline };
+  }, [rows]);
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      {/* Period navigator — stepper + jump dropdown. Scales to any amount of
-          history: one period on screen, arrows to step, dropdown to jump. */}
-      <div data-tour="timesheets-period" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--d-card);border-radius:20px;padding:12px 16px')}>
-        <Button size="sm" icon="chevronLeft" disabled={!hasOlder} onClick={() => hasOlder && pick(periods[idx + 1].id)}>Older</Button>
-        <div style={s('position:relative;flex:1;min-width:200px')}>
-          <div onClick={() => setJumpOpen((v) => !v)} className="hv"
-            style={{ ...s('display:flex;align-items:center;gap:10px;justify-content:center;cursor:pointer;border-radius:14px;padding:8px 14px'), '--hbg': 'var(--d-panel)' }}>
-            <Icon name="calendar" size={16} />
-            <span style={s('font-size:15px;font-weight:700;color:var(--d-ink);letter-spacing:-0.2px')}>{periodLabel(selected)}</span>
-            <Icon name="chevronDown" size={15} style={{ transform: jumpOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-          </div>
-          {jumpOpen && (
-            <div style={s('position:absolute;top:46px;left:50%;transform:translateX(-50%);width:min(320px,90vw);max-height:320px;overflow-y:auto;background:var(--d-card);border:1px solid var(--d-border);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,0.22);padding:6px;z-index:60')}>
-              {periods.map((p) => (
-                <div key={p.id} onClick={() => pick(p.id)} className={p.id === selected.id ? '' : 'hv'}
-                  style={{ ...s('display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;cursor:pointer;font-size:13px;font-weight:600'), background: p.id === selected.id ? 'var(--d-panel)' : 'transparent', color: 'var(--d-ink)', '--hbg': 'var(--d-panel)' }}>
-                  <Icon name="calendar" size={14} />
-                  <span style={s('flex:1;min-width:0')}>{periodLabel(p)}</span>
-                  {p.id === selected.id && <Icon name="check" size={14} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <Button size="sm" onClick={() => hasNewer && pick(periods[idx - 1].id)} disabled={!hasNewer}>Newer <Icon name="chevronRight" size={14} /></Button>
-      </div>
-
-      {/* Hours summary — attendance, not pay. */}
       <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px')}>
-        <StatCard label="Verified hours" value={h(totalWorked)} hint={`Across ${carers.length} carer${carers.length === 1 ? '' : 's'}`} tone="primary" icon="clock" />
-        <StatCard label="Scheduled hours" value={h(totalScheduled)} hint="Planned for this period" tone="info" icon="calendar" />
-        <StatCard label="Overtime" value={h(totalOt)} hint="Worked beyond scheduled" tone="magenta" icon="trend" />
-        <StatCard label="Flagged entries" value={withFlags} hint="Carers with a review flag" tone={withFlags > 0 ? 'warning' : 'success'} icon="alert" />
+        <StatCard label="Visits in range" value={rows === null ? '–' : stats.total} hint={`${formatDate(`${from}T00:00:00`)} – ${formatDate(`${to}T00:00:00`)}`} tone="primary" icon="calendar" />
+        <StatCard label="Late arrivals" value={rows === null ? '–' : stats.late} hint="Clocked in after grace" tone="warning" icon="clock" />
+        <StatCard label="Missed clock-ins/outs" value={rows === null ? '–' : stats.missedIn + stats.missedOut} hint="No tap recorded" tone="danger" icon="alert" />
+        <StatCard label="Offline-synced taps" value={rows === null ? '–' : stats.offline} hint="Recorded without signal, synced later" tone="magenta" icon="sync" />
       </div>
 
-      {/* PHASE 2 — PAYROLL. The approval/lock action bar, the carer-queries
-          (disputes) banner, and the "Approval progress" / "Blockers" panels are
-          the payroll sign-off flow. Commented out until the payroll module
-          exists; the read-only hours view above/below stays live.
-
-      {selected.status === 'open' && canManage && (
-        <div style={s('display:flex;align-items:center;gap:12px')}>
-          <Button variant="primary" icon="check" onClick={handleApprove}>Approve {ready} ready</Button>
-          {selected.status === 'approved' && <Button icon="shield" onClick={handleLock}>Lock period</Button>}
-        </div>
-      )}
-      {openDisputes.length > 0 && ( ... carer queries banner + resolveDispute ... )}
-      <Panel><PanelTitle>Approval progress</PanelTitle> ... approved/ready/blocked bar ...</Panel>
-      <Panel><PanelTitle>Blockers before payroll runs</PanelTitle> ... </Panel>
-      */}
-
-      {/* Hours table + export aside */}
-      <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
-        <div style={s('display:flex;flex-direction:column;gap:12px;min-width:0')}>
-          <div data-tour="timesheets-search" style={s('height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
-            <Icon name="search" size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a carer"
-              style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+      <Panel>
+        <PanelTitle hint="One row per carer x visit — the CQC visit-attendance record">Visit attendance</PanelTitle>
+        <div data-tour="timesheets-period" style={s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:4px')}>
+          {dateField('From', from, setFrom, to)}
+          {dateField('To', to, (val) => setTo(val < from ? from : val))}
+          <div style={s('display:flex;gap:6px;align-items:center;height:40px')}>
+            {[{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }].map((r) => (
+              <button key={r.label} onClick={() => setRange(r.days)}
+                style={{ ...s('height:32px;padding:0 12px;border-radius:16px;background:var(--d-panel);color:var(--d-ink2);font-size:11.5px;font-weight:700;cursor:pointer;border:none'), fontFamily: 'inherit' }}>{r.label}</button>
+            ))}
           </div>
-          <div data-tour="timesheets-table" style={s('background:var(--d-card);border-radius:20px;padding:12px 14px;overflow:auto')}>
-            {rows.length === 0 ? (
-              <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>{q ? 'No carer matches.' : 'No hours in this period.'}
-                {!q && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:4px')}>Lines appear once visits are completed.</div>}
-              </div>
-            ) : (
-              <TableWrap minWidth={720}>
-                <thead><tr><Th>Carer</Th><Th align="right">Scheduled</Th><Th align="right">Worked</Th><Th align="right">Breaks</Th><Th align="right">Overtime</Th><Th align="right">Visits</Th><Th /></tr></thead>
-                <tbody>
-                  {rows.map((c) => (
-                    <Row key={c.employeeId} onClick={() => setDetail(c)}>
-                      <Td>
-                        <span style={s('display:inline-flex;align-items:center;gap:11px')}>
-                          <Avatar initials={initials(c.name)} size="sm" />
-                          <span>
-                            <b style={s('font-weight:700;color:var(--d-ink);display:block')}>{c.name}</b>
-                            {c.flagged > 0 && <span style={s('font-size:11px;font-weight:600;color:var(--d-warn-ink)')}>{c.flagged} flagged</span>}
-                          </span>
-                        </span>
-                      </Td>
-                      <Td align="right" mono>{h(c.scheduled)}</Td>
-                      <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{h(c.worked)}</b></Td>
-                      <Td align="right" mono>{h(c.breaks)}</Td>
-                      <Td align="right" mono>{c.overtime > 0 ? <span style={s('color:var(--d-magenta);font-weight:700')}>{h(c.overtime)}</span> : '–'}</Td>
-                      <Td align="right" mono>{c.lines.length}</Td>
-                      <Td align="right"><Icon name="chevronRight" size={15} style={{ color: 'var(--d-faint)' }} /></Td>
-                    </Row>
-                  ))}
-                </tbody>
-              </TableWrap>
-            )}
-          </div>
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.6;padding:0 4px')}>Hours are read straight from verified clock records — this view never changes them. Approval, locking and payroll export arrive in phase 2.</div>
+          {selectField('Client', serviceUserId, setServiceUserId, clientOptions)}
+          {selectField('Carer', employeeId, setEmployeeId, staffOptions)}
+          <div style={s('flex:1')} />
+          <Button icon="download" disabled={exporting} onClick={() => handleExport('csv')}>CSV</Button>
+          <Button variant="primary" icon="download" disabled={exporting} onClick={() => handleExport('xlsx')}>{exporting ? 'Building…' : 'Export XLSX'}</Button>
         </div>
+      </Panel>
 
-        {/* Export aside — attendance hours, not payroll. */}
-        <div data-tour="timesheets-export" style={s('display:flex;flex-direction:column;gap:16px')}>
-          <Panel>
-            <PanelTitle hint="Verified hours for this period">Export hours</PanelTitle>
-            <div style={s('display:flex;flex-direction:column;gap:8px')}>
-              <button type="button" onClick={() => handleExport('csv')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />CSV</button>
-              <button type="button" onClick={() => handleExport('xlsx')} className="hv" style={{ ...s('display:flex;align-items:center;gap:10px;border:1px solid var(--d-border);border-radius:12px;padding:11px 13px;cursor:pointer;background:transparent;text-align:left;font-size:12.5px;font-weight:600;color:var(--d-ink);width:100%'), '--hbg': 'var(--d-panel)', fontFamily: 'inherit' }}><Icon name="download" size={16} style={{ color: 'var(--d-primary)' }} />Excel (XLSX)</button>
-            </div>
-          </Panel>
-
-          <Panel>
-            <PanelTitle hint="This period at a glance">Totals</PanelTitle>
-            <div style={s('display:flex;flex-direction:column;gap:10px')}>
-              {[['Carers', carers.length], ['Scheduled', h(totalScheduled)], ['Worked', h(totalWorked)], ['Overtime', h(totalOt)]].map(([l, v]) => (
-                <div key={l} style={s('display:flex;align-items:center;justify-content:space-between')}>
-                  <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{l}</span>
-                  <span className="d-num" style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{v}</span>
-                </div>
+      {rows === null ? (
+        <Panel style={{ padding: '60px 24px' }}><Spinner /></Panel>
+      ) : rows.length === 0 ? (
+        <Panel>
+          <div style={s('display:flex;flex-direction:column;align-items:center;gap:10px;padding:46px 20px')}>
+            <div style={s('width:52px;height:52px;border-radius:16px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-muted)')}><Icon name="calendar" size={24} /></div>
+            <div style={s('font-size:14px;font-weight:700;color:var(--d-ink2)')}>No visits in this range</div>
+            <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>Try a wider date range, or clear the client/carer filter.</div>
+          </div>
+        </Panel>
+      ) : (
+        <Panel padded={false} data-tour="timesheets-table" style={{ padding: '12px 14px', overflow: 'auto' }}>
+          <TableWrap minWidth={1120}>
+            <thead>
+              <tr>
+                <Th>Carer</Th><Th>Client</Th><Th>Shift</Th>
+                <Th>Clocked in</Th><Th align="right">Late</Th><Th align="right">Distance</Th>
+                <Th>Clocked out</Th><Th align="right">Late</Th><Th align="right">Distance</Th>
+                <Th>Origin</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <Row key={i}>
+                  <Td>
+                    <span style={s('display:inline-flex;align-items:center;gap:9px')}>
+                      <Avatar initials={initials(r.staff ?? '?')} size="sm" />
+                      <b style={s('font-weight:700;color:var(--d-ink)')}>{r.staff ?? 'Unassigned'}</b>
+                    </span>
+                  </Td>
+                  <Td>{r.service_user}</Td>
+                  <Td>
+                    <span style={s('display:block;font-weight:600;color:var(--d-ink)')}>{formatDate(r.shift_began)}</span>
+                    <span className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>{r.shift_timing}</span>
+                  </Td>
+                  <Td mono>{r.clocked_in ? formatTime(r.clocked_in) : <Tag tone="danger">Missed</Tag>}</Td>
+                  <Td align="right" mono>{r.late_in ? <span style={s('color:var(--d-warn-ink);font-weight:700')}>+{r.late_in}m</span> : (r.clocked_in ? <span style={s('color:var(--d-faint)')}>on time</span> : '')}</Td>
+                  <Td align="right" mono>{r.metres_in != null ? `${r.metres_in}m` : <span style={s('color:var(--d-faint)')}>–</span>}</Td>
+                  <Td mono>{r.clocked_out ? formatTime(r.clocked_out) : (r.clocked_in ? <Tag tone="warning">Missed</Tag> : <span style={s('color:var(--d-faint)')}>–</span>)}</Td>
+                  <Td align="right" mono>{r.late_out ? <span style={s('color:var(--d-warn-ink);font-weight:700')}>+{r.late_out}m</span> : (r.clocked_out ? <span style={s('color:var(--d-faint)')}>on time</span> : '')}</Td>
+                  <Td align="right" mono>{r.metres_out != null ? `${r.metres_out}m` : <span style={s('color:var(--d-faint)')}>–</span>}</Td>
+                  <Td>{(r.offline_in === 'Yes' || r.offline_out === 'Yes') ? <Tag tone="magenta">Offline sync</Tag> : <span style={s('font-size:11.5px;font-weight:600;color:var(--d-muted)')}>Live</span>}</Td>
+                </Row>
               ))}
-            </div>
-          </Panel>
-        </div>
-      </div>
-
-      {/* Carer detail modal — per-visit hours breakdown for the period. */}
-      {detail && (
-        <Modal
-          onClose={() => setDetail(null)}
-          maxWidth={460}
-          title={detail.name}
-          subtitle={`${h(detail.worked)} worked · ${detail.lines.length} visit${detail.lines.length === 1 ? '' : 's'}`}
-        >
-            <div style={s('flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:8px')}>
-              {detail.lines.map((l, i) => {
-                const diff = (l.worked_minutes ?? 0) - (l.scheduled_minutes ?? 0);
-                return (
-                  <div key={i} style={s('background:var(--d-panel);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px')}>
-                    <div style={s('flex:1;min-width:0')}>
-                      <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{formatDate(l.work_date)}</div>
-                      <div className="d-num" style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>Scheduled {h(l.scheduled_minutes)} · worked {h(l.worked_minutes)}</div>
-                      {(l.flags ?? []).length > 0 && <div style={s('display:flex;gap:5px;margin-top:5px;flex-wrap:wrap')}>{l.flags.map((f) => <Tag key={f} tone="warning">{f.replace(/_/g, ' ')}</Tag>)}</div>}
-                    </div>
-                    <div className="d-num" style={{ ...s('font-size:12.5px;font-weight:700'), color: diff === 0 ? 'var(--d-muted)' : diff > 0 ? 'var(--d-ok-ink)' : 'var(--d-danger-ink)' }}>{diff === 0 ? 'on time' : `${diff > 0 ? '+' : ''}${diff}m`}</div>
-                  </div>
-                );
-              })}
-            </div>
-        </Modal>
+            </tbody>
+          </TableWrap>
+        </Panel>
       )}
+
+      <div style={s('display:flex;align-items:center;gap:10px;font-size:12px;font-weight:500;color:var(--d-muted);padding:0 4px')}>
+        <Icon name="shield" size={14} />
+        <span>Read straight from verified clock records — this view never changes them. To fix an actual clocked time, use a clock correction on Exceptions.</span>
+      </div>
     </div>
   );
 }

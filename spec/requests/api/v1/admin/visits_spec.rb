@@ -190,15 +190,28 @@ RSpec.describe "Admin visits & scheduling", type: :request do
       expect(response.parsed_body["error"]).to eq("reason_required")
     end
 
-    it "refuses to retime once a carer has clocked in (protects the original record)" do
+    it "allows retiming a visit once a carer has clocked in, and still audits it (admin reconciliation)" do
       va = create(:visit_assignment, visit: visit, employee: create(:employee))
       va.update!(actual_start: Time.current, lifecycle_state: :in_progress)
+      new_start = 1.day.from_now.change(hour: 11)
+      new_end   = 1.day.from_now.change(hour: 12)
       expect do
         patch "/api/v1/admin/visits/#{visit.id}",
-              params: { scheduled_start: 1.day.from_now.change(hour: 11).iso8601, reason: "too late" }, headers: auth, as: :json
-      end.not_to(change { visit.reload.scheduled_start })
-      expect(response).to have_http_status(422)
-      expect(response.parsed_body["error"]).to eq("visit_started")
+              params: { scheduled_start: new_start.iso8601, scheduled_end: new_end.iso8601, reason: "too late" }, headers: auth, as: :json
+      end.to change { Event.where(aggregate: visit, event_type: "visit.rescheduled").count }.by(1)
+      expect(response).to have_http_status(:ok)
+      expect(Time.zone.parse(visit.reload.scheduled_start.to_s)).to be_within(1.second).of(new_start)
+    end
+
+    it "allows retiming a visit that is already in the past" do
+      past = create(:visit, service_user: su, scheduled_start: 2.hours.ago, scheduled_end: 1.hour.ago)
+      new_start = 1.day.from_now.change(hour: 11)
+      new_end   = 1.day.from_now.change(hour: 12)
+      patch "/api/v1/admin/visits/#{past.id}",
+            params: { scheduled_start: new_start.iso8601, scheduled_end: new_end.iso8601, reason: "reconciling last week's rota" },
+            headers: auth, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(Time.zone.parse(past.reload.scheduled_start.to_s)).to be_within(1.second).of(new_start)
     end
   end
 end

@@ -3,8 +3,8 @@ module AttendanceAudit
     # CQC visit-attendance audit as XLSX — same columns and cells as the CSV,
     # on a single "Visit Attendance" sheet with a bold header row.
     class XlsxExporter
-      def self.call(from:, to:)
-        rows = AttendanceAudit::Build.call(from: from, to: to)
+      def self.call(from:, to:, service_user_id: nil, employee_id: nil)
+        rows = AttendanceAudit::Build.call(from: from, to: to, service_user_id: service_user_id, employee_id: employee_id)
 
         package = Axlsx::Package.new
         wb = package.workbook

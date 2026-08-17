@@ -11,4 +11,15 @@ class Visit < ApplicationRecord
   scope :published, -> { where(status: :published) }
 
   validates :scheduled_end, comparison: { greater_than: :scheduled_start }
+  validate :must_be_at_least_15_minutes
+
+  private
+
+  def must_be_at_least_15_minutes
+    return unless scheduled_start && scheduled_end
+
+    if scheduled_end < (scheduled_start + 15.minutes)
+      errors.add(:scheduled_end, "must be at least 15 minutes after scheduled start")
+    end
+  end
 end

@@ -66,9 +66,89 @@ admin = Admin.create!(
   mfa_secret: DEMO_MFA_SECRET
 )
 
+# ---------------------------------------------------------------------------
+# Carers (for local/staging login testing)
+# ---------------------------------------------------------------------------
+aisha = Employee.create!(
+  email: "aisha@bestpinnacle.test",
+  password: DEMO_PASSWORD,
+  first_name: "Aisha",
+  last_name: "Yusuf",
+  role: :carer,
+  active: true,
+  accepted_invite_at: 14.days.ago
+)
+tom = Employee.create!(
+  email: "tom@bestpinnacle.test",
+  password: DEMO_PASSWORD,
+  first_name: "Tom",
+  last_name: "Whitfield",
+  role: :carer,
+  active: true,
+  accepted_invite_at: 20.days.ago
+)
+
+# ---------------------------------------------------------------------------
+# Clients (service users) — real Manchester-area coordinates so a clock-in at
+# the same point passes the geofence like a real visit would.
+# ---------------------------------------------------------------------------
+ada = ServiceUser.create!(
+  first_name: "Ada", last_name: "Whitfield", reference: "SU-1001",
+  address_line1: "14 Oxford Road", city: "Manchester", postcode: "M1 5QA",
+  lat: 53.4776, lng: -2.2416, active: true
+)
+frank = ServiceUser.create!(
+  first_name: "Frank", last_name: "Doyle", reference: "SU-1002",
+  address_line1: "82 Chester Road", city: "Manchester", postcode: "M15 4EU",
+  lat: 53.4711, lng: -2.2529, active: true
+)
+
+# ---------------------------------------------------------------------------
+# Visits + clock events over the last few days — a spread of real attendance
+# outcomes (on time, late, offline-synced, missed clock-out) so the CQC
+# visit-attendance audit (Timesheets) has something to show straight away.
+# Written through Clocking::RecordClockEvent, the same writer the app uses
+# live, so lifecycle state and worked_minutes come out consistent.
+# ---------------------------------------------------------------------------
+def seed_visit(su:, employee:, start:, minutes: 45, clock_in_late_by: 0, clock_out: true, offline_in: false, lat: nil, lng: nil)
+  v = Visit.create!(service_user: su, scheduled_start: start, scheduled_end: start + minutes.minutes, status: :published, published_at: Time.current)
+  va = VisitAssignment.create!(visit: v, employee: employee, assignment_status: "assigned", lifecycle_state: :scheduled)
+
+  in_at = start + clock_in_late_by.minutes
+  Clocking::RecordClockEvent.call(
+    visit_assignment: va, kind: "clock_in", client_event_id: SecureRandom.uuid,
+    occurred_at: in_at, lat: lat || su.lat, lng: lng || su.lng, accuracy_m: 12,
+    actor: employee, on_block: offline_in ? :flag : :reject
+  )
+
+  if clock_out
+    Clocking::RecordClockEvent.call(
+      visit_assignment: va, kind: "clock_out", client_event_id: SecureRandom.uuid,
+      occurred_at: start + minutes.minutes, lat: lat || su.lat, lng: lng || su.lng, accuracy_m: 12,
+      actor: employee, on_block: :reject
+    )
+  end
+  va
+end
+
+# Aisha: on-time visit today, a late arrival yesterday, an offline-synced tap.
+seed_visit(su: ada,   employee: aisha, start: 2.hours.ago)
+seed_visit(su: frank, employee: aisha, start: 1.day.ago.change(hour: 9), clock_in_late_by: 8)
+seed_visit(su: ada,   employee: aisha, start: 2.days.ago.change(hour: 14), offline_in: true)
+
+# Tom: on-time visit, and one still missing a clock-out (in progress).
+seed_visit(su: frank, employee: tom, start: 3.hours.ago)
+seed_visit(su: ada,   employee: tom, start: 1.hour.ago, clock_out: false)
+
 puts "\n" + ("=" * 64)
-puts "Seed complete. Cleaned DB and created 1 Admin user."
+puts "Seed complete. Cleaned DB and created 1 Admin, 2 carers, 2 clients, 5 visits."
 puts "-" * 64
 puts "Admin Email:    #{admin.email}"
 puts "Admin Password: #{DEMO_PASSWORD}"
+puts "-" * 64
+puts "Carer Email:    #{aisha.email}"
+puts "Carer Email:    #{tom.email}"
+puts "Carer Password: #{DEMO_PASSWORD}"
+puts "-" * 64
+puts "Visit attendance data seeded for the last 2 days — view it on Timesheets."
 puts "=" * 64
