@@ -89,9 +89,9 @@ export const toShifts = (list = []) => list.map(toShift).filter(Boolean);
 // ---------------------------------------------------------------------------
 // GET /staff/visit_assignments/:id returns the assignment plus care_plan, tasks
 // and notes. The spec types those three as bare objects, so the item shapes are
-// undocumented — these mappers read the field names the migration in
-// suggestedMissingEndpoints.md proposed and fall back rather than throw. Once
-// the real shapes are confirmed against the running API, tighten them.
+// undocumented — these mappers read the field names the serializers emit and
+// fall back rather than throw. Once the shapes are pinned down in the OpenAPI
+// doc, tighten them.
 // ---------------------------------------------------------------------------
 export function toCarePlanItem(item, i) {
   return {
@@ -163,7 +163,7 @@ export function toUser(employee) {
 
     // PATCH /staff/me accepts these two, so the carer can set them. They are
     // not in the documented Employee schema, so whether they come back on a
-    // read is unconfirmed — see suggestedMissingEndpoints.md.
+    // read is unconfirmed against the OpenAPI doc.
     emergencyContactName: employee.emergency_contact_name ?? null,
     emergencyContactPhone: employee.emergency_contact_phone ?? null,
 
@@ -290,8 +290,8 @@ export const toMessages = (list = [], ctx) =>
 // `night` is in the API's enum but has no control on the Availability screen.
 // Rather than assert `night: false` on every save — which would silently wipe a
 // value the carer cannot see, let alone have set — whatever the server already
-// holds for it is preserved. Flagged in suggestedMissingEndpoints.md: either the
-// screen grows a Night row or the enum drops it.
+// holds for it is preserved. Still open with the team: either the screen grows
+// a Night row or the enum drops it.
 // ---------------------------------------------------------------------------
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 export const API_SLOTS = ['morning', 'afternoon', 'evening', 'night'];

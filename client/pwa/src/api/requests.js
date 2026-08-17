@@ -3,8 +3,18 @@ import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
 import { newUuid } from '../utils/ids.js';
 
-// Carer requests (swap, drop, overtime, leave, and our new clock_assistance).
-// The backend already supports POST /api/v1/staff/requests and GET /api/v1/staff/requests.
+// Carer requests. POST /api/v1/staff/requests and GET /api/v1/staff/requests.
+//
+// KIND WARNING: the server validates `kind` against CarerRequest::KINDS, which
+// is swap / drop / overtime / availability / leave. `clock_assistance` is NOT
+// in that list, so AssistanceRequestDialog's request is refused with 422
+// validation_failed against a real API. The Playwright suite does not catch it
+// because it runs in mock mode. Either the backend adds the kind or the dialog
+// picks an existing one — raised with Ian, not worked around here, because
+// silently relabelling an urgent "I cannot clock in" as a shift `drop` would
+// tell the office something untrue.
+//
+// Declining a visit (ShiftDetailPage) uses `drop`, which is a real kind.
 // Clock-assistance context (visit, attempted_at, error_code, distance, lat/lng,
 // device_fingerprint) travels in the flexible `payload` jsonb, and every request
 // carries a `client_request_id` for idempotency — the PWA offline queue keys on

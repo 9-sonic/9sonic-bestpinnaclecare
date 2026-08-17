@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
+import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
 import { getSummary } from '../api/stats.js';
 import { getClockStatus } from '../api/clock.js';
 import { listShifts } from '../api/shifts.js';
@@ -174,6 +175,14 @@ export default function HomePage() {
       active = false;
     };
   }, []);
+
+  // The bell here is the carer's main sight of anything the office sends, so it
+  // updates when the notification arrives rather than on the next page load.
+  const refreshNotifications = useCallback(
+    () => listNotifications().then(setNotifications).catch(() => {}),
+    []
+  );
+  useInboxNotifications(refreshNotifications);
 
   const week = summary?.week;
   const unread = notifications.filter((n) => !n.read).length;

@@ -10,6 +10,10 @@ import Spinner from '../components/common/Spinner.jsx';
 import Modal from '../components/common/Modal.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { getShift, saveVisitNote } from '../api/shifts.js';
+import { createRequest } from '../api/requests.js';
+import { enqueue as enqueueRequest } from '../utils/assistanceQueue.js';
+import { useOnline } from '../hooks/useOnline.js';
+import { newUuid } from '../utils/ids.js';
 import { formatTimeRange, formatDayLabel } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
 
@@ -32,6 +36,7 @@ export default function ShiftDetailPage() {
   const { shiftId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const online = useOnline();
   const [shift, setShift] = useState(null);
   const [note, setNote] = useState('');
   const [tasks, setTasks] = useState([]);
@@ -63,8 +68,21 @@ export default function ShiftDetailPage() {
     tapFeedback();
     setSaving(true);
     try {
-      await saveVisitNote({ shiftId, note, tasks });
-      toast.success('Visit note saved');
+      // `savedNote` is what the server already holds, so an unchanged note is
+      // not posted again. Without it, tapping Save twice appends a duplicate.
+      const { synced } = await saveVisitNote({
+        shiftId,
+        note,
+        tasks,
+        savedNote: shift?.visitNote ?? '',
+      });
+      if (synced) {
+        setShift((prev) => ({ ...prev, visitNote: note, hasUnsentLocalEdits: false }));
+        toast.success('Visit note saved');
+      } else {
+        setShift((prev) => ({ ...prev, hasUnsentLocalEdits: true }));
+        toast.warn('Saved on this phone. It will be sent when you have signal.');
+      }
     } catch {
       toast.error('Could not save note');
     } finally {
@@ -72,15 +90,54 @@ export default function ShiftDetailPage() {
     }
   }
 
+  // Declining a visit is a carer request of kind `drop`: the carer is handing
+  // the visit back and the office arranges cover. `drop` is one of the kinds the
+  // backend actually accepts (CarerRequest::KINDS); the chosen reason travels in
+  // `payload` rather than in `kind`, so nothing here depends on a kind the API
+  // would reject.
+  //
+  // The status only flips once the office has really been told. Before this the
+  // handler set it locally and toasted "the office has been notified" without
+  // making any call at all, so a carer could believe a visit was covered when
+  // nobody knew about it.
   async function handleRequestCover() {
     tapFeedback();
     setSubmittingCover(true);
+
+    const reasonLabel = COVER_REASONS.find((r) => r.id === coverReason)?.label ?? coverReason;
+    // Built once, outside the try, so the offline replay sends the same
+    // client_request_id and the office gets one request rather than two.
+    const body = {
+      kind: 'drop',
+      summary: `Cover needed — ${reasonLabel.replace(/^\S+\s/, '')}${shift ? ` (${shift.client})` : ''}`,
+      detail: coverNote.trim() || null,
+      payload: {
+        visit_assignment_id: shift?.id ?? null,
+        reason: coverReason,
+        requested_at: new Date().toISOString(),
+        client_request_id: newUuid(),
+      },
+    };
+
     try {
+      if (!online) throw Object.assign(new Error('offline'), { isNetworkError: true });
+      await createRequest(body);
       setShift((prev) => ({ ...prev, status: 'cover_requested' }));
       setShowCoverModal(false);
       toast.success('Cover requested. The office has been notified.');
-    } catch {
-      toast.error('Could not request cover');
+    } catch (err) {
+      if (err?.isNetworkError || !online) {
+        // No signal is normal between visits, so hold it and say so honestly
+        // instead of claiming the office knows.
+        enqueueRequest(body);
+        setShift((prev) => ({ ...prev, status: 'cover_requested' }));
+        setShowCoverModal(false);
+        toast.warn('Saved on this phone. It will be sent when you have signal.');
+      } else {
+        // The server refused it. Keep the modal open with the reason still
+        // selected so the carer can adjust, and leave the status alone.
+        toast.error(err.message || 'Could not request cover. Try again.');
+      }
     } finally {
       setSubmittingCover(false);
     }

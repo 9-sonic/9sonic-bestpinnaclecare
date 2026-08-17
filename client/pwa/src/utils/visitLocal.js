@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
-// Visit notes and task ticks — local only, for now.
+// Visit notes and task ticks — the offline buffer.
 //
-// GET /staff/visit_assignments/:id returns the care plan, the task list and the
-// notes. Nothing accepts them back: there is no write endpoint for either (gap
-// 2 in suggestedMissingEndpoints.md).
+// Both writes now reach the office: PATCH /staff/visit_assignments/:id/tasks
+// and POST /staff/visit_assignments/:id/note. This file is no longer the only
+// copy of a carer's write-up; it is the copy that has not been acknowledged
+// yet.
 //
-// So a carer ticking off medication or writing up a visit is recording it on
-// their own phone, and the office cannot see it. That is bad, and it is called
-// out for Ian. What this file prevents is the worse version: before it, the
-// note was written into the mock fixture store and never read back on the live
-// path, so it vanished on reload and looked to the carer like the app had
-// thrown their write-up away.
+// That distinction is the whole point. An entry here means "this device holds
+// something the office has not confirmed", so it is written before the request
+// goes out and cleared once the server accepts it. Carers work in houses with
+// no signal, so a note typed at a door has to survive the walk back to the car.
 //
-// Local values are layered over the server's on read, so what a carer typed
-// stays on their screen. The moment the write endpoints exist, this whole file
-// and the merge in getShift come out.
+// `clientNoteId` is minted once per unsent note and kept here verbatim. The
+// note endpoint is idempotent on it (a replay hits the unique index and returns
+// the existing note with 200), so retrying after a dropped connection cannot
+// leave two copies of the same write-up in the record.
 // ---------------------------------------------------------------------------
 
 const KEY = 'bpc.local.visits';
@@ -39,20 +39,30 @@ export function getVisitLocal(shiftId) {
   return readAll()[String(shiftId)] ?? null;
 }
 
-export function saveVisitLocal(shiftId, { note, tasks }) {
+export function saveVisitLocal(shiftId, { note, tasks, clientNoteId } = {}) {
   const id = String(shiftId);
   const all = readAll();
   all[id] = {
     ...(all[id] ?? {}),
     ...(note !== undefined ? { note } : null),
     ...(tasks !== undefined ? { tasks } : null),
+    ...(clientNoteId !== undefined ? { clientNoteId } : null),
     savedAt: new Date().toISOString(),
   };
   writeAll(all);
-  return { ok: true };
+  return all[id];
 }
 
-// Layers anything saved on this device over what the server returned.
+// Called once the server has the write. Anything still here after this is
+// genuinely unsent.
+export function clearVisitLocal(shiftId) {
+  const all = readAll();
+  delete all[String(shiftId)];
+  writeAll(all);
+}
+
+// Layers anything still unsent over what the server returned, so a carer who
+// typed a note offline still sees it on reload.
 export function mergeVisitLocal(shift) {
   if (!shift) return shift;
   const local = getVisitLocal(shift.id);

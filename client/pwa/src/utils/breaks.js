@@ -1,17 +1,19 @@
 // ---------------------------------------------------------------------------
-// Break timer — local only.
+// Break timer — the on-device display.
 //
-// The API models `break_minutes` on both the visit and the timesheet line, but
-// nothing records a carer starting or ending a break, so there is nowhere to
-// send this. Until there is (see gap 3 in suggestedMissingEndpoints.md) the
-// Break button drives a timer on the device and the figure reaching the
-// timesheet is the scheduled break, not the real one.
+// The break itself is recorded by the office now (api/clock.js posts
+// break_start / break_end to POST /staff/visit_assignments/:id/break). This
+// file is what the carer *sees*: the dial has to keep counting in a house with
+// no signal, so the timer runs locally and the server call rides alongside it.
+// A tap is never blocked on the network.
+//
+// So the two are not redundant — this is the running clock, the server holds
+// the audited events. If they disagree, the server's events are the record.
 //
 // This used to live in the mock API. That looked harmless while everything was
 // mocked, but the mock implementation looked the visit up in its own fixture
 // table first — so against the real API, every break tap on a real visit threw
-// "We could not find that." Break state is genuinely local, so it belongs here
-// rather than behind a fake endpoint.
+// "We could not find that."
 // ---------------------------------------------------------------------------
 
 const KEY = 'bpc.local.breaks';

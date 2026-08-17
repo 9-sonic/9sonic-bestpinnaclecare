@@ -2,7 +2,8 @@ import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
 import { toShifts, toShift, toShiftDetail } from './adapters.js';
-import { saveVisitLocal, mergeVisitLocal } from '../utils/visitLocal.js';
+import { saveVisitLocal, clearVisitLocal, getVisitLocal, mergeVisitLocal } from '../utils/visitLocal.js';
+import { newUuid } from '../utils/ids.js';
 
 // The carer's own visits. The API returns visit assignments with the visit and
 // the service user nested; adapters flattens them into the shift shape screens
@@ -52,11 +53,55 @@ async function getShiftFromWindow(id) {
   return match ? toShift(match) : null;
 }
 
-// Visit notes and task checklists still have no write endpoint — the detail
-// route reads them, nothing accepts them back. Saved on the device and layered
-// back over the server's copy on read, so a carer's write-up does not disappear
-// on reload. It does not reach the office. See gap 2 in
-// suggestedMissingEndpoints.md; this goes away when the two writes exist.
-export async function saveVisitNote({ shiftId, note, tasks }) {
-  return saveVisitLocal(shiftId, { note, tasks });
+// Saves the carer's write-up and task ticks to the office.
+//
+// Two endpoints, because the API models them separately:
+//   PATCH /staff/visit_assignments/:id/tasks  { tasks: [{ id, done }] }
+//   POST  /staff/visit_assignments/:id/note   { body, client_note_id }
+//
+// The device copy is written first and only cleared once the server has both.
+// A carer standing in a hallway with no signal must not lose what they typed,
+// and must not be told it reached the office when it did not — the caller
+// reads `synced` to decide which of those it says.
+//
+// The note is skipped when it is empty or unchanged from what the server
+// already holds, so tapping Save twice does not append a second identical note.
+// When it is sent, `client_note_id` is reused from the stored entry across
+// retries, so a replay resolves to the same note rather than a duplicate.
+export async function saveVisitNote({ shiftId, note, tasks, savedNote } = {}) {
+  const pending = getVisitLocal(shiftId);
+  const clientNoteId = pending?.clientNoteId ?? newUuid();
+  const trimmed = (note ?? '').trim();
+  const noteChanged = trimmed.length > 0 && trimmed !== (savedNote ?? '').trim();
+
+  // Buffer first: if the request never lands, this is what survives.
+  saveVisitLocal(shiftId, { note, tasks, clientNoteId });
+
+  if (env.useMock) {
+    await mock.saveVisitNote({ shiftId, note, tasks });
+    clearVisitLocal(shiftId);
+    return { synced: true };
+  }
+
+  try {
+    if (tasks?.length) {
+      await api.patch(`/staff/visit_assignments/${shiftId}/tasks`, {
+        tasks: tasks.map((t) => ({ id: t.id, done: Boolean(t.done) })),
+      });
+    }
+    if (noteChanged) {
+      await api.post(`/staff/visit_assignments/${shiftId}/note`, {
+        body: trimmed,
+        client_note_id: clientNoteId,
+      });
+    }
+  } catch (error) {
+    // No signal: the buffer stands and the caller says so honestly. A refusal
+    // from the server is different — the carer needs to know it failed.
+    if (error?.isNetworkError) return { synced: false };
+    throw error;
+  }
+
+  clearVisitLocal(shiftId);
+  return { synced: true };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getThread, sendMessage, markRead } from '../api/messages.js';
+import { getThread, getThreadMessages, sendMessage, markRead } from '../api/messages.js';
 import { subscribeInbox } from '../api/cable.js';
 import { useAuth } from '../hooks/useAuth.js';
 import Avatar from '../components/common/Avatar.jsx';
@@ -77,8 +77,13 @@ export default function ChatPage() {
     const off = subscribeInbox((payload) => {
       if (payload?.type !== 'message' || !payload.message) return;
       if (String(payload.message.conversation_id) !== String(threadId)) return;
-      getThread(threadId, user)
-        .then((t) => { setThread(t); markRead(t.messages?.[t.messages.length - 1]?.id); })
+      // Messages only: the thread's name and participants are already loaded
+      // and do not change when a message arrives.
+      getThreadMessages(threadId, user)
+        .then((messages) => {
+          setThread((prev) => (prev ? { ...prev, messages } : prev));
+          markRead(messages?.[messages.length - 1]?.id);
+        })
         .catch(() => { /* ignore */ });
     });
     return off;

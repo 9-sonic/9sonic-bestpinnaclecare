@@ -339,7 +339,10 @@ export default function ClockPage() {
       // toggleBreak returns the updated record, so there is no need to read it
       // back. Resetting `now` at the same moment stops the timer jumping by up
       // to a second when the break starts or ends.
-      const next = await toggleBreak({ shiftId: shift.id });
+      //
+      // `gps` is the fix from the clock tap, reused so the break event carries
+      // coordinates without raising a second permission prompt mid-shift.
+      const next = await toggleBreak({ shiftId: shift.id, location: gps });
       setNow(Date.now());
       setBreakState(next);
     } catch (err) {
