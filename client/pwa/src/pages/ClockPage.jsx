@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
 import { getBreak, clearBreak } from '../utils/breaks.js';
-import { requestLocation } from '../utils/geolocation.js';
+import { requestLocation, distanceMeters } from '../utils/geolocation.js';
 import { formatElapsed, formatTime } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -19,7 +19,8 @@ import { useOnline } from '../hooks/useOnline.js';
 import { enqueue } from '../utils/offlineQueue.js';
 import { successFeedback, errorFeedback, warnFeedback, tapFeedback } from '../utils/haptics.js';
 
-// How each location status is shown. The reasons are separated because they ask
+// How each location status is shown. These are outcomes of a clock tap, never
+// of simply opening the screen. The reasons are separated because they ask
 // different things of the carer: a denied permission is theirs to change, no
 // signal is something to walk a few steps and retry, and a timeout is worth one
 // more go. None of them stop a clock-in — the server owns that decision.
@@ -29,7 +30,19 @@ const VERIFY = {
   denied: { tone: 'warn', icon: 'alert', text: 'Not verified · location is off for this app' },
   unavailable: { tone: 'warn', icon: 'alert', text: 'Not verified · no location signal' },
   timeout: { tone: 'warn', icon: 'alert', text: "Not verified · couldn't get a fix" },
+  // A fix was captured, but it is not near the address. The text is filled in
+  // with the distance at render time.
+  too_far: { tone: 'warn', icon: 'alert', text: 'Not verified · not at the address' },
 };
+
+// Distance in the units a carer thinks in on a doorstep: metres up close, and
+// rounded kilometres once it is plainly the wrong place.
+const farText = (m) =>
+  m == null
+    ? VERIFY.too_far.text
+    : m >= 1000
+      ? `Not verified · about ${(m / 1000).toFixed(m < 10000 ? 1 : 0)}km from the address`
+      : `Not verified · about ${m}m from the address`;
 
 export default function ClockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,11 +54,16 @@ export default function ClockPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [gps, setGps] = useState(null);
-  // Why there is or isn't a fix, not just whether. Starts at 'pending' because
-  // the warm-up effect below fires on mount: 'no fix yet' and 'no fix, and there
-  // won't be one' are different things to say to someone standing at a door.
-  // 'ok' | 'pending' | 'denied' | 'unavailable' | 'timeout'.
-  const [gpsStatus, setGpsStatus] = useState('pending');
+  // Why there is or isn't a fix, not just whether. Starts at null — meaning
+  // "not asked yet" — because nothing about location is checked or shown until
+  // the carer taps to clock. Everything else is the outcome of such a tap, and
+  // the reasons stay separate: 'no fix yet' and 'no fix, and there won't be
+  // one' are different things to say to someone standing at a door.
+  // null | 'ok' | 'pending' | 'denied' | 'unavailable' | 'timeout' | 'too_far'.
+  const [gpsStatus, setGpsStatus] = useState(null);
+  // How far the last fix was from the visit address, in metres, when both were
+  // known. Kept so the chip and the assistance request can say the number.
+  const [gpsDistanceM, setGpsDistanceM] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
   const [assistOpen, setAssistOpen] = useState(false);
@@ -77,31 +95,6 @@ export default function ClockPage() {
     };
   }, [refresh]);
 
-  // Warm up location as soon as the clock screen opens, so the permission
-  // prompt is handled and a fix is cached before the first tap — otherwise the
-  // very first clock-in often goes out with no location.
-  useEffect(() => {
-    let active = true;
-    requestLocation().then(({ fix, status }) => {
-      if (!active) return;
-      setGps(fix);
-      setGpsStatus(status);
-    });
-    return () => { active = false; };
-  }, []);
-
-  // A carer walking up to the path often has no fix, then has one twenty steps
-  // later. Re-asking is the highest-value thing they can do when the chip says
-  // it failed, so the chip offers it.
-  const retryLocation = useCallback(() => {
-    tapFeedback();
-    setGpsStatus('pending');
-    requestLocation().then(({ fix, status }) => {
-      setGps(fix);
-      setGpsStatus(status);
-    });
-  }, []);
-
   // The shown shift is derived, not stored. The URL wins when it names a shift
   // that still exists; otherwise fall back to whatever the carer most likely
   // wants. Deriving it means arriving here without the query string, or having
@@ -116,6 +109,48 @@ export default function ClockPage() {
       shifts[0]
     );
   }, [shifts, selectedId]);
+
+  // Location is asked for at the moment of a clock tap and nowhere else — not
+  // on open. Opening the screen to glance at a shift should not raise a
+  // permission prompt, and should not accuse anyone of being unverified when
+  // they were not trying to clock in yet.
+  //
+  // "Verified" has to mean *at this address*, not merely "a fix arrived", so a
+  // fix is measured against the visit's coordinates before it earns the word.
+  // This check is provisional and does not block the tap: the server still
+  // decides whether the event is accepted, and whether being outside the
+  // geofence warns or refuses is an open policy question for Best Pinnacle.
+  // When the visit carries no coordinates there is nothing to measure against,
+  // so the chip says the fix was captured and leaves the judgement to the
+  // server.
+  //
+  // Both the tap and the retry below report the outcome the same way: the chip
+  // holds it, and a toast says it out loud so it is not missed under a thumb.
+  const checkLocation = useCallback(async () => {
+    setGpsStatus('pending');
+    const { fix, status } = await requestLocation();
+    setGps(fix);
+
+    const away = status === 'ok' ? distanceMeters(fix, shift?.geo) : null;
+    const outside = away != null && away > (shift?.geo?.radius ?? 0);
+    const verdict = outside ? 'too_far' : status;
+    setGpsStatus(verdict);
+    setGpsDistanceM(away);
+
+    if (verdict === 'ok') toast.success('Location verified');
+    else if (verdict === 'too_far') toast.warn(farText(away));
+    else toast.warn(VERIFY[verdict].text);
+
+    return { fix, status, distanceM: away, verified: verdict === 'ok' };
+  }, [toast, shift]);
+
+  // A carer walking up to the path often has no fix, then has one twenty steps
+  // later. Re-asking is the highest-value thing they can do when the chip says
+  // it failed, so the chip offers it.
+  const retryLocation = useCallback(() => {
+    tapFeedback();
+    checkLocation();
+  }, [checkLocation]);
 
   // Keep the URL in step so the screen can be shared or reloaded.
   useEffect(() => {
@@ -214,9 +249,9 @@ export default function ClockPage() {
     setError('');
     setBusy(true);
     try {
-      const { fix: location, status } = await requestLocation();
-      setGps(location);
-      setGpsStatus(status);
+      // Verification happens here, on the tap, and says so either way before
+      // the event goes anywhere.
+      const { fix: location, distanceM } = await checkLocation();
 
       const event = buildClockEvent({ kind, location });
 
@@ -230,7 +265,9 @@ export default function ClockPage() {
         // retry, so it is surfaced rather than queued.
         if (err.code === 'too_far') {
           errorFeedback();
-          const away = err.data?.distance_m;
+          // The server's distance is the one that counts; ours stands in only
+          // when it did not send one.
+          const away = err.data?.distance_m ?? distanceM;
           setLastError({ code: 'too_far', distanceM: away ?? null, attemptedAt: event.occurred_at, location });
           setError(
             away
@@ -369,25 +406,30 @@ export default function ClockPage() {
         <EmptyState icon="calendar" title="No shifts today" text="When your rota is published your visits will appear here." />
       ) : (
         <>
-          {/* Where the location stands, honestly. "Verified" means a GPS fix was
-              captured — not that the carer has been checked against the address,
-              which only the server decides. Anything other than a fix is amber
-              and says so, with the reason, because a carer who has denied the
-              permission can fix that and a carer with no signal cannot. */}
-          <span
-            className={`verifychip verifychip--${VERIFY[gpsStatus].tone}`}
-            aria-live="polite"
-          >
-            <Icon name={VERIFY[gpsStatus].icon} size={13} />
-            {gpsStatus === 'ok'
-              ? `Verified · ${shift.address.split(',')[0]}`
-              : VERIFY[gpsStatus].text}
-            {VERIFY[gpsStatus].tone === 'warn' && (
-              <button type="button" className="verifychip__retry" onClick={retryLocation}>
-                Try again
-              </button>
-            )}
-          </span>
+          {/* Where the location stands, honestly — and only once a clock tap has
+              actually asked. "Verified" means a GPS fix was captured, not that
+              the carer has been checked against the address, which only the
+              server decides. Anything other than a fix is amber and says so,
+              with the reason, because a carer who has denied the permission can
+              fix that and a carer with no signal cannot. */}
+          {gpsStatus && (
+            <span
+              className={`verifychip verifychip--${VERIFY[gpsStatus].tone}`}
+              aria-live="polite"
+            >
+              <Icon name={VERIFY[gpsStatus].icon} size={13} />
+              {gpsStatus === 'ok'
+                ? `Verified · ${shift.address.split(',')[0]}`
+                : gpsStatus === 'too_far'
+                  ? farText(gpsDistanceM)
+                  : VERIFY[gpsStatus].text}
+              {VERIFY[gpsStatus].tone === 'warn' && (
+                <button type="button" className="verifychip__retry" onClick={retryLocation}>
+                  Try again
+                </button>
+              )}
+            </span>
+          )}
 
           {/* The privacy promise the product rests on, and it must not go quiet
               just because the chip above is busy reporting a failure: location
