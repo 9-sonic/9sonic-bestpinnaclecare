@@ -97,3 +97,23 @@ export function requestLocation({ timeout = 15000, maximumAge = 30000 } = {}) {
 export function getCurrentLocation(options) {
   return requestLocation(options).then((res) => res.fix);
 }
+
+// Metres between two points, great-circle. Good to well under a metre at the
+// distances that matter here (a doorstep, not a continent), and it costs
+// nothing, which is the point: a carer standing outside a house with no signal
+// still deserves to be told they are at the right house.
+//
+// This is a *provisional* check. The server remains the authority on whether a
+// clock event is inside the geofence; this only decides what the screen says.
+export function distanceMeters(a, b) {
+  if (a?.latitude == null || a?.longitude == null || b?.lat == null || b?.lng == null) return null;
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.latitude);
+  const dLng = toRad(b.lng - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+}
