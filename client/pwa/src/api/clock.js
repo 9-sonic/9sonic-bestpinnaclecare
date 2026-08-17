@@ -3,7 +3,8 @@ import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
 import { toShifts } from './adapters.js';
 import { newUuid, deviceFingerprint } from '../utils/ids.js';
-import { toggleBreak as toggleLocalBreak } from '../utils/breaks.js';
+import { toggleBreak as toggleLocalBreak, getBreak as getLocalBreak } from '../utils/breaks.js';
+import { enqueue } from '../utils/offlineQueue.js';
 
 // Clocking is keyed on the visit assignment, and every event carries a
 // client-generated UUID. The server treats that UUID as the identity of the
@@ -30,20 +31,6 @@ export async function sendClockEvent({ visitAssignmentId, event }) {
   return api.post(`/staff/visit_assignments/${visitAssignmentId}/clock`, event);
 }
 
-export function clockIn({ shiftId, location }) {
-  return sendClockEvent({
-    visitAssignmentId: shiftId,
-    event: buildClockEvent({ kind: 'clock_in', location }),
-  });
-}
-
-export function clockOut({ shiftId, location }) {
-  return sendClockEvent({
-    visitAssignmentId: shiftId,
-    event: buildClockEvent({ kind: 'clock_out', location }),
-  });
-}
-
 // Derived from the visit list: whichever assignment is in progress.
 export async function getClockStatus() {
   const res = env.useMock ? await mock.listVisits({}) : await api.get('/staff/visits', {});
@@ -51,14 +38,55 @@ export async function getClockStatus() {
   return active ? { clockedIn: true, shift: active } : { clockedIn: false, shift: null };
 }
 
-// Breaks are not modelled in the API. The schema carries break_minutes on the
-// visit and the timesheet line, but nothing records a carer starting one, so
-// this stays on the device. See gap 3 in suggestedMissingEndpoints.md.
+// Breaks now reach the office: POST /staff/visit_assignments/:id/break records
+// a break_start / break_end through the same append-only clock pipeline, so a
+// break is idempotent on client_event_id and audited like any other event.
 //
-// Identical on both paths deliberately: the previous version went through the
-// mock API, which looked the visit up in its fixture table and threw a 404 for
-// any real visit id — so the Break button was broken the moment the app pointed
-// at a live API.
-export async function toggleBreak({ shiftId }) {
-  return toggleLocalBreak(shiftId);
+// Two things stay deliberately local:
+//
+//   The timer. The dial has to keep counting in a house with no signal, so the
+//   device remains the display source and the server call rides alongside it.
+//   The tap is never blocked on the network.
+//
+//   The decision to send. The endpoint uses on_block: :flag, so being out of
+//   range flags the event rather than refusing it — a carer is never stopped
+//   from taking a break by a geofence.
+//
+// `location` is the fix already captured at the clock tap, passed in by the
+// caller. Breaks do not raise a fresh permission prompt: the carer is at the
+// address they clocked in at, and re-asking mid-shift buys nothing.
+export async function toggleBreak({ shiftId, location = null }) {
+  const wasOnBreak = Boolean(getLocalBreak(shiftId).startedAt);
+  const phase = wasOnBreak ? 'end' : 'start';
+
+  // Flip the local timer first so the UI responds instantly and offline.
+  const next = toggleLocalBreak(shiftId);
+
+  if (env.useMock) return next;
+
+  const event = buildClockEvent({ kind: phase === 'start' ? 'break_start' : 'break_end', location });
+
+  try {
+    await api.post(`/staff/visit_assignments/${shiftId}/break`, {
+      phase,
+      client_event_id: event.client_event_id,
+      occurred_at: event.occurred_at,
+      lat: event.lat,
+      lng: event.lng,
+      accuracy_m: event.accuracy_m,
+    });
+  } catch (error) {
+    if (error?.isNetworkError) {
+      // The clock outbox already carries break_start / break_end: they are
+      // valid ClockEvent kinds and Sync::IngestBatch passes `kind` straight
+      // through, so no second queue is needed. The timer stands either way.
+      enqueue({ visitAssignmentId: shiftId, event });
+      return next;
+    }
+    // A refusal is worth telling the carer about, but their break has still
+    // started as far as the device is concerned — the timer is not rolled back.
+    throw error;
+  }
+
+  return next;
 }
