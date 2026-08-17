@@ -9933,6 +9933,40 @@ body:has(.drawer-backdrop) .app-content {
   color: var(--success-text);
 }
 
+/* Still looking. Deliberately the plain chip and not amber: no fix *yet* is not
+   a failure, and colouring it as one trains carers to ignore the amber that
+   does matter. */
+.verifychip--pending {
+  color: var(--color-text-muted);
+}
+
+/* No fix, and a reason. Amber rather than red: nothing has gone wrong with the
+   visit and the carer can still clock in — the office simply won't have a
+   location against this event. */
+.verifychip--warn {
+  background: var(--warning-bg);
+  border-color: transparent;
+  color: var(--warning-text);
+}
+
+/* Sized for a thumb at a front door. The 44px comes from the accessibility
+   test, which measures every control on the screen; the negative margins keep
+   the chip itself from growing to fit the target. */
+.verifychip__retry {
+  min-height: 44px;
+  margin: -14px -6px -14px 0;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* -- the note under the dial ---------------------------------------------- */
 
 .clock-note {
@@ -9940,6 +9974,13 @@ body:has(.drawer-backdrop) .app-content {
   text-align: center;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+/* Same voice, different position. The base note tucks up under the dial with a
+   negative top margin; this one sits below the verify chip, where that negative
+   margin pulls it into the chip's pill. */
+.clock-note--privacy {
+  margin-top: var(--space-2);
 }
 
 .clock-error {

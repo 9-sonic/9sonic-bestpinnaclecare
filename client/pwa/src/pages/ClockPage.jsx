@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
 import { buildClockEvent, sendClockEvent, toggleBreak } from '../api/clock.js';
 import { getBreak, clearBreak } from '../utils/breaks.js';
-import { getCurrentLocation } from '../utils/geolocation.js';
+import { requestLocation } from '../utils/geolocation.js';
 import { formatElapsed, formatTime } from '../utils/format.js';
 import Button from '../components/common/Button.jsx';
 import Icon from '../components/common/Icon.jsx';
@@ -19,6 +19,18 @@ import { useOnline } from '../hooks/useOnline.js';
 import { enqueue } from '../utils/offlineQueue.js';
 import { successFeedback, errorFeedback, warnFeedback, tapFeedback } from '../utils/haptics.js';
 
+// How each location status is shown. The reasons are separated because they ask
+// different things of the carer: a denied permission is theirs to change, no
+// signal is something to walk a few steps and retry, and a timeout is worth one
+// more go. None of them stop a clock-in — the server owns that decision.
+const VERIFY = {
+  pending: { tone: 'pending', icon: 'target', text: 'Checking location…' },
+  ok: { tone: 'ok', icon: 'check', text: 'Verified' },
+  denied: { tone: 'warn', icon: 'alert', text: 'Not verified · location is off for this app' },
+  unavailable: { tone: 'warn', icon: 'alert', text: 'Not verified · no location signal' },
+  timeout: { tone: 'warn', icon: 'alert', text: "Not verified · couldn't get a fix" },
+};
+
 export default function ClockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -29,6 +41,11 @@ export default function ClockPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [gps, setGps] = useState(null);
+  // Why there is or isn't a fix, not just whether. Starts at 'pending' because
+  // the warm-up effect below fires on mount: 'no fix yet' and 'no fix, and there
+  // won't be one' are different things to say to someone standing at a door.
+  // 'ok' | 'pending' | 'denied' | 'unavailable' | 'timeout'.
+  const [gpsStatus, setGpsStatus] = useState('pending');
   const [now, setNow] = useState(Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
   const [assistOpen, setAssistOpen] = useState(false);
@@ -65,8 +82,24 @@ export default function ClockPage() {
   // very first clock-in often goes out with no location.
   useEffect(() => {
     let active = true;
-    getCurrentLocation().then((loc) => { if (active && loc) setGps(loc); }).catch(() => {});
+    requestLocation().then(({ fix, status }) => {
+      if (!active) return;
+      setGps(fix);
+      setGpsStatus(status);
+    });
     return () => { active = false; };
+  }, []);
+
+  // A carer walking up to the path often has no fix, then has one twenty steps
+  // later. Re-asking is the highest-value thing they can do when the chip says
+  // it failed, so the chip offers it.
+  const retryLocation = useCallback(() => {
+    tapFeedback();
+    setGpsStatus('pending');
+    requestLocation().then(({ fix, status }) => {
+      setGps(fix);
+      setGpsStatus(status);
+    });
   }, []);
 
   // The shown shift is derived, not stored. The URL wins when it names a shift
@@ -181,8 +214,9 @@ export default function ClockPage() {
     setError('');
     setBusy(true);
     try {
-      const location = await getCurrentLocation();
+      const { fix: location, status } = await requestLocation();
       setGps(location);
+      setGpsStatus(status);
 
       const event = buildClockEvent({ kind, location });
 
@@ -335,14 +369,34 @@ export default function ClockPage() {
         <EmptyState icon="calendar" title="No shifts today" text="When your rota is published your visits will appear here." />
       ) : (
         <>
-          {/* Where the location stands. Before clocking in this says what will
-              be recorded rather than implying the carer is being tracked. */}
-          <span className={`verifychip${gps ? ' verifychip--ok' : ''}`}>
-            <Icon name={gps ? 'check' : 'target'} size={13} />
-            {gps
+          {/* Where the location stands, honestly. "Verified" means a GPS fix was
+              captured — not that the carer has been checked against the address,
+              which only the server decides. Anything other than a fix is amber
+              and says so, with the reason, because a carer who has denied the
+              permission can fix that and a carer with no signal cannot. */}
+          <span
+            className={`verifychip verifychip--${VERIFY[gpsStatus].tone}`}
+            aria-live="polite"
+          >
+            <Icon name={VERIFY[gpsStatus].icon} size={13} />
+            {gpsStatus === 'ok'
               ? `Verified · ${shift.address.split(',')[0]}`
-              : 'Location is recorded when you clock in'}
+              : VERIFY[gpsStatus].text}
+            {VERIFY[gpsStatus].tone === 'warn' && (
+              <button type="button" className="verifychip__retry" onClick={retryLocation}>
+                Try again
+              </button>
+            )}
           </span>
+
+          {/* The privacy promise the product rests on, and it must not go quiet
+              just because the chip above is busy reporting a failure: location
+              is taken at clock moments only, never between visits. */}
+          {shift.status === 'upcoming' && (
+            <p className="clock-note clock-note--privacy">
+              Location is recorded when you clock in
+            </p>
+          )}
 
           <Dial
             progress={shift.status === 'completed' ? 1 : isActive ? progress : 0}
