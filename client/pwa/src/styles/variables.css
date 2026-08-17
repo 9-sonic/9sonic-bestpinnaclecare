@@ -38,8 +38,10 @@
   --purple-500: #b8559f;
   --purple-100: #f6e6f3;
 
-  /* Surfaces. A very slightly warm grey reads less clinical than pure neutral. */
-  --color-bg: #f2f5f7;
+  /* Surfaces. A very slightly warm grey reads less clinical than pure neutral.
+     NOTE: this whole group is overridden by the second :root block below, which
+     is the live one. --color-bg was declared here too and has been removed so
+     there is one place to edit; the rest are left for a separate tidy-up. */
   --color-surface: #ffffff;
   --color-surface-alt: #f4f7f9;
   --color-surface-sunken: #eaeff2;
@@ -170,9 +172,10 @@
   /* Used on the sign in header, which is much darker at the top left. */
   --grad-header: linear-gradient(150deg, #0d6b7a 0%, #12a7bb 45%, #2ed3dd 100%);
 
-  /* Surfaces. Cooler and lighter than before: the new screens sit on a pale
-     blue grey rather than a warm grey. */
-  --color-bg: #eef2f7;
+  /* Surfaces. The canvas comes from the Penpot "Login (copy)" page, where 11 of
+     16 boards paint #f8fcff — a near white with a faint cool cast. Cards stay
+     pure white and are separated by shadow, not by contrast against the canvas. */
+  --color-bg: #f8fcff;
   --color-surface: #ffffff;
   --color-surface-alt: #f4f7fa;
   --color-surface-sunken: #e7edf3;
