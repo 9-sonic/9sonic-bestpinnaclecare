@@ -67,3 +67,7 @@ pnpm-debug.log*
 
 # Bundler local install — never push gems
 /vendor/bundle/
+
+# Personal scratch notes — not the task board (Linear is)
+/TODO.txt
+/docs/plans/
