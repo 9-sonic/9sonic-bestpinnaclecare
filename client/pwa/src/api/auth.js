@@ -1,15 +1,15 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { setRefreshToken, setTokenExpiry, getToken } from '../utils/storage.js';
+import { setRefreshToken, setTokenExpiry } from '../utils/storage.js';
 import { toUser, toAvailabilityDays, toAvailabilityEntries } from './adapters.js';
 
 // Carer authentication. The API keeps admins and employees in separate tables
 // with separate login endpoints, so this app only ever talks to /staff.
 
-// The staff login is documented as returning { access, employee } only. If it
-// ever also returns a refresh token, this picks it up with no further change —
-// see the refresh handling in client.js.
+// Staff login returns { access, access_expires_at, refresh_token, employee }.
+// The last two are read opportunistically so this keeps working if either is
+// ever dropped from the response — see the refresh handling in client.js.
 function storeSessionExtras(res) {
   if (res?.refresh_token) setRefreshToken(res.refresh_token);
   if (res?.access_expires_at) setTokenExpiry(res.access_expires_at);
@@ -89,28 +89,20 @@ export async function updateProfile(patch) {
   return toUser(await api.patch('/staff/me', body));
 }
 
-// Profile photo — POST /staff/me/avatar (multipart). Uses a raw fetch so the
-// browser sets the multipart boundary (the JSON client would force
-// application/json and drop the file). Returns the refreshed user.
+// Profile photo — POST /staff/me/avatar (multipart). Returns the refreshed user.
+//
+// This went through a raw fetch until the client learned to pass FormData
+// straight through. That bypass cost it the two things every other call gets:
+// an expired access token was never refreshed (the upload just failed and the
+// carer had no idea why), and failures arrived as bare Errors rather than
+// ApiError. The `too_large` / `unsupported_type` wording now lives with the
+// other API messages in client.js.
 export async function uploadAvatar(file) {
   if (env.useMock) return toUser(await mock.fetchCurrentUser());
 
   const fd = new FormData();
   fd.append('avatar', file);
-  const res = await fetch(`${env.apiBaseUrl}/staff/me/avatar`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}` },
-    body: fd,
-  });
-  if (!res.ok) {
-    let err;
-    try { err = await res.json(); } catch { /* non-json */ }
-    const msg = err?.error === 'too_large' ? 'That image is too large (max 5 MB).'
-      : err?.error === 'unsupported_type' ? 'Please choose a PNG, JPG, WEBP or GIF.'
-      : 'Could not upload the photo.';
-    throw new Error(msg);
-  }
-  return toUser(await res.json());
+  return toUser(await api.post('/staff/me/avatar', fd));
 }
 
 // DELETE /staff/me/avatar — falls back to initials.

@@ -22,6 +22,7 @@ const NavigationPage = lazyWithRetry(() => import('./pages/NavigationPage.jsx'))
 const PersonalDetailsPage = lazyWithRetry(() => import('./pages/PersonalDetailsPage.jsx'));
 const AvailabilityPage = lazyWithRetry(() => import('./pages/AvailabilityPage.jsx'));
 const PreferencesPage = lazyWithRetry(() => import('./pages/PreferencesPage.jsx'));
+const RequestsPage = lazyWithRetry(() => import('./pages/RequestsPage.jsx'));
 const HelpPage = lazyWithRetry(() => import('./pages/HelpPage.jsx'));
 const LegalPage = lazyWithRetry(() => import('./pages/LegalPage.jsx'));
 const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage.jsx'));
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/profile/details" element={<PersonalDetailsPage />} />
           <Route path="/profile/availability" element={<AvailabilityPage />} />
           <Route path="/profile/preferences" element={<PreferencesPage />} />
+          <Route path="/profile/requests" element={<RequestsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/legal/:doc" element={<LegalPage />} />
           <Route path="/navigate/:shiftId" element={<NavigationPage />} />

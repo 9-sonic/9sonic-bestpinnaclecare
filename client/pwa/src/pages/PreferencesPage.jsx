@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Card from '../components/common/Card.jsx';
@@ -8,6 +8,7 @@ import { useBiometric } from '../hooks/useBiometric.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { requestPasswordReset } from '../api/auth.js';
+import { getPreferences, updatePreferences } from '../api/notifications.js';
 
 const TINTS = {
   teal: { bg: 'var(--teal-050)', fg: 'var(--color-primary)' },
@@ -55,13 +56,54 @@ export default function PreferencesPage() {
   const biometric = useBiometric();
 
   const [biometricOn, setBiometricOn] = useState(biometric.enrolled);
-  const [shiftAlerts, setShiftAlerts] = useState(true);
-  const [messageAlerts, setMessageAlerts] = useState(true);
-  const [reminders, setReminders] = useState(true);
+  // Keyed by the notification_type the API stores — the same vocabulary
+  // NotificationsPage renders and the seed data uses. CHANNEL_DEFAULTS on the
+  // server is "on unless a row says otherwise", so an absent row means on.
+  const [notify, setNotify] = useState({ visit_changed: true, message: true, timesheet_reminder: true });
   const [largeText, setLargeText] = useState(
     () => document.documentElement.dataset.textSize === 'large'
   );
   const [passwordBusy, setPasswordBusy] = useState(false);
+
+  // These switches used to be plain useState: they moved, and nothing was
+  // written anywhere. Now they read and write real NotificationPreference rows.
+  //
+  // The carer's `push` choice is stored alongside `in_app` even though nothing
+  // sends push yet — the preference is their standing answer, and it is honoured
+  // the moment a sender exists rather than silently defaulting to on.
+  useEffect(() => {
+    let active = true;
+    getPreferences()
+      .then((rows) => {
+        if (!active || !Array.isArray(rows)) return;
+        setNotify((prev) => {
+          const next = { ...prev };
+          rows.forEach((r) => {
+            if (r?.notification_type in next) next[r.notification_type] = Boolean(r.in_app);
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        /* offline or not reachable: the defaults above stand */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Optimistic, then reverted if the write fails — a switch that springs back is
+  // how the carer learns their choice was not saved.
+  async function handleNotify(type) {
+    const next = !notify[type];
+    setNotify((prev) => ({ ...prev, [type]: next }));
+    try {
+      await updatePreferences({ notification_type: type, in_app: next, push: next });
+    } catch {
+      setNotify((prev) => ({ ...prev, [type]: !next }));
+      toast.error('Could not save that preference');
+    }
+  }
 
   async function handleBiometric() {
     if (biometricOn) {
@@ -132,7 +174,11 @@ export default function PreferencesPage() {
           label="Shift changes"
           hint="When a visit is added, moved or cancelled"
           trailing={
-            <Switch on={shiftAlerts} onChange={() => setShiftAlerts((v) => !v)} label="Shift changes" />
+            <Switch
+              on={notify.visit_changed}
+              onChange={() => handleNotify('visit_changed')}
+              label="Shift changes"
+            />
           }
         />
         <Row
@@ -142,8 +188,8 @@ export default function PreferencesPage() {
           hint="New messages from your team"
           trailing={
             <Switch
-              on={messageAlerts}
-              onChange={() => setMessageAlerts((v) => !v)}
+              on={notify.message}
+              onChange={() => handleNotify('message')}
               label="Messages"
             />
           }
@@ -154,7 +200,11 @@ export default function PreferencesPage() {
           label="Timesheet reminders"
           hint="A nudge before the weekly deadline"
           trailing={
-            <Switch on={reminders} onChange={() => setReminders((v) => !v)} label="Reminders" />
+            <Switch
+              on={notify.timesheet_reminder}
+              onChange={() => handleNotify('timesheet_reminder')}
+              label="Reminders"
+            />
           }
         />
       </Card>

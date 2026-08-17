@@ -45,6 +45,8 @@ const MESSAGES = {
   too_far: 'You are too far from the address to clock in.',
   forbidden: 'You do not have permission to do that.',
   unauthorized: 'Your session has expired. Please sign in again.',
+  too_large: 'That image is too large (max 5 MB).',
+  unsupported_type: 'Please choose a PNG, JPG, WEBP or GIF.',
 };
 
 function messageFor(code, status) {
@@ -75,10 +77,10 @@ export function setUnauthorizedHandler(fn) {
 // every use — a second refresh with the old token would look like a stolen
 // token and revoke the entire chain.
 //
-// The API does not return a refresh token from the staff login yet (see
-// suggestedMissingEndpoints.md), so in practice this stays dormant until it
-// does. Written now so it starts working the day login includes one, with no
-// further change here.
+// Staff login does return a refresh token (the server's render_access sends
+// access, access_expires_at and refresh_token together), and auth.js stores it,
+// so this path is live rather than dormant. An earlier comment here claimed the
+// opposite long after the server had been fixed.
 // ---------------------------------------------------------------------------
 let refreshInFlight = null;
 
@@ -133,9 +135,15 @@ async function request(
     });
   }
 
+  // FormData goes up as-is. Setting Content-Type by hand would drop the
+  // multipart boundary the browser generates, and the server would read the
+  // upload as an empty body — so the header is deliberately left off and
+  // fetch fills it in.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+
   const finalHeaders = {
     Accept: 'application/json',
-    ...(body !== undefined ? { 'Content-Type': 'application/json' } : null),
+    ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : null),
     ...(token ? { Authorization: `Bearer ${token}` } : null),
     ...headers,
   };
@@ -145,7 +153,7 @@ async function request(
     response = await fetch(`${env.apiBaseUrl}${path}`, {
       method,
       headers: finalHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       signal,
     });
   } catch (cause) {

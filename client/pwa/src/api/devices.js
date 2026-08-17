@@ -5,14 +5,19 @@ import { deviceFingerprint } from '../utils/ids.js';
 // ---------------------------------------------------------------------------
 // POST /staff/devices
 //
-// Registers this browser against the carer's account. Two reasons it matters:
-// the office can see which device a clock tap came from, and without a
-// registered device there is no web push, so a carer only learns about a rota
-// change when they next open the app.
+// Registers this browser against the carer's account, so the office can see
+// which device a clock tap came from. The same fingerprint rides on every clock
+// event, so the two join up.
 //
-// The same fingerprint is sent with every clock event, so the office can join
-// the two. Registration is best effort: it must never block or fail a sign-in,
-// because a carer who cannot get past the login screen cannot clock in.
+// The endpoint also accepts a `push_subscription`, and this function takes one,
+// but every caller passes nothing — deliberately. There is no push transport at
+// either end yet: the PWA has no service-worker push handler and no VAPID key,
+// and server-side the `push` notification rows are written with status "queued"
+// and never sent by anything. Subscribing a carer's browser to a channel with
+// no sender would be theatre. Wire both halves together, or neither.
+//
+// Registration is best effort: it must never block or fail a sign-in, because a
+// carer who cannot get past the login screen cannot clock in.
 // ---------------------------------------------------------------------------
 
 function platform() {
