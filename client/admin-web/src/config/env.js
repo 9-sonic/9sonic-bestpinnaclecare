@@ -4,6 +4,9 @@
 const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   appName: import.meta.env.VITE_APP_NAME ?? 'Best Pinnacle Care',
+  // Web Push public key. Optional here: if empty, the app fetches it from the API
+  // at runtime so the key can rotate without a rebuild. Public by design.
+  vapidPublicKey: import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '',
   isDev: import.meta.env.DEV,
 };
 

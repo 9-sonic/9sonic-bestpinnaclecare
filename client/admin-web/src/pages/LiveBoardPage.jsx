@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getLiveBoard, listAlerts, getCover } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -125,11 +126,11 @@ export default function LiveBoardPage() {
         <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>· {all.length} shifts scheduled today</span>
         <div style={s('flex:1')} />
         {updatedAt && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
-        <Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
+        <span data-tour="liveboard-refresh"><Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button></span>
       </div>
 
       {/* Stat cards */}
-      <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px')}>
+      <div data-tour="liveboard-stats" style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px')}>
         <StatCard label="On shift now" value={counts.in_progress ?? 0} hint="Clocked in, delivering care" tone="success" icon="target" live active={filter === 'active'} onClick={() => setFilter(filter === 'active' ? 'all' : 'active')} />
         <StatCard label="Late" value={counts.late ?? 0} hint="Past the grace period" tone="warning" icon="clock" active={filter === 'late'} onClick={() => setFilter(filter === 'late' ? 'all' : 'late')} />
         <StatCard label="Missed / overdue" value={(counts.missed ?? 0) + (counts.overdue ?? 0)} hint="Escalation running" tone="danger" icon="alert" active={filter === 'missed'} onClick={() => setFilter(filter === 'missed' ? 'all' : 'missed')} />
@@ -141,8 +142,8 @@ export default function LiveBoardPage() {
 
           {/* Roster */}
           <div style={s('display:flex;flex-direction:column;gap:12px')}>
-            <SegTabs tabs={tabDefs} active={filter} onSelect={setFilter} />
-            <div style={s('background:var(--d-panel);border-radius:20px;padding:14px')}>
+            <span data-tour="liveboard-tabs"><SegTabs tabs={tabDefs} active={filter} onSelect={setFilter} /></span>
+            <div data-tour="liveboard-roster" style={s('background:var(--d-panel);border-radius:20px;padding:14px')}>
               <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
                 {rows.length === 0 ? (
                   <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>No shifts match this view.</div>
@@ -274,18 +275,24 @@ export default function LiveBoardPage() {
       </Panel>
 
 
-      {/* Detail drawer */}
+      {/* Detail modal */}
       {detail && (
-        <div onClick={() => setDetail(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:12px')}>
-              <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{fullName(detail.visit?.service_user)}</div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{detail.employee ? fullName(detail.employee) : 'Unassigned'} · {detail.visit?.service_user?.address_line1}</div>
-                <div style={s('margin-top:8px')}><StatusPill state={detail.lifecycle_state} /></div>
-              </div>
-              <div onClick={() => setDetail(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
+        <Modal
+          onClose={() => setDetail(null)}
+          maxWidth={460}
+          title={fullName(detail.visit?.service_user)}
+          subtitle={
+            <span style={s('display:flex;flex-direction:column;gap:6px')}>
+              <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{detail.employee ? fullName(detail.employee) : 'Unassigned'} · {detail.visit?.service_user?.address_line1}</span>
+              <span><StatusPill state={detail.lifecycle_state} /></span>
+            </span>
+          }
+          footer={ATTENTION_ORDER.includes(detail.lifecycle_state) ? (
+            <div style={s('display:flex;justify-content:flex-end')}>
+              <Button variant="primary" icon="chevronRight" onClick={() => navigate(`/exceptions?va=${detail.id}`)}>Review &amp; resolve</Button>
             </div>
+          ) : null}
+        >
             <div style={s('flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
               <div style={s('display:grid;grid-template-columns:repeat(3,1fr);gap:10px')}>
                 {[['Scheduled', formatTimeRange(detail.visit?.scheduled_start, detail.visit?.scheduled_end)], ['Actual', `${detail.actual_start ? formatTime(detail.actual_start) : '—'}–${detail.actual_end ? formatTime(detail.actual_end) : 'open'}`], ['Worked', detail.worked_minutes != null ? minutesToHours(detail.worked_minutes) : '—']].map(([l, v]) => (
@@ -297,15 +304,7 @@ export default function LiveBoardPage() {
               </div>
               <div style={s('background:var(--d-note-bg);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>Any amendment is appended to the audit trail with your name, the time and a mandatory reason. The original record is never overwritten.</div>
             </div>
-            {/* Attention items (needs review / missed / overdue / late) are one
-                click from the resolve & amend flow on the Exceptions page. */}
-            {ATTENTION_ORDER.includes(detail.lifecycle_state) && (
-              <div style={s('padding:16px 22px;border-top:1px solid var(--d-border);display:flex;justify-content:flex-end')}>
-                <Button variant="primary" icon="chevronRight" onClick={() => navigate(`/exceptions?va=${detail.id}`)}>Review &amp; resolve</Button>
-              </div>
-            )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

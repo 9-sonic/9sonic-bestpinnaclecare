@@ -106,9 +106,10 @@ export default function RequestsPage() {
       ) : (
         <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,400px) minmax(0,1fr)' }}>
           {/* Queue */}
+          <div data-tour="requests-queue" style={s('min-width:0')}>
           <Panel>
             <PanelTitle hint="Newest first — pending shown by default">Request queue</PanelTitle>
-            <div style={s('margin-bottom:12px')}><SegTabs tabs={filterTabs} active={filter} onSelect={setFilter} /></div>
+            <div data-tour="requests-filters" style={s('margin-bottom:12px')}><SegTabs tabs={filterTabs} active={filter} onSelect={setFilter} /></div>
             {list.length === 0 ? (
               <div style={s('padding:36px 12px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>No requests match this filter.</div>
             ) : (
@@ -137,6 +138,7 @@ export default function RequestsPage() {
               </div>
             )}
           </Panel>
+          </div>
 
           {/* Detail */}
           {selected && (
@@ -181,6 +183,7 @@ export default function RequestsPage() {
                   )}
                 </Panel>
 
+                <div data-tour="requests-decision" style={s('min-width:0')}>
                 <Panel>
                   <PanelTitle hint="Your reply goes to the carer's app and is kept with the request">Decision</PanelTitle>
                   {selected.state === 'pending' && !canManage ? (
@@ -206,6 +209,7 @@ export default function RequestsPage() {
                   )}
                   <div style={s('margin-top:12px;background:var(--d-note-bg);border-radius:12px;padding:11px 14px;font-size:11px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>The decision and your message are recorded against the request and in the audit trail. The rota is not changed automatically — you apply the change so the record stays honest.</div>
                 </Panel>
+                </div>
               </div>
             </div>
           )}

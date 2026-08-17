@@ -5,10 +5,10 @@ RSpec.describe "Clock lifecycle guard", type: :model do
   # scheduled_end ~now so a clock-out completes normally (not flagged early-leave).
   let(:va)  { create(:visit_assignment, visit: create(:visit, service_user: su, scheduled_start: 55.minutes.ago, scheduled_end: 2.minutes.from_now), employee: create(:employee)) }
 
-  def clock(kind, method: "gps")
+  def clock(kind, method: "gps", occurred_at: Time.current)
     Clocking::RecordClockEvent.call(
       visit_assignment: va, kind: kind, client_event_id: SecureRandom.uuid,
-      occurred_at: Time.current, lat: 53.4808, lng: -2.2426, actor: va.employee, method: method,
+      occurred_at: occurred_at, lat: 53.4808, lng: -2.2426, actor: va.employee, method: method,
       reason: (method == "manual_admin" ? "correction" : nil)
     )
   end
@@ -28,10 +28,17 @@ RSpec.describe "Clock lifecycle guard", type: :model do
 
   it "refuses a second clock-out (visit already completed)" do
     clock("clock_in")
-    clock("clock_out")
-    res = clock("clock_out")
+    clock("clock_out", occurred_at: 10.minutes.from_now)
+    res = clock("clock_out", occurred_at: 11.minutes.from_now)
     expect(res.status).to eq(:blocked)
     expect(res.error).to eq("visit_not_clockable") # completed after first clock-out
+  end
+
+  it "refuses clock-out if less than 2 minutes have elapsed since clock-in" do
+    clock("clock_in")
+    res = clock("clock_out", occurred_at: Time.current + 30.seconds)
+    expect(res.status).to eq(:blocked)
+    expect(res.error).to eq("minimum_duration_not_met")
   end
 
   it "refuses clocking a cancelled visit" do

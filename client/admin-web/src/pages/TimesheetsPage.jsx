@@ -8,6 +8,7 @@ import { listTimesheetPeriods, getTimesheetPeriod, exportTimesheetPeriod } from 
 // import { approvePeriod, approveCarerLines, lockPeriod, listDisputes, resolveDispute } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { minutesToHours, formatDate } from '../api/format.js';
@@ -95,7 +96,7 @@ export default function TimesheetsPage() {
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
       {/* Period navigator — stepper + jump dropdown. Scales to any amount of
           history: one period on screen, arrows to step, dropdown to jump. */}
-      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--d-card);border-radius:20px;padding:12px 16px')}>
+      <div data-tour="timesheets-period" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--d-card);border-radius:20px;padding:12px 16px')}>
         <Button size="sm" icon="chevronLeft" disabled={!hasOlder} onClick={() => hasOlder && pick(periods[idx + 1].id)}>Older</Button>
         <div style={s('position:relative;flex:1;min-width:200px')}>
           <div onClick={() => setJumpOpen((v) => !v)} className="hv"
@@ -147,12 +148,12 @@ export default function TimesheetsPage() {
       {/* Hours table + export aside */}
       <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
         <div style={s('display:flex;flex-direction:column;gap:12px;min-width:0')}>
-          <div style={s('height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
+          <div data-tour="timesheets-search" style={s('height:44px;background:var(--d-card);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px')}>
             <Icon name="search" size={16} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a carer"
               style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
           </div>
-          <div style={s('background:var(--d-card);border-radius:20px;padding:12px 14px;overflow:auto')}>
+          <div data-tour="timesheets-table" style={s('background:var(--d-card);border-radius:20px;padding:12px 14px;overflow:auto')}>
             {rows.length === 0 ? (
               <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>{q ? 'No carer matches.' : 'No hours in this period.'}
                 {!q && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-faint);margin-top:4px')}>Lines appear once visits are completed.</div>}
@@ -188,7 +189,7 @@ export default function TimesheetsPage() {
         </div>
 
         {/* Export aside — attendance hours, not payroll. */}
-        <div style={s('display:flex;flex-direction:column;gap:16px')}>
+        <div data-tour="timesheets-export" style={s('display:flex;flex-direction:column;gap:16px')}>
           <Panel>
             <PanelTitle hint="Verified hours for this period">Export hours</PanelTitle>
             <div style={s('display:flex;flex-direction:column;gap:8px')}>
@@ -211,18 +212,14 @@ export default function TimesheetsPage() {
         </div>
       </div>
 
-      {/* Carer detail drawer — per-visit hours breakdown for the period. */}
+      {/* Carer detail modal — per-visit hours breakdown for the period. */}
       {detail && (
-        <div onClick={() => setDetail(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:460px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:center;gap:12px')}>
-              <Avatar initials={initials(detail.name)} size={52} />
-              <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{detail.name}</div>
-                <div className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{h(detail.worked)} worked · {detail.lines.length} visit{detail.lines.length === 1 ? '' : 's'}</div>
-              </div>
-              <div onClick={() => setDetail(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
+        <Modal
+          onClose={() => setDetail(null)}
+          maxWidth={460}
+          title={detail.name}
+          subtitle={`${h(detail.worked)} worked · ${detail.lines.length} visit${detail.lines.length === 1 ? '' : 's'}`}
+        >
             <div style={s('flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:8px')}>
               {detail.lines.map((l, i) => {
                 const diff = (l.worked_minutes ?? 0) - (l.scheduled_minutes ?? 0);
@@ -238,8 +235,7 @@ export default function TimesheetsPage() {
                 );
               })}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

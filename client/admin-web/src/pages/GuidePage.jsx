@@ -3,8 +3,9 @@ import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { getSettings } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Button } from '../ds/console.jsx';
 import { LIFECYCLE_LABELS, LIFECYCLE_TONE } from '../api/format.js';
+import { usePageTour } from '../tour/TourRoot.jsx';
 
 // The Guide — how clocking, escalation and the record work. This is reference
 // material, not a live tool: it was scattered across the Lifecycle, Reports and
@@ -35,6 +36,7 @@ const COMPLIANCE = [
 export default function GuidePage() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { start } = usePageTour();
 
   useEffect(() => {
     let active = true;
@@ -47,30 +49,46 @@ export default function GuidePage() {
 
   if (loading) return <Spinner fullscreen />;
 
-  const grace = settings?.late_grace_minutes ?? 5;
-  const autoClose = settings?.auto_close_after_minutes ?? 30;
-  const radius = 150;
+  // All numbers read from the live Settings, so the Guide always matches what
+  // the system actually enforces — change a value in Settings and this updates.
+  const grace = settings?.late_grace_minutes ?? 15;
+  const autoClose = settings?.auto_close_after_minutes ?? 240;
+  const overdue = settings?.overdue_threshold_minutes ?? 60;
+  const radius = settings?.geofence_radius_m ?? 150;
+  const geoMode = settings?.geofence_mode ?? 'block';
+  const geoText = { block: `a tap outside the fence is refused`, warn: `a tap outside the fence warns the carer but is allowed`, record: `a tap outside the fence is recorded, not blocked` }[geoMode] ?? 'a tap outside the fence is refused';
 
-  const tiers = [
-    { tier: 1, title: 'Carer reminder', delay: `+${grace} min after start`, audience: 'Assigned carer', channel: 'Push notification', description: 'A gentle nudge in the app: your shift has started, tap to clock in.', icon: 'bell' },
-    { tier: 2, title: 'Coordinator alert', delay: '+15 min', audience: 'Team coordinator', channel: 'In-app + email', description: "The shift appears in the coordinator's exceptions queue for a phone check.", icon: 'alert' },
-    { tier: 3, title: 'Manager SMS', delay: '+30 min', audience: 'Registered manager', channel: 'SMS', description: 'Urgent text to nominated managers — the visit is now at risk.', icon: 'phone' },
-    { tier: 4, title: 'Cover reassignment', delay: '+45 min', audience: 'On-call carers', channel: 'SMS broadcast', description: 'Cover is offered to available carers so the client is never left without care.', icon: 'send' },
+  // What actually happens when a shift start passes with no clock-in — the real,
+  // grace-based escalation, not a fixed timeline.
+  const escalation = [
+    { title: 'Within grace', when: `0–${grace} min after start`, icon: 'clock', tone: 'primary', description: `A clock-in inside the grace window counts as on time (or, just after the start, "late") — the visit simply goes ahead.` },
+    { title: 'Grace expires → office alerted', when: `+${grace} min`, icon: 'alert', tone: 'danger', description: `Once the grace period passes with still no clock-in, the office is alerted straight away so it can call the carer or arrange cover — while there is still time to act.` },
+    { title: 'Reconciled if it was offline', when: 'on sync', icon: 'sync', tone: 'primary', description: `If the carer clocked in offline (no signal), that tap syncs later and reconciles the visit from its real time — the alert clears itself. The carer was there; nothing is lost.` },
+    { title: 'Genuinely missed', when: `+${settings?.missed_threshold_minutes ?? 30} min`, icon: 'close', tone: 'danger', description: `With no clock-in at all, the visit is a genuine no-show and stays flagged for the office to reassign and follow up.` },
   ];
 
   const behaviours = [
-    { t: 'Grace period', d: `Clock-ins within ${grace} minutes of the scheduled start are treated as on time.` },
-    { t: 'Missed clock-out', d: `Open records are auto-flagged ${autoClose} minutes past the scheduled end and the carer is prompted.` },
-    { t: 'Geofence check', d: `Carers can only clock in at the client's address, within ${radius}m — a tap outside the fence is refused.` },
-    { t: 'Offline capture', d: 'No signal? Times are stored on the device with the original timestamps and synced later.' },
+    { t: 'Grace period', d: `Clock-ins within ${grace} minutes of the scheduled start count as on time. After that, with no clock-in, the office is alerted.` },
+    { t: 'Late arrival', d: `A carer who clocks in after the grace window is flagged for review — they should give a reason, and a manager can amend the record (append-only).` },
+    { t: 'Offline reconciliation', d: `A clock-in taken offline keeps its original time. When it syncs it corrects the visit even if it had been flagged missed — the honest tap always wins.` },
+    { t: 'Missed clock-out', d: `An open record is auto-closed to pending review ${autoClose} minutes past the scheduled end, and flagged overdue after ${overdue} minutes.` },
+    { t: 'Geofence check', d: `Carers clock in at the client's address, within ${radius}m — ${geoText}.` },
     { t: 'Break handling', d: 'Breaks pause paid time and are deducted automatically from timesheet totals.' },
-    { t: 'Lone-worker check', d: 'Long visits without activity prompt a welfare check to the coordinator.' },
   ];
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
+      {/* Take the tour — a guided, show-and-tell walkthrough of every page. */}
+      <div data-tour="guide-tour-button" style={s('display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--d-primary-soft);border-radius:18px;padding:16px 20px')}>
+        <div style={s('flex:1;min-width:200px')}>
+          <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>New here? Take the guided tour</div>
+          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);margin-top:2px;line-height:1.5')}>A quick, step-by-step walk through every page and what each button does. You can replay it any time.</div>
+        </div>
+        <Button variant="primary" icon="target" onClick={start}>Take the tour</Button>
+      </div>
+
       {/* Shift states */}
-      <Panel>
+      <span data-tour="guide-states"><Panel>
         <PanelTitle hint="The happy path every completed visit follows">Shift states</PanelTitle>
         <div style={s('display:flex;flex-wrap:wrap;align-items:center;gap:8px')}>
           {HAPPY.map((st, i) => (
@@ -94,31 +112,27 @@ export default function GuidePage() {
             </div>
           ))}
         </div>
-      </Panel>
+      </Panel></span>
 
       <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start')}>
         {/* Escalation pathway */}
         <Panel>
-          <PanelTitle hint="Triggered automatically when a shift start passes without a clock in">Tiered escalation pathway</PanelTitle>
+          <PanelTitle hint="What happens when a shift start passes without a clock in">How a missed clock-in escalates</PanelTitle>
           <div style={s('display:flex;flex-direction:column;gap:12px;border-left:1px solid var(--d-border);padding-left:22px;position:relative')}>
-            {tiers.map((t) => (
-              <div key={t.tier} style={s('position:relative')}>
-                <div style={s('position:absolute;top:12px;left:-33px;width:24px;height:24px;border-radius:50%;background:var(--d-primary);color:var(--d-primary-ink);display:flex;align-items:center;justify-content:center')}><Icon name={t.icon} size={13} /></div>
+            {escalation.map((t) => (
+              <div key={t.title} style={s('position:relative')}>
+                <div style={{ ...s('position:absolute;top:12px;left:-33px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center'), background: t.tone === 'danger' ? 'var(--d-danger-bg)' : 'var(--d-primary)', color: t.tone === 'danger' ? 'var(--d-danger-ink)' : 'var(--d-primary-ink)' }}><Icon name={t.icon} size={13} /></div>
                 <div style={s('border:1px solid var(--d-border);border-radius:14px;padding:14px 16px')}>
                   <div style={s('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-                    <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);flex:1;min-width:0')}>Tier {t.tier} · {t.title}</div>
-                    <Tag tone={t.tier >= 3 ? 'danger' : 'primary'}>{t.delay}</Tag>
+                    <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);flex:1;min-width:0')}>{t.title}</div>
+                    <Tag tone={t.tone}>{t.when}</Tag>
                   </div>
                   <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);margin-top:4px;line-height:1.5')}>{t.description}</div>
-                  <div style={s('display:flex;gap:6px;flex-wrap:wrap;margin-top:9px')}>
-                    <Tag tone="muted">{t.audience}</Tag>
-                    <Tag tone="muted">{t.channel}</Tag>
-                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={s('margin-top:14px;background:var(--d-panel);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-muted);line-height:1.55')}>Timings, recipients and channels are configurable per team in Settings. The defaults shown assume a {grace} minute grace period on shift start.</div>
+          <div style={s('margin-top:14px;background:var(--d-panel);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-muted);line-height:1.55')}>Every timing here comes from Settings — the grace period is {grace} minutes now. Change it in Settings and this pathway changes with it.</div>
         </Panel>
 
         {/* Automated behaviours */}

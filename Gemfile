@@ -23,6 +23,10 @@ gem "rqrcode"
 # Biometric/passkey login for the carer PWA (WebAuthn / FIDO2)
 gem "webauthn"
 
+# Web Push (VAPID) — sends browser push to registered admin/carer devices so
+# critical alerts and messages arrive even when the app tab is closed.
+gem "web-push", "~> 3.1"
+
 # Geocode service-user home addresses -> lat/lng (geofence centre)
 gem "geocoder"
 

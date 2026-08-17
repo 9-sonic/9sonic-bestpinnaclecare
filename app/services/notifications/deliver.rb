@@ -10,6 +10,11 @@ module Notifications
     # :email, so they never generate a per-message email).
     CHANNEL_DEFAULTS = { "in_app" => true, "push" => true, "email" => true }.freeze
     CRITICAL_CATEGORIES = %w[missed_visit no_clock_out].freeze
+    # Which categories are allowed to send a browser push at all. Kept narrow on
+    # purpose: the two critical care alerts plus new messages, so push stays
+    # high-signal. Everything else is in-app/email only even if a caller requests
+    # the push channel. Broaden this once client policy (Jesse) confirms.
+    PUSHABLE_CATEGORIES = (CRITICAL_CATEGORIES + %w[message]).freeze
 
     def self.call(recipients:, category:, title:, body: nil, channels: %w[in_app push], alert: nil, subject: nil, kind: nil)
       Array(recipients).flat_map do |recipient|
@@ -32,6 +37,7 @@ module Notifications
           # fail an already-created notification.
           broadcast(recipient, notification) if channel == "in_app"
           Notifications::EmailNotificationJob.perform_later(notification.id) if channel == "email"
+          Notifications::PushNotificationJob.perform_later(notification.id) if channel == "push"
           notification
         end
       end
@@ -51,6 +57,9 @@ module Notifications
     # Critical alerts ignore the in-app off-switch (§7).
     def self.enabled?(recipient, category, channel)
       return true if channel == "in_app" && CRITICAL_CATEGORIES.include?(category)
+      # Push is opt-in by category: only the critical alerts and messages may push,
+      # regardless of what a caller requests or a preference allows.
+      return false if channel == "push" && PUSHABLE_CATEGORIES.exclude?(category)
 
       pref = recipient.notification_preferences.find_by(notification_type: category)
       pref ? pref.public_send(channel) : CHANNEL_DEFAULTS[channel]

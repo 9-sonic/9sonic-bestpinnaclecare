@@ -1003,90 +1003,94 @@ button.tile:hover { border-color: var(--color-border-strong); }
   margin-bottom: var(--space-4);
 }
 
-/* -------------------------------- Modal ---------------------------------- */
+/* The old class-based .modal-* styles were removed — every dialog now uses the
+   shared, token-styled <Modal> component (components/common/Modal.jsx). */
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  z-index: 100;
-  animation: fade var(--dur) var(--ease);
+/* ------------------------------- Info hint ------------------------------- */
+/* ⓘ next to a control; its bubble reveals on hover or keyboard focus. */
+.info-hint .info-hint__bubble {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
 }
-@keyframes fade { from { opacity: 0; } }
+.info-hint:hover .info-hint__bubble,
+.info-hint:focus-visible .info-hint__bubble,
+.info-hint:focus .info-hint__bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+.info-hint:hover, .info-hint:focus { color: var(--d-primary); }
 
-.modal {
-  width: 100%;
-  max-width: 460px;
-  max-height: 88dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: rise var(--dur-slow) var(--ease-out);
+/* ----------------------------- Top-bar search ---------------------------- */
+/* Centred search in the top bar. A hover/focus border lift makes it read as a
+   real input rather than a flat chip. Colours come from the design tokens. */
+.topbar-search {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
-.modal--wide { max-width: 620px; }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-}
-.modal__title { font-size: var(--text-lg); }
-.modal__body { flex: 1; overflow-y: auto; padding: var(--space-4); }
-.modal__lead { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-4); line-height: 1.55; }
-.modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-top: 1px solid var(--color-border);
+.topbar-search:hover {
+  border-color: var(--d-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--d-primary) 14%, transparent);
 }
 
 /* -------------------------------- Toasts --------------------------------- */
+/* Ported from the carer PWA: a solid-colour toast in a bottom-centre stack,
+   white text, sliding up. Colours use the admin tokens so dark mode follows. */
 
-.toasts {
+.toast-stack {
   position: fixed;
-  right: var(--space-5);
-  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  width: min(100vw - 2rem, 420px);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  z-index: 120;
-  max-width: 420px;
+  gap: 6px;
+  z-index: 150;
+  pointer-events: none;
 }
 
 .toast {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-lg);
-  font-size: var(--text-md);
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius);
+  background: #16232e;
+  color: #fff;
+  font-size: var(--text-sm);
   font-weight: 600;
-  animation: rise var(--dur) var(--ease-out);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  animation: toast-in var(--dur) var(--ease);
 }
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
 .toast span { flex: 1; }
-.toast button { border: none; background: none; color: var(--color-text-faint); cursor: pointer; display: flex; padding: 4px; }
-.toast--success { border-left: 3px solid var(--color-success); }
-.toast--success svg { color: var(--color-success); }
-.toast--error { border-left: 3px solid var(--color-danger); }
-.toast--error svg { color: var(--color-danger); }
-.toast--warn { border-left: 3px solid var(--color-warn); }
-.toast--warn svg { color: var(--color-warn); }
-.toast--info { border-left: 3px solid var(--color-info); }
-.toast--info svg { color: var(--color-info); }
+.toast svg { color: inherit; flex: none; }
+
+.toast--success { background: var(--color-success); }
+.toast--error { background: var(--color-danger); }
+.toast--warn { background: var(--color-warn); }
+.toast--info { background: var(--color-info); }
+
+.toast__close {
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  display: flex;
+  padding: 2px 4px;
+}
+.toast__close:hover { opacity: 1; }
 
 /* ------------------------------ Responsive ------------------------------- */
 
@@ -1103,7 +1107,7 @@ button.tile:hover { border-color: var(--color-border-strong); }
   .content { padding: var(--space-4); }
   .auth__panel { display: none; }
   .form-grid, .form-grid--three { grid-template-columns: 1fr; }
-  .toasts { left: var(--space-3); right: var(--space-3); max-width: none; }
+  .toast-stack { width: calc(100vw - 2 * var(--space-3)); }
 }
 
 @media (max-width: 700px) {

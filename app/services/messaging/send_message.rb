@@ -42,7 +42,7 @@ module Messaging
       Notifications::Deliver.call(
         recipients: recipients, category: "message", kind: "message",
         title: "New message", body: message.body&.truncate(80),
-        subject: message.conversation, channels: %w[in_app]
+        subject: message.conversation, channels: %w[in_app push]
       )
     end
   end

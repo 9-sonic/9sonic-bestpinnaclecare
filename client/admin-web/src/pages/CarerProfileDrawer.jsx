@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { fullName } from '../api/format.js';
 import { Avatar, Tag } from '../ds/console.jsx';
@@ -29,7 +29,7 @@ const hrs = (m) => `${Math.floor((m ?? 0) / 60)}h ${(m ?? 0) % 60}m`;
 
 // The carer 360: notes, visits, timesheet, clock history and requests for one
 // carer. Reads the paginated /admin/employees/:id/* endpoints.
-export default function CarerProfileDrawer({ carer, onClose }) {
+export default function CarerProfileModal({ carer, onClose }) {
   const [tab, setTab] = useState('overview');
   const [profile, setProfile] = useState(null);
   const [data, setData] = useState({});         // per-tab loaded payload
@@ -59,15 +59,18 @@ export default function CarerProfileDrawer({ carer, onClose }) {
   const rows = data[tab] ?? [];
 
   return (
-    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.42);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:520px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-        <div style={s('padding:22px 24px 14px;border-bottom:1px solid var(--d-border);display:flex;align-items:center;gap:12px')}>
+    <Modal
+      onClose={onClose}
+      title={fullName(carer)}
+      subtitle={carer.email}
+      maxWidth={520}
+    >
+        <div style={s('display:flex;align-items:center;gap:12px;padding:16px 22px 0')}>
           <Avatar initials={`${carer.first_name?.[0] ?? ''}${carer.last_name?.[0] ?? ''}`} src={carer.avatar_url} />
           <div style={s('flex:1;min-width:0')}>
             <div style={s('font-size:17px;font-weight:700;color:var(--d-ink)')}>{fullName(carer)}</div>
             <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{carer.email}</div>
           </div>
-          <div onClick={onClose} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
         </div>
 
         {/* Tabs */}
@@ -135,8 +138,7 @@ export default function CarerProfileDrawer({ carer, onClose }) {
               ))
             : null}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
