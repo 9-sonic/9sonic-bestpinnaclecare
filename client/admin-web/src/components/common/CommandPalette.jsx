@@ -9,11 +9,11 @@ import { fullName, addressOf } from '../../api/format.js';
 // the API on first open. Keyboard-navigable; Enter jumps to the page.
 const PAGES = [
   ['Live board', '/', 'target'], ['Lifecycle', '/lifecycle', 'sync'],
-  ['Exceptions', '/exceptions', 'alert'], ['Alerts', '/alerts', 'bell'], ['Cover', '/cover', 'refresh'],
-  ['Requests', '/requests', 'note'], ['Timesheets', '/timesheets', 'wallet'], ['Rota', '/rota', 'calendar'],
+  ['Exceptions', '/exceptions', 'alert'], ['Alerts', '/alerts', 'bell'],
+  ['Staffing', '/staffing', 'refresh'], ['Cover', '/staffing', 'refresh'], ['Requests', '/staffing?tab=requests', 'note'],
+  ['Timesheets', '/timesheets', 'wallet'], ['Rota', '/rota', 'calendar'],
   ['Clients', '/clients', 'user'], ['Employees', '/employees', 'users'], ['Messages', '/messages', 'chat'],
-  ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'],
-  // Settings hidden pre-launch: ['Settings', '/settings', 'settings'],
+  ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'], ['Settings', '/settings', 'settings'],
 ];
 
 export default function CommandPalette({ open, onClose }) {

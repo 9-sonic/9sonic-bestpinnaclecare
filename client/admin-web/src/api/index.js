@@ -168,6 +168,15 @@ export const listNotifications = (params = {}) => api.get('/notifications', para
 export const markAllNotificationsSeen = () => api.post('/notifications/seen_all');
 export const markNotificationSeen = (id) => api.post(`/notifications/${id}/seen`);
 
+/* ------------------------------- Web push --------------------------------- */
+
+// VAPID public key + whether push is configured, so the client can subscribe.
+export const getPushConfig = () => api.get('/admin/push/config');
+// Register/refresh this browser (with its push subscription) against the admin.
+export const registerDevice = (body) => api.post('/admin/devices', body);
+// Revoke this browser on sign-out or when push is turned off.
+export const deleteDevice = (fingerprint) => api.delete(`/admin/devices/${fingerprint}`);
+
 /* -------------------------------- Messages -------------------------------- */
 
 export const listConversations = () => api.get('/conversations');

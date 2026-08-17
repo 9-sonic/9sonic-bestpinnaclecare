@@ -114,13 +114,21 @@ module Clocking
     # completed visit, clocking in twice, or clocking out with no clock-in.
     def clockable_error
       state = @va.lifecycle_state
-      return "visit_not_clockable" if %w[cancelled missed completed].include?(state)
+      # A visit provisionally marked "missed" can still be reconciled by a clock-in
+      # that was taken offline and only synced now — the carer was there, the tap
+      # just arrived late. Only the offline-sync path (on_block: :flag) may do this;
+      # a live tap after the office has been alerted stays rejected.
+      reconcilable = state == "missed" && @on_block == :flag && @kind == "clock_in"
+      return "visit_not_clockable" if !reconcilable && %w[cancelled missed completed].include?(state)
 
       if @kind == "clock_in"
         "already_clocked_in" if @va.effective_clock_in
       elsif @kind == "clock_out"
         return "not_clocked_in" unless @va.effective_clock_in
-        "already_clocked_out" if @va.effective_clock_out
+        return "already_clocked_out" if @va.effective_clock_out
+        if @method != "manual_admin" && (@occurred_at - @va.effective_clock_in.occurred_at) < 2.minutes
+          "minimum_duration_not_met"
+        end
       end
     end
 
@@ -159,19 +167,39 @@ module Clocking
     def advance_lifecycle(anomaly:)
       case @kind
       when "clock_in"
+        was_missed = @va.lifecycle_state == "missed"
+        start = @va.visit.scheduled_start
+        grace_end = start + Setting.instance.late_grace_minutes.minutes
         state = if anomaly
           :pending_review
-        elsif @occurred_at > @va.visit.scheduled_start
-          :late            # clocked in after the visit's scheduled start
+        elsif @occurred_at > grace_end
+          # Turned up properly late — past the grace window. Flag it so the office
+          # reviews and the carer gives a reason (an admin can amend the record).
+          :pending_review
+        elsif @occurred_at > start
+          :late            # after the scheduled start but within grace
         else
           :in_progress
         end
         @va.update!(actual_start: @occurred_at, lifecycle_state: state)
+        # This tap reconciled a provisionally-missed visit: the carer WAS there,
+        # the tap just synced late. Clear the "missed" alert the timer raised so
+        # the office isn't chasing a visit that actually happened. The clock event
+        # stays on the record (append-only) as the honest proof it was attended.
+        resolve_missed_alert if was_missed
       when "clock_out"
         @va.update!(actual_end: @occurred_at, worked_minutes: worked_minutes,
                     lifecycle_state: anomaly ? :pending_review : :completed)
       end
       # break_start / break_end record the event but don't change the lifecycle.
+    end
+
+    # Resolve the open "missed_visit" alert for this visit — a synced clock-in
+    # proved the carer attended, so the alert's premise no longer holds.
+    def resolve_missed_alert
+      Alert.open_for(@va).where(alert_type: "missed_visit")
+           .update_all(state: "resolved", resolved_at: Time.current,
+                       resolution_note: "Auto-resolved: carer's clock-in synced in after the visit was flagged missed.")
     end
 
     def worked_minutes

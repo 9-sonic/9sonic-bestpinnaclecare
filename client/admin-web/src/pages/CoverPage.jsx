@@ -98,9 +98,9 @@ export default function CoverPage() {
       ) : (
         <div style={s('display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:16px;align-items:start')}>
           <div style={s('display:flex;flex-direction:column')}>
-            <SegTabs active={filter} onSelect={setFilter}
-              tabs={[{ key: 'open', label: 'Unfilled', count: counts.open ?? 0 }, { key: 'offered', label: 'Offered', count: counts.offered ?? 0 }, { key: 'filled', label: 'Filled', count: counts.filled ?? 0 }, { key: 'all', label: 'All', count: shifts.length }]} />
-            <div style={s('background:var(--d-card);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:10px;margin-top:12px')}>
+            <span data-tour="cover-tabs"><SegTabs active={filter} onSelect={setFilter}
+              tabs={[{ key: 'open', label: 'Unfilled', count: counts.open ?? 0 }, { key: 'offered', label: 'Offered', count: counts.offered ?? 0 }, { key: 'filled', label: 'Filled', count: counts.filled ?? 0 }, { key: 'all', label: 'All', count: shifts.length }]} /></span>
+            <div data-tour="cover-list" style={s('background:var(--d-card);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:10px;margin-top:12px')}>
               {list.map((sh) => {
                 const on = sh.visit.id === selectedId;
                 return (

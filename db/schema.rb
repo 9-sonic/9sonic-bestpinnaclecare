@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -438,7 +438,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
     t.jsonb "extra", default: {}, null: false
     t.text "geofence_mode", default: "block", null: false
     t.integer "geofence_radius_m", default: 150, null: false
-    t.integer "late_grace_minutes", default: 5, null: false
+    t.integer "late_grace_minutes", default: 15, null: false
     t.text "logo_key"
     t.integer "missed_threshold_minutes", default: 30, null: false
     t.jsonb "modules_enabled", default: {"shifts" => true}, null: false

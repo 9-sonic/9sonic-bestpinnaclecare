@@ -14,7 +14,12 @@ module Lifecycle
       when "check_in_window"
         va.update!(lifecycle_state: :grace_period) if now >= start
       when "grace_period"
-        if now >= start + settings.missed_threshold_minutes.minutes
+        # Grace ends late_grace_minutes after the scheduled start. Once it passes
+        # with still no clock-in, escalate to the office straight away so they can
+        # contact the carer or reassign — waiting longer just eats the visit,
+        # especially a short one. (This provisional "missed" is reconciled if an
+        # offline clock-in later syncs in — see Clocking::RecordClockEvent.)
+        if now >= start + settings.late_grace_minutes.minutes
           va.update!(lifecycle_state: :missed)
           Alerts::Raise.call(subject: va, alert_type: "missed_visit", severity: "high")
         end

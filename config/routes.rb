@@ -55,6 +55,11 @@ Rails.application.routes.draw do
         post   "me/avatar",   to: "me#avatar"            # upload own avatar (multipart)
         delete "me/avatar",   to: "me#remove_avatar"
 
+        # Web push: register/revoke this office browser + fetch the VAPID key.
+        post   "devices",             to: "devices#create"
+        delete "devices/:fingerprint", to: "devices#destroy"
+        get    "push/config",         to: "push#show"
+
         # Domain: service users, care packages, visits, assignments
         resources :service_users, only: %i[index show create update] do
           resources :care_plan_items, only: %i[index create update destroy]

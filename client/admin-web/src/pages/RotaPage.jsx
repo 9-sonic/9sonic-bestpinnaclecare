@@ -7,6 +7,8 @@ import {
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
+import InfoHint from '../components/common/InfoHint.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -94,7 +96,7 @@ function ContextMenu({ x, y, items, onClose }) {
   const { left, top } = pos;
 
   return (
-    <div ref={ref} onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
+    <div ref={ref} data-tour="rota-menu" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
       style={{ ...s('position:fixed;z-index:200;width:200px;background:var(--d-card);border:1px solid var(--d-border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,0.26);padding:6px'), left, top, fontFamily: "'Figtree', system-ui, sans-serif" }}>
       {items.map((it, i) => (it === null ? (
         <div key={`d-${i}`} style={s('height:1px;background:var(--d-border);margin:5px 8px')} />
@@ -159,7 +161,7 @@ function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
   const border = '1px solid transparent';
   return (
     <div style={s('position:relative')}>
-      <div onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onContext?.(e); }} draggable className="pressable"
+      <div data-visit-block onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onContext?.(e); }} draggable className="pressable"
         style={{
           ...s('border-radius:9px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:1px'),
           background: bg, color: ink, border, opacity: cancelled ? 0.7 : 1,
@@ -246,7 +248,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
   }
 
   return (
-    <Drawer title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
+    <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
       subtitle={`${day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
@@ -294,7 +296,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
           </button>
         ))}
       </div>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -336,9 +338,9 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   return (
-    <Drawer title="New visit" subtitle="Add a one-off visit to the rota. It starts as a draft until you publish." onClose={onClose}
-      footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><Button onClick={onClose}>Cancel</Button><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
-      <div style={s('padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
+    <Modal title="New visit" subtitle="Add a one-off visit to the rota. It starts as a draft until you publish." onClose={onClose}
+      footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><span data-tour="rota-create-cancel"><Button onClick={onClose}>Cancel</Button></span><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
+      <div data-tour="rota-create-fields" style={s('padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
         <div style={field}><span style={label}>Client</span>
           <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={control}>
             {serviceUsers.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
@@ -355,7 +357,7 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
         </div>
         <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Rules that will apply</span><RulesNote settings={settings} /></div>
       </div>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -440,7 +442,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   const editable = isEditable(visit);
 
   return (
-    <Drawer title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
+    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
       footer={editable ? (
         <div style={s('display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap')}>
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
@@ -479,28 +481,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
           </>
         )}
       </div>
-    </Drawer>
-  );
-}
-
-/* ---------- shared right-side drawer shell ---------- */
-// Centered modal shell (was a side drawer). Same props, so every caller flips at
-// once. Body scrolls, so the assign carer list still fits; capped at 88vh.
-function Drawer({ title, subtitle, children, footer, onClose }) {
-  return (
-    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:480px;max-height:88vh;background:var(--d-card);border-radius:22px;display:flex;flex-direction:column;overflow:hidden')}>
-        <div style={s('padding:20px 24px 15px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:12px;flex:none')}>
-          <div style={s('flex:1;min-width:0')}>
-            <div style={s('font-size:18px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>{title}</div>
-            {subtitle && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>{subtitle}</div>}
-          </div>
-          <div onClick={onClose} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-        </div>
-        <div style={s('flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column')}>{children}</div>
-        {footer && <div style={s('padding:14px 24px;border-top:1px solid var(--d-border);flex:none')}>{footer}</div>}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -691,25 +672,25 @@ export default function RotaPage() {
       {/* Page actions */}
       {canManage && (
         <div style={s('display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end')}>
-          <Button icon="sync" onClick={busy ? undefined : handleGenerateNextWeek}>{busy ? 'Working…' : 'Generate next week'}</Button>
+          <span data-tour="rota-generate"><Button icon="sync" onClick={busy ? undefined : handleGenerateNextWeek}>{busy ? 'Working…' : 'Generate next week'}</Button></span>
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
           <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'csv'); toast.success('Rota CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
           <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'xlsx'); toast.success('Rota XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'Export rota'}</Button>
-          <Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button>
+          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint text="Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can't be double-booked at the same time." /></span>
         </div>
       )}
 
       {/* Week bar + view + status + legend */}
       <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-          <div style={s('display:flex;align-items:center;gap:8px')}>
+          <div data-tour="rota-week" style={s('display:flex;align-items:center;gap:8px')}>
             <div className="hv" onClick={() => move(-1)} style={circleBtn}><Icon name="chevronLeft" size={17} /></div>
             <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>{range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
             <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
           </div>
           <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
           <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
-          <SegTabs tabs={viewTabs} active={view} onSelect={setView} />
+          <span data-tour="rota-view"><SegTabs tabs={viewTabs} active={view} onSelect={setView} /></span>
           <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
         </div>
         <div style={s('display:flex;flex-wrap:wrap;gap:12px;font-size:11px;font-weight:600;color:var(--d-muted)')}>
@@ -724,7 +705,7 @@ export default function RotaPage() {
       {loading ? <Spinner /> : (
         <>
           {/* Grid — bordered spreadsheet: sticky first column, ruled cells */}
-          <div style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
+          <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
             <div style={s('overflow-x:auto')}>
               <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: GRID, minWidth: 1080 }}>
                 <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>

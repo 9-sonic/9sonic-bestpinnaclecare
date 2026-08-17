@@ -78,8 +78,8 @@ export default function ReportsHub() {
 
   return (
     <div style={s('display:flex;flex-direction:column')}>
-      <Tabs tabs={TABS} active={tab} onSelect={select} />
-      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
+      <span data-tour="reports-tabs"><Tabs tabs={TABS} active={tab} onSelect={select} /></span>
+      <div data-tour="reports-content" style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
         {tab === 'changelog' ? <ChangeLogTab />
           : tab === 'exports' ? <ExportsTab />
             : <OverviewTab range={range} setRange={setRange} />}

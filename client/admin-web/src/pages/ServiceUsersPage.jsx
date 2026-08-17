@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { listServiceUsers, createServiceUser } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
+import InfoHint from '../components/common/InfoHint.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -88,13 +90,13 @@ export default function ServiceUsersPage() {
       </div>
 
       {/* Toolbar */}
-      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
+      <div data-tour="clients-toolbar" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
         <div style={s('height:46px;flex:1;min-width:220px;background:var(--d-field);border-radius:23px;display:flex;align-items:center;gap:10px;padding:0 18px')}>
           <Icon name="search" size={17} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, reference or postcode" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
         </div>
         <div style={s('flex:1')} />
-        {canManage && <Button variant="primary" icon="plus" onClick={openCreate}>Add a person</Button>}
+        {canManage && <span data-tour="clients-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={openCreate}>Add a person</Button><InfoHint text="Add a new client with their name and address. The geofence (carers clock in within 150m) is located from the address automatically — you only enter coordinates to correct where the pin lands." /></span>}
       </div>
 
       {/* Client card grid */}
@@ -168,40 +170,39 @@ export default function ServiceUsersPage() {
 
       {/* Add-a-person modal (editing lives on the client detail page) */}
       {creating && (
-        <div onClick={closeModal} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:560px;max-height:90vh;background:var(--d-card);border-radius:28px;display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 8px;display:flex;align-items:center')}>
-              <div style={s('font-size:19px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>Add a person</div>
-              <div style={s('flex:1')} />
-              <div onClick={closeModal} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
-              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-                <Field label="First name"><input style={inputStyle} value={form.first_name} onChange={set('first_name')} /></Field>
-                <Field label="Last name"><input style={inputStyle} value={form.last_name} onChange={set('last_name')} /></Field>
-                <Field label="Reference"><input style={inputStyle} value={form.reference} onChange={set('reference')} /></Field>
-                <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={set('phone')} /></Field>
-                <Field label="Address" full><input style={inputStyle} value={form.address_line1} onChange={set('address_line1')} placeholder="Line 1" /></Field>
-                <Field label="Town or city"><input style={inputStyle} value={form.city} onChange={set('city')} /></Field>
-                <Field label="Postcode"><input style={inputStyle} value={form.postcode} onChange={set('postcode')} /></Field>
-              </div>
-              <div style={s('height:1px;background:var(--d-panel2);margin:2px 0')} />
-              <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>Geofence</div>
-              <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers can only clock in at this address, within 150 m. Enter the coordinates so the fence can be enforced.</div>
-              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-                <Field label="Latitude"><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="53.4808" /></Field>
-                <Field label="Longitude"><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="-2.2426" /></Field>
-              </div>
-              <Field label="Access notes for carers">
-                <textarea rows={3} value={form.access_notes} onChange={set('access_notes')} placeholder="Key safe code, parking, who is usually in." style={{ ...inputStyle, height: 'auto', padding: '12px 16px', resize: 'vertical', lineHeight: 1.5 }} />
-              </Field>
-            </div>
-            <div style={s('padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px')}>
-              <Button onClick={closeModal}>Cancel</Button>
+        <Modal
+          onClose={closeModal}
+          title="Add a person"
+          maxWidth={560}
+          footer={(
+            <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
+              <span data-tour="clients-modal-cancel"><Button onClick={closeModal}>Cancel</Button></span>
               <Button variant="primary" icon="check" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Add person'}</Button>
             </div>
+          )}
+        >
+          <div data-tour="clients-modal" style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
+            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
+              <Field label="First name"><input style={inputStyle} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name"><input style={inputStyle} value={form.last_name} onChange={set('last_name')} /></Field>
+              <Field label="Reference"><input style={inputStyle} value={form.reference} onChange={set('reference')} /></Field>
+              <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={set('phone')} /></Field>
+              <Field label="Address" full><input style={inputStyle} value={form.address_line1} onChange={set('address_line1')} placeholder="Line 1" /></Field>
+              <Field label="Town or city"><input style={inputStyle} value={form.city} onChange={set('city')} /></Field>
+              <Field label="Postcode"><input style={inputStyle} value={form.postcode} onChange={set('postcode')} /></Field>
+            </div>
+            <div style={s('height:1px;background:var(--d-panel2);margin:2px 0')} />
+            <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>Geofence</div>
+            <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers clock in at this address, within 150 m. The coordinates are found from the address automatically — leave these blank unless you need to correct where the pin lands.</div>
+            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
+              <Field label="Latitude (optional)"><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="Auto from address" /></Field>
+              <Field label="Longitude (optional)"><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="Auto from address" /></Field>
+            </div>
+            <Field label="Access notes for carers">
+              <textarea rows={3} value={form.access_notes} onChange={set('access_notes')} placeholder="Key safe code, parking, who is usually in." style={{ ...inputStyle, height: 'auto', padding: '12px 16px', resize: 'vertical', lineHeight: 1.5 }} />
+            </Field>
           </div>
-        </div>
+        </Modal>
       )}
 
     </div>

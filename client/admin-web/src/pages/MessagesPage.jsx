@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { listConversations, listMessages, sendMessage, createChannel, createGroup, createDirect, addConversationParticipants, searchConversations, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
+import InfoHint from '../components/common/InfoHint.jsx';
 import { s } from '../lib/ui.jsx';
 import { subscribeInbox } from '../lib/cable.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -254,9 +256,11 @@ export default function MessagesPage() {
     <div style={{ ...s('display:grid;gap:14px;height:100%;min-height:0'), gridTemplateColumns: 'minmax(240px,280px) minmax(0,1fr) 300px' }}>
       {/* Pane 1 — thread list */}
       <div style={s('background:var(--d-card);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;min-height:0')}>
-        <div style={s('padding:14px 14px 10px;display:flex;align-items:center;gap:8px')}>
-          <div style={s('flex:1;font-size:15px;font-weight:700;color:var(--d-ink)')}>Messages</div>
-          <div onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv" title="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
+        <div data-tour="messages-new" style={s('padding:14px 14px 10px;display:flex;align-items:center;gap:8px')}>
+          <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>Messages</div>
+          <InfoHint text="Start a new conversation: a direct message to one person, a private group, or a channel (which can auto-post shift alerts and request read receipts)." />
+          <div style={s('flex:1')} />
+          <div data-tour="messages-new-message" onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv" title="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
           <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv" title="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
           <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv" title="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
         </div>
@@ -456,67 +460,65 @@ export default function MessagesPage() {
 
       {/* Create direct / group / channel dialog */}
       {composer && (
-        <div onClick={() => setComposer(null)} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:480px;max-height:88vh;background:var(--d-card);border-radius:26px;display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:20px 24px 12px;display:flex;align-items:center')}>
-              <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{composer === 'direct' ? 'New message' : `New ${composer}`}</div>
-              <div style={s('flex:1')} />
-              <div onClick={() => setComposer(null)} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('padding:0 24px 4px')}>
-              <div style={s('display:inline-flex;gap:3px;background:var(--d-panel);border-radius:12px;padding:3px')}>
-                {['direct', 'channel', 'group'].map((k) => (
-                  <button key={k} type="button" onClick={() => { setComposer(k); setMembers([]); }} style={{ ...s('border:0;border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k === 'direct' ? 'Message' : k[0].toUpperCase() + k.slice(1)}</button>
-                ))}
-              </div>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:14px 24px;display:flex;flex-direction:column;gap:14px')}>
-              {composer !== 'direct' && (
-                <label style={s('display:flex;flex-direction:column;gap:6px')}>
-                  <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
-                  <div style={s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 15px')}>
-                    {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
-                    <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
-                  </div>
-                </label>
-              )}
-              {composer !== 'direct' && (
-                <label style={s('display:flex;flex-direction:column;gap:6px')}>
-                  <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
-                  <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:0;outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
-                </label>
-              )}
-              {composer === 'channel' && (
-                <div onClick={() => setAutoPost((v) => !v)} style={s('display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--d-panel);border-radius:12px;padding:11px 13px')}>
-                  <div style={{ ...s('width:34px;height:20px;border-radius:10px;position:relative;flex:none'), background: autoPost ? 'var(--d-primary)' : 'var(--d-field)' }}><div style={{ ...s('position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff'), left: autoPost ? '17px' : '3px' }} /></div>
-                  <div style={s('min-width:0')}>
-                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Auto-post shift alerts</div>
-                    <div style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Late, missed and geofence alerts appear here automatically.</div>
-                  </div>
-                </div>
-              )}
-              <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'direct' ? 'To' : `Members (${members.length})`}</div>
-              <div style={s('display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto')}>
-                {staff.map((e) => {
-                  const on = members.includes(e.id);
-                  // Direct is single-select: picking someone replaces the choice.
-                  const toggle = () => setMembers((m) => (composer === 'direct' ? (on ? [] : [e.id]) : (on ? m.filter((x) => x !== e.id) : [...m, e.id])));
-                  return (
-                    <div key={e.id} onClick={toggle} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
-                      <Avatar initials={`${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`} size="sm" />
-                      <div style={s('flex:1;font-size:13px;font-weight:700;color:var(--d-ink)')}>{fullName(e)}</div>
-                      <div style={{ ...s('width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center'), background: on ? 'var(--d-primary)' : 'var(--d-panel)', color: '#fff' }}>{on && <Icon name="check" size={13} />}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={s('padding:14px 24px 20px;display:flex;justify-content:flex-end;gap:10px')}>
+        <Modal
+          onClose={() => setComposer(null)}
+          title={composer === 'direct' ? 'New message' : `New ${composer}`}
+          footer={(
+            <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
               <Button onClick={() => setComposer(null)}>Cancel</Button>
               <Button variant="primary" icon={composer === 'direct' ? 'send' : 'plus'} disabled={!canCreate} onClick={canCreate ? create : undefined}>{composer === 'direct' ? 'Open conversation' : `Create ${composer}`}</Button>
             </div>
+          )}
+        >
+          <div data-tour="messages-dialog" style={s('padding:0 24px 4px')}>
+            <div style={s('display:inline-flex;gap:3px;background:var(--d-panel);border-radius:12px;padding:3px')}>
+              {['direct', 'channel', 'group'].map((k) => (
+                <button key={k} type="button" onClick={() => { setComposer(k); setMembers([]); }} style={{ ...s('border:0;border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k === 'direct' ? 'Message' : k[0].toUpperCase() + k.slice(1)}</button>
+              ))}
+            </div>
           </div>
-        </div>
+          <div style={s('flex:1;overflow-y:auto;padding:14px 24px;display:flex;flex-direction:column;gap:14px')}>
+            {composer !== 'direct' && (
+              <label style={s('display:flex;flex-direction:column;gap:6px')}>
+                <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
+                <div style={s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 15px')}>
+                  {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
+                  <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
+                </div>
+              </label>
+            )}
+            {composer !== 'direct' && (
+              <label style={s('display:flex;flex-direction:column;gap:6px')}>
+                <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
+                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:0;outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+              </label>
+            )}
+            {composer === 'channel' && (
+              <div onClick={() => setAutoPost((v) => !v)} style={s('display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--d-panel);border-radius:12px;padding:11px 13px')}>
+                <div style={{ ...s('width:34px;height:20px;border-radius:10px;position:relative;flex:none'), background: autoPost ? 'var(--d-primary)' : 'var(--d-field)' }}><div style={{ ...s('position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff'), left: autoPost ? '17px' : '3px' }} /></div>
+                <div style={s('min-width:0')}>
+                  <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Auto-post shift alerts</div>
+                  <div style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Late, missed and geofence alerts appear here automatically.</div>
+                </div>
+              </div>
+            )}
+            <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'direct' ? 'To' : `Members (${members.length})`}</div>
+            <div style={s('display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto')}>
+              {staff.map((e) => {
+                const on = members.includes(e.id);
+                // Direct is single-select: picking someone replaces the choice.
+                const toggle = () => setMembers((m) => (composer === 'direct' ? (on ? [] : [e.id]) : (on ? m.filter((x) => x !== e.id) : [...m, e.id])));
+                return (
+                  <div key={e.id} onClick={toggle} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
+                    <Avatar initials={`${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`} size="sm" />
+                    <div style={s('flex:1;font-size:13px;font-weight:700;color:var(--d-ink)')}>{fullName(e)}</div>
+                    <div style={{ ...s('width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center'), background: on ? 'var(--d-primary)' : 'var(--d-panel)', color: '#fff' }}>{on && <Icon name="check" size={13} />}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

@@ -39,9 +39,52 @@ const MESSAGES = {
   visit_started: "This visit can't be cancelled — a carer has already clocked in. The record must be kept.",
   already_cancelled: 'This visit is already cancelled.',
   reason_required: 'A reason is required — it goes in the audit trail.',
+  minimum_duration_not_met: 'A carer cannot clock out within 2 minutes of clocking in.',
+
+  // Scheduling
+  client_overlap: 'This client already has a visit at that time — one client, one visit at a time. Pick a different time, or cancel the existing visit first.',
+  client_unavailable: 'This client already has a carer on an overlapping visit — one client, one carer at a time.',
+  visit_cancelled: 'This visit is cancelled, so it can no longer be published or changed.',
+  visit_has_records: "This visit can't be deleted — a carer has already clocked in, so the record must be kept. Cancel it instead.",
+  invalid_visit_assignment: 'That visit assignment could not be found.',
+
+  // Sign-in, two-step and password reset
+  invalid_code: 'That code is incorrect. Check your authenticator app and try again.',
+  invalid_mfa_token: 'That two-step request has expired. Sign in again to get a new code.',
+  invalid_refresh_token: 'Your session has expired. Please sign in again.',
+  challenge_expired: 'That took too long — please try again.',
+  authentication_failed: "That didn't work. Please try signing in again.",
+  verification_failed: "That couldn't be verified. Please try again.",
+  reset_failed: 'That password reset link is invalid or has expired. Request a new one.',
+  no_people: 'Add at least one person to start this conversation.',
+  cannot_add_to_direct: "You can't add people to a direct message. Start a group instead.",
 };
 
-function messageFor(code, status) {
+// Turn a Rails errors.messages hash ({ field: ["is required", ...] }) into one
+// readable sentence, so a failed form says WHICH field and why instead of a
+// flat "some details need fixing".
+function detailsToSentence(details) {
+  if (!details || typeof details !== 'object') return null;
+  const parts = Object.entries(details).flatMap(([field, msgs]) => {
+    const label = field.replace(/_/g, ' ');
+    return (Array.isArray(msgs) ? msgs : [msgs]).map((m) => {
+      const text = String(m).trim();
+      // Rails messages are usually "can't be blank" etc. — prefix the field
+      // unless the message already reads as a full sentence.
+      return /^[A-Z]/.test(text) ? text : `${label[0].toUpperCase()}${label.slice(1)} ${text}`;
+    });
+  });
+  if (parts.length === 0) return null;
+  return parts.slice(0, 3).join('. ') + (parts.length > 3 ? '…' : '.');
+}
+
+function messageFor(code, status, data) {
+  // A validation failure carries per-field details — surface them so the admin
+  // sees what actually needs fixing.
+  if (code === 'validation_failed') {
+    const specific = detailsToSentence(data?.details);
+    if (specific) return specific;
+  }
   if (MESSAGES[code]) return MESSAGES[code];
   if (status === 401) return MESSAGES.unauthorized;
   if (status === 403) return MESSAGES.forbidden;
@@ -86,7 +129,7 @@ async function request(path, { method = 'GET', body, headers = {}, signal, auth 
       clearToken();
       onUnauthorized?.();
     }
-    throw new ApiError(messageFor(code, response.status), {
+    throw new ApiError(messageFor(code, response.status, data), {
       status: response.status,
       code,
       details: data?.details,

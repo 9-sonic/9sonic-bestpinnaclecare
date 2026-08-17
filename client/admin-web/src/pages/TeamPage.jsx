@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -168,34 +169,33 @@ export default function TeamPage() {
       <Pager page={page} perPage={PER_PAGE} total={filtered.length} onPage={setPage} />
 
       {modalOpen && (
-        <div onClick={closeModal} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:520px;max-height:88vh;background:var(--d-card);border-radius:28px;display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 8px;display:flex;align-items:center')}>
-              <div style={s('font-size:19px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>{editing ? `Edit ${editing.first_name}` : 'Invite an office user'}</div>
-              <div style={s('flex:1')} />
-              <div onClick={closeModal} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
-              {!editing && <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password, then set up two-step sign-in on first login. The account stays pending until they accept.</div>}
-              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-                <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
-                <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
-              </div>
-              <Field label="Work email" error={errors.email} hint={editing ? 'Email is the sign-in name and cannot be changed here.' : undefined}><input style={input(errors.email, !!editing)} type="email" value={form.email} onChange={set('email')} disabled={!!editing} /></Field>
-              <Field label="Role"><select style={input(false)} value={form.role} onChange={set('role')}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></Field>
-              {editing && editing.id !== admin?.id && (
-                <label style={s('display:flex;align-items:center;gap:10px;cursor:pointer')}>
-                  <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                  <span style={s('font-size:13px;font-weight:600;color:var(--d-ink2)')}>Account active</span>
-                </label>
-              )}
-            </div>
-            <div style={s('padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px')}>
+        <Modal
+          onClose={closeModal}
+          title={editing ? `Edit ${editing.first_name}` : 'Invite an office user'}
+          maxWidth={520}
+          footer={(
+            <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
               <Button onClick={closeModal}>Cancel</Button>
               <Button variant="primary" icon="check" onClick={saving ? undefined : handleSave}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Send invitation'}</Button>
             </div>
+          )}
+        >
+          <div style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
+            {!editing && <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password, then set up two-step sign-in on first login. The account stays pending until they accept.</div>}
+            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
+              <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
+            </div>
+            <Field label="Work email" error={errors.email} hint={editing ? 'Email is the sign-in name and cannot be changed here.' : undefined}><input style={input(errors.email, !!editing)} type="email" value={form.email} onChange={set('email')} disabled={!!editing} /></Field>
+            <Field label="Role"><select style={input(false)} value={form.role} onChange={set('role')}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></Field>
+            {editing && editing.id !== admin?.id && (
+              <label style={s('display:flex;align-items:center;gap:10px;cursor:pointer')}>
+                <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                <span style={s('font-size:13px;font-weight:600;color:var(--d-ink2)')}>Account active</span>
+              </label>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

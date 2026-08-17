@@ -5,7 +5,13 @@ import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { Panel, PanelTitle, Button } from '../ds/console.jsx';
+
+// System settings — the single place the office configures how clocking behaves.
+// Every field here is a REAL, enforced setting the backend reads at runtime
+// (Setting.instance.*), so nothing about the policy is hard-coded: change the
+// grace period here and the escalation timing changes with it. Saves are audited
+// (settings.updated event) and gated to a registered manager / manager.
 
 const inputStyle = (dis) => ({ ...s('height:44px;border-radius:14px;background:var(--d-field);padding:0 14px;font-size:13.5px;font-weight:600;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid transparent'), fontFamily: 'inherit', opacity: dis ? 0.55 : 1 });
 
@@ -18,39 +24,40 @@ function Field({ label, hint, children }) {
     </label>
   );
 }
+
 function NumberField({ value, onChange, suffix, min, disabled }) {
   return (
     <div style={{ ...s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 14px;border:1.5px solid transparent'), opacity: disabled ? 0.55 : 1 }}>
-      <input type="number" min={min} value={value} onChange={onChange} disabled={disabled} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:600;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+      <input type="number" min={min} value={value ?? ''} onChange={onChange} disabled={disabled} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:600;color:var(--d-ink)'), fontFamily: 'inherit' }} />
       {suffix && <span style={s('font-size:12px;font-weight:600;color:var(--d-muted)')}>{suffix}</span>}
     </div>
   );
 }
-function Toggle({ label, hint, on, onChange }) {
+
+function SelectField({ value, onChange, options, disabled }) {
   return (
-    <div style={s('display:flex;align-items:flex-start;gap:12px')}>
-      <div style={s('flex:1;min-width:0')}>
-        <div style={s('font-size:12.5px;font-weight:600;color:var(--d-ink)')}>{label}</div>
-        {hint && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);line-height:1.45;margin-top:1px')}>{hint}</div>}
-      </div>
-      <div onClick={() => onChange(!on)} style={{ ...s('width:40px;height:24px;border-radius:12px;flex:none;cursor:pointer;position:relative;transition:background 0.15s'), background: on ? 'var(--d-primary)' : 'var(--d-panel2)' }}>
-        <div style={{ ...s('position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.15s'), left: on ? '19px' : '3px' }} />
-      </div>
-    </div>
+    <select value={value ?? ''} onChange={onChange} disabled={disabled} style={{ ...inputStyle(disabled) }}>
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
   );
 }
+
 function Section({ title, hint, children }) {
-  return (<Panel style={{ padding: '22px 24px' }}><PanelTitle hint={hint}>{title}</PanelTitle><div style={s('display:flex;flex-direction:column;gap:16px')}>{children}</div></Panel>);
+  return (<Panel style={{ padding: '22px 24px' }}><PanelTitle hint={hint}>{title}</PanelTitle><div style={s('display:flex;flex-direction:column;gap:16px;margin-top:4px')}>{children}</div></Panel>);
 }
 
-const DEFAULT_POLICY = { gpsOptional: true, offline: true, pinTablets: true, photoPin: false, managerEntry: true, retainCarer: true, weeklyEmail: true, anonymise: false, failButton: true, autoOpen: true, smsFallback: false, shiftReminder: true, rotaNotice: true, openBroadcast: true };
-const PERMS = [
-  ['Registered manager', true, true, true, true],
-  ['Manager', true, true, true, false],
-  ['Coordinator', true, true, false, false],
-  ['Finance', true, false, false, true],
-  ['Auditor', true, false, false, false],
-  ['Carer', false, false, false, false],
+const GEOFENCE_MODES = [
+  { value: 'record', label: 'Record only — clock-ins away from the address are logged, not blocked' },
+  { value: 'warn', label: 'Warn — the carer is warned but can still clock in' },
+  { value: 'block', label: 'Block — a clock-in outside the fence is refused' },
+];
+const PERIODS = [
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'fortnightly', label: 'Fortnightly' },
+  { value: 'four_weekly', label: 'Four-weekly' },
+];
+const WEEK_STARTS = [
+  { value: 'monday', label: 'Monday' }, { value: 'sunday', label: 'Sunday' },
 ];
 
 export default function SettingsPage() {
@@ -63,105 +70,129 @@ export default function SettingsPage() {
 
   useEffect(() => {
     let active = true;
-    getSettings().then((v) => { if (!active) return; setSettings(v); setForm(v); }).finally(() => active && setLoading(false));
+    getSettings()
+      .then((v) => { if (!active) return; setSettings(v); setForm(v); })
+      .catch(() => active && toast.error('Could not load settings'))
+      .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [toast]);
 
+  // Text/select fields keep the raw value; number fields coerce to a number so
+  // the API gets integers, not strings.
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const policy = { ...DEFAULT_POLICY, ...(form.policy ?? {}) };
-  const pset = (k) => (v) => setForm((f) => ({ ...f, policy: { ...DEFAULT_POLICY, ...(f.policy ?? {}), [k]: v } }));
+  const setNum = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value === '' ? '' : Number(e.target.value) }));
   const dirty = settings && JSON.stringify(settings) !== JSON.stringify(form);
 
   async function save() {
     setSaving(true);
-    try { const saved = await updateSettings(form); setSettings(saved); setForm(saved); toast.success('Settings saved'); }
-    catch (err) { toast.error(err.message || 'Could not save'); } finally { setSaving(false); }
+    try {
+      const saved = await updateSettings(form);
+      setSettings(saved); setForm(saved);
+      toast.success('Settings saved — the system uses these straight away');
+    } catch (err) {
+      toast.error(err.message || 'Could not save settings');
+    } finally { setSaving(false); }
   }
 
   if (loading) return <Spinner fullscreen />;
 
+  const ro = !canManage;
+
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
       <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);max-width:620px;line-height:1.5')}>How the system decides late, missed and out of range, and the policies that govern clocking. Everything here saves to the live system — agree changes with the registered manager first.</div>
+        <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);max-width:640px;line-height:1.5')}>
+          Everything here saves to the live system and takes effect immediately — the same values the app uses to decide late, missed and out-of-range. {ro ? 'Your role can view these but not change them.' : 'Agree changes with the registered manager first.'}
+        </div>
         <div style={s('flex:1')} />
         {canManage && <Button variant="primary" icon="check" disabled={saving || !dirty} onClick={saving || !dirty ? undefined : save}>{saving ? 'Saving…' : 'Save changes'}</Button>}
       </div>
 
       <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start')}>
-        {/* Grace & rounding — REAL */}
-        <Section title="Grace periods & rounding" hint="How much leeway before a shift is flagged late">
-          <Field label="Clock-in grace period" hint="Arrivals inside this window count as on time."><NumberField value={form.late_grace_minutes ?? 5} onChange={set('late_grace_minutes')} suffix="min" min="0" disabled={!canManage} /></Field>
-          <Field label="Missed clock-out flag" hint="How long a record stays open before it becomes an exception."><NumberField value={form.auto_close_after_minutes ?? 30} onChange={set('auto_close_after_minutes')} suffix="min" min="0" disabled={!canManage} /></Field>
-          <Field label="Rounding rule" hint="Applied to verified hours before they reach payroll. Zero keeps exact minutes."><NumberField value={form.timesheet_rounding_minutes ?? 0} onChange={set('timesheet_rounding_minutes')} suffix="min" min="0" disabled={!canManage} /></Field>
-        </Section>
 
-        {/* Geofencing — REAL + policy toggles */}
-        <Section title="Geofencing" hint="Location capture at the moment of clocking only">
-          <Field label="Clock-in fence" hint="Carers can only clock in at the client's address, within 150 m. Enforced on every clock-in.">
-            <div style={{ ...inputStyle(true), display: 'flex', alignItems: 'center' }}>On site only — within 150 m</div>
+        {/* Attendance & escalation — the enforced timing policy */}
+        <Section title="Attendance & escalation" hint="How the system decides late and missed">
+          <Field label="Check-in window before start" hint="How early a carer may clock in before the scheduled start.">
+            <NumberField value={form.checkin_window_before_start_minutes} onChange={setNum('checkin_window_before_start_minutes')} suffix="min" min="0" disabled={ro} />
           </Field>
-          <Toggle label="Allow clocking without GPS" hint="Care is never blocked by a poor signal — the record is flagged instead." on={policy.gpsOptional} onChange={pset('gpsOptional')} />
-          <Toggle label="Offline capture" hint="Store clock times on the device and sync with original timestamps." on={policy.offline} onChange={pset('offline')} />
+          <Field label="Grace period" hint="Clock-ins within this window of the start count as on time. Once it passes with no clock-in, the office is alerted so it can contact the carer or reassign.">
+            <NumberField value={form.late_grace_minutes} onChange={setNum('late_grace_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+          <Field label="Missed threshold" hint="How long after the start a visit is treated as fully missed for reporting.">
+            <NumberField value={form.missed_threshold_minutes} onChange={setNum('missed_threshold_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+          <Field label="Overdue (no clock-out) threshold" hint="How long past the scheduled end an open visit waits before it is flagged overdue.">
+            <NumberField value={form.overdue_threshold_minutes} onChange={setNum('overdue_threshold_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+          <Field label="Auto-close after" hint="A visit still open this long past its end is closed to pending review automatically.">
+            <NumberField value={form.auto_close_after_minutes} onChange={setNum('auto_close_after_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+          <Field label="Early-leave tolerance" hint="A clock-out this far before the end is allowed but flagged for review.">
+            <NumberField value={form.early_leave_tolerance_minutes} onChange={setNum('early_leave_tolerance_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+          <Field label="Clock-skew tolerance" hint="A tap whose time is off from the server by more than this is flagged for review.">
+            <NumberField value={form.clock_skew_tolerance_minutes} onChange={setNum('clock_skew_tolerance_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
         </Section>
 
-        {/* PIN tablets */}
-        <Section title="PIN tablets & devices" hint="For sites where personal phones are not used">
-          <Toggle label="Wall-mounted PIN tablets" hint="Shared kiosk clocking for care homes and supported living." on={policy.pinTablets} onChange={pset('pinTablets')} />
-          <Toggle label="Photo capture on PIN entry" hint="Optional snapshot to confirm identity at shared devices." on={policy.photoPin} onChange={pset('photoPin')} />
-          <Toggle label="Manager manual entry" hint="Managers can record a clocking on a carer's behalf, always audited." on={policy.managerEntry} onChange={pset('managerEntry')} />
+        {/* Geofence — location at clock only */}
+        <Section title="Geofence" hint="Location is captured at clock moments only, never between visits">
+          <Field label="Enforcement" hint="What happens when a carer clocks in away from the client's address.">
+            <SelectField value={form.geofence_mode} onChange={set('geofence_mode')} options={GEOFENCE_MODES} disabled={ro} />
+          </Field>
+          <Field label="Fence radius" hint="How close to the registered address a clock-in must be.">
+            <NumberField value={form.geofence_radius_m} onChange={setNum('geofence_radius_m')} suffix="m" min="0" disabled={ro} />
+          </Field>
         </Section>
 
-        {/* Escalation timings */}
-        <Section title="Escalation timings" hint="Who hears about a missed clock-in, and when">
-          {[['Tier 1 — carer reminder', `+${form.late_grace_minutes ?? 5} min`], ['Tier 2 — coordinator alert', '+15 min'], ['Tier 3 — manager SMS', '+30 min'], ['Tier 4 — cover broadcast', '+45 min']].map(([l, v]) => (
-            <div key={l} style={s('display:flex;align-items:center;gap:12px')}>
-              <div style={s('flex:1;font-size:12.5px;font-weight:600;color:var(--d-ink)')}>{l}</div>
-              <Tag tone="primary">{v}</Tag>
+        {/* Timesheets */}
+        <Section title="Timesheets" hint="How verified hours are grouped for pay">
+          <Field label="Pay period">
+            <SelectField value={form.timesheet_period} onChange={set('timesheet_period')} options={PERIODS} disabled={ro} />
+          </Field>
+          <Field label="Week starts on">
+            <SelectField value={form.timesheet_week_starts_on} onChange={set('timesheet_week_starts_on')} options={WEEK_STARTS} disabled={ro} />
+          </Field>
+          <Field label="Rounding" hint="Applied to verified hours before payroll. Zero keeps exact minutes.">
+            <NumberField value={form.timesheet_rounding_minutes} onChange={setNum('timesheet_rounding_minutes')} suffix="min" min="0" disabled={ro} />
+          </Field>
+        </Section>
+
+        {/* Organisation */}
+        <Section title="Organisation" hint="Your registered details, shown on exports and the CQC audit">
+          <Field label="Company name"><input value={form.company_name ?? ''} onChange={set('company_name')} disabled={ro} style={inputStyle(ro)} /></Field>
+          <Field label="Trading name"><input value={form.trading_name ?? ''} onChange={set('trading_name')} disabled={ro} style={inputStyle(ro)} /></Field>
+          <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
+            <Field label="CQC provider ID"><input value={form.cqc_provider_id ?? ''} onChange={set('cqc_provider_id')} disabled={ro} style={inputStyle(ro)} /></Field>
+            <Field label="CQC location ID"><input value={form.cqc_location_id ?? ''} onChange={set('cqc_location_id')} disabled={ro} style={inputStyle(ro)} /></Field>
+          </div>
+          <Field label="Address line 1"><input value={form.address_line1 ?? ''} onChange={set('address_line1')} disabled={ro} style={inputStyle(ro)} /></Field>
+          <Field label="Address line 2"><input value={form.address_line2 ?? ''} onChange={set('address_line2')} disabled={ro} style={inputStyle(ro)} /></Field>
+          <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
+            <Field label="Town or city"><input value={form.city ?? ''} onChange={set('city')} disabled={ro} style={inputStyle(ro)} /></Field>
+            <Field label="Postcode"><input value={form.postcode ?? ''} onChange={set('postcode')} disabled={ro} style={inputStyle(ro)} /></Field>
+          </div>
+          <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
+            <Field label="Phone"><input value={form.phone ?? ''} onChange={set('phone')} disabled={ro} style={inputStyle(ro)} /></Field>
+            <Field label="Email"><input value={form.email ?? ''} onChange={set('email')} disabled={ro} style={inputStyle(ro)} /></Field>
+          </div>
+        </Section>
+
+        {/* Branding & locale */}
+        <Section title="Branding & locale" hint="How the console reads and where it operates">
+          <Field label="Brand colour" hint="Used for accents across the office app.">
+            <div style={s('display:flex;align-items:center;gap:10px')}>
+              <input type="color" value={form.brand_primary_colour || '#2563eb'} onChange={set('brand_primary_colour')} disabled={ro} style={{ ...s('width:44px;height:44px;border-radius:12px;border:1px solid var(--d-border);background:none;cursor:pointer'), opacity: ro ? 0.55 : 1 }} />
+              <input value={form.brand_primary_colour ?? ''} onChange={set('brand_primary_colour')} disabled={ro} style={inputStyle(ro)} />
             </div>
-          ))}
-          <div style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Tier 1 follows the live grace period above.</div>
-        </Section>
-
-        {/* Permissions — REAL role matrix */}
-        <Section title="Permissions" hint="Who can change a clocking record">
-          <TableWrap minWidth={460}>
-            <thead><tr><Th>Role</Th><Th>View board</Th><Th>Resolve</Th><Th>Amend times</Th><Th align="right">Approve pay</Th></tr></thead>
-            <tbody>
-              {PERMS.map((r) => (
-                <Row key={r[0]}>
-                  <Td><b style={s('font-weight:700;color:var(--d-ink)')}>{r[0]}</b></Td>
-                  {r.slice(1).map((v, i) => <Td key={i} align={i === 3 ? 'right' : 'left'}>{v ? <Tag tone="success">Yes</Tag> : <Tag tone="muted">No</Tag>}</Td>)}
-                </Row>
-              ))}
-            </tbody>
-          </TableWrap>
-        </Section>
-
-        {/* Data & retention */}
-        <Section title="Data & retention" hint="UK GDPR and NHS data standards">
-          <Toggle label="Carer access to own records" hint="Carers can view and download their own clocking history in the app." on={policy.retainCarer} onChange={pset('retainCarer')} />
-          <Toggle label="Weekly summary to carers" hint="Email each carer their verified hours before payroll closes." on={policy.weeklyEmail} onChange={pset('weeklyEmail')} />
-          <Toggle label="Anonymise reporting exports" hint="Replace names with staff references in board-level reports." on={policy.anonymise} onChange={pset('anonymise')} />
-        </Section>
-
-        {/* Clock-in failure */}
-        <Section title="Clock-in failure alerts" hint="What happens when a carer physically cannot clock in">
-          <Toggle label={'“I can’t clock in” button in the carer app'} hint="Raises an alert to the on-duty manager with the reason and last known position." on={policy.failButton} onChange={pset('failButton')} />
-          <Toggle label="Auto-open the visit record" hint="Care is never delayed — the visit starts as pending and is reconciled afterwards." on={policy.autoOpen} onChange={pset('autoOpen')} />
-          <Toggle label="SMS fallback clocking" hint="Carer can text a code when the app cannot reach the network at all." on={policy.smsFallback} onChange={pset('smsFallback')} />
-        </Section>
-
-        {/* Notifications */}
-        <Section title="Notifications & messaging" hint="Automatic messages sent from the console">
-          <Toggle label="Shift reminder to carers" hint="Push 30 minutes before a visit is due to start." on={policy.shiftReminder} onChange={pset('shiftReminder')} />
-          <Toggle label="Rota change notice" hint="Notify a carer whenever their assigned visits are edited." on={policy.rotaNotice} onChange={pset('rotaNotice')} />
-          <Toggle label="Open shift broadcast" hint="Post unfilled visits to the relevant team channel automatically." on={policy.openBroadcast} onChange={pset('openBroadcast')} />
+          </Field>
+          <Field label="Timezone"><input value={form.timezone ?? ''} onChange={set('timezone')} disabled={ro} placeholder="Europe/London" style={inputStyle(ro)} /></Field>
+          <Field label="Currency"><input value={form.currency_code ?? ''} onChange={set('currency_code')} disabled={ro} placeholder="GBP" style={inputStyle(ro)} /></Field>
         </Section>
       </div>
 
       <div style={s('display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--d-muted);padding:0 4px')}>
-        <Icon name="info" size={15} /> All settings here — timings, geofence, permissions view and every policy toggle — save to the live system. Permissions reflects the real admin roles.
+        <Icon name="info" size={15} /> Changes here take effect immediately and are recorded in the audit trail with your name and the time.
       </div>
     </div>
   );

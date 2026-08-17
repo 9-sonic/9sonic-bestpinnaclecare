@@ -1,47 +1,61 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 
+// Lightweight toast system, ported from the carer PWA so the office and the
+// phone give feedback the same way. Any screen can call toast.success('Saved')
+// for immediate, non-blocking feedback.
+//
+// Public API is unchanged from the previous admin toast (success/error/warn/info
+// take a message), so no page needs updating; `show(message, tone, duration)` is
+// added to match the PWA.
+
 const ToastContext = createContext(null);
-let seq = 0;
+
+const ICONS = { success: 'check', error: 'alert', info: 'info', warn: 'alert' };
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const idRef = useRef(0);
 
-  const dismiss = useCallback((id) => {
+  const remove = useCallback((id) => {
     setToasts((list) => list.filter((t) => t.id !== id));
   }, []);
 
   const push = useCallback(
-    (tone, message, ms = 4000) => {
-      seq += 1;
-      const id = seq;
-      setToasts((list) => [...list, { id, tone, message }]);
-      setTimeout(() => dismiss(id), ms);
+    (message, tone = 'info', duration = 3000) => {
+      const id = ++idRef.current;
+      setToasts((list) => [...list, { id, message, tone }]);
+      setTimeout(() => remove(id), duration);
+      return id;
     },
-    [dismiss]
+    [remove]
   );
 
   const value = useMemo(
     () => ({
-      success: (m) => push('success', m),
-      error: (m) => push('error', m, 6000),
-      warn: (m) => push('warn', m, 5000),
-      info: (m) => push('info', m),
+      show: push,
+      success: (m, d) => push(m, 'success', d),
+      error: (m, d) => push(m, 'error', d ?? 6000),
+      info: (m, d) => push(m, 'info', d),
+      warn: (m, d) => push(m, 'warn', d ?? 5000),
     }),
     [push]
   );
 
-  const ICONS = { success: 'check', error: 'alert', warn: 'alert', info: 'info' };
-
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
+      <div className="toast-stack" role="region" aria-live="polite" aria-label="Notifications">
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast--${t.tone}`}>
-            <Icon name={ICONS[t.tone]} size={16} />
+            <Icon name={ICONS[t.tone] ?? 'info'} size={16} />
             <span>{t.message}</span>
-            <button type="button" onClick={() => dismiss(t.id)} aria-label="Dismiss">
+            <button
+              type="button"
+              className="toast__close"
+              onClick={() => remove(t.id)}
+              aria-label="Dismiss"
+            >
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -53,6 +67,6 @@ export function ToastProvider({ children }) {
 
 export function useToast() {
   const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used within ToastProvider');
+  if (!ctx) throw new Error('useToast must be used within a ToastProvider');
   return ctx;
 }

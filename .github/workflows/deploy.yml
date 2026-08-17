@@ -109,7 +109,7 @@ jobs:
             ./ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.API_DIR }}/
 
-      - name: Install gems, reset & seed DB, restart API
+      - name: Install gems, migrate & restart API
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SERVER_PORT }} \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
@@ -121,7 +121,7 @@ jobs:
              bundle config set --local deployment true
              bundle config set --local without 'development test'
              bundle install
-             DISABLE_DATABASE_ENVIRONMENT_CHECK=1 FORCE_SEED=1 bin/rails db:schema:load db:seed
+             bin/rails db:migrate
              sudo install -m 0644 ${{ env.API_DIR }}/deploy/systemd/${{ env.BACKEND_SERVICE }}.service /etc/systemd/system/${{ env.BACKEND_SERVICE }}.service
              sudo systemctl daemon-reload
              sudo systemctl enable ${{ env.BACKEND_SERVICE }}

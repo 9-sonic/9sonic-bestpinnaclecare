@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../common/Icon.jsx';
 import NotificationsBell from '../common/NotificationsBell.jsx';
+import TourLauncher from '../common/TourLauncher.jsx';
 import CommandPalette from '../common/CommandPalette.jsx';
 import { s, px } from '../../lib/ui.jsx';
 import { subscribeInbox } from '../../lib/cable.js';
@@ -9,6 +10,8 @@ import { playSound } from '../../lib/sounds.js';
 import { uploadMyAvatar } from '../../api/index.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import TourRoot from '../../tour/TourRoot.jsx';
+import PushOptInBanner from '../common/PushOptInBanner.jsx';
 import '../../styles/design-shell.css';
 
 // Icon-only rail (tooltip on hover), carrying the full manager-console IA.
@@ -17,21 +20,22 @@ import '../../styles/design-shell.css';
 //   overview → live operations → planning & records → people → insight → help.
 // Dividers (a null entry) separate the groups visually on the rail.
 const NAV = [
-  { to: '/', label: 'Live board', icon: 'target', end: true },
+  { to: '/', label: 'Live board', icon: 'target', end: true, tour: 'liveboard' },
   null,
-  { to: '/exceptions', label: 'Exceptions', icon: 'alert' },
-  { to: '/cover', label: 'Cover', icon: 'refresh' },
-  { to: '/requests', label: 'Requests', icon: 'note' },
+  { to: '/exceptions', label: 'Exceptions', icon: 'alert', tour: 'exceptions' },
+  { to: '/staffing', label: 'Staffing', icon: 'refresh', tour: 'staffing' },
   null,
-  { to: '/rota', label: 'Rota', icon: 'calendar' },
-  { to: '/timesheets', label: 'Timesheets', icon: 'wallet' },
+  { to: '/rota', label: 'Rota', icon: 'calendar', tour: 'rota' },
+  { to: '/timesheets', label: 'Timesheets', icon: 'wallet', tour: 'timesheets' },
   null,
-  { to: '/clients', label: 'Clients', icon: 'user' },
-  { to: '/employees', label: 'Employees', icon: 'users' },
+  { to: '/clients', label: 'Clients', icon: 'user', tour: 'clients' },
+  { to: '/employees', label: 'Employees', icon: 'users', tour: 'employees' },
   null,
-  { to: '/messages', label: 'Messages', icon: 'chat' },
-  { to: '/reports', label: 'Reports', icon: 'trend' },
-  { to: '/guide', label: 'Guide', icon: 'info' },
+  { to: '/messages', label: 'Messages', icon: 'chat', tour: 'messages' },
+  { to: '/reports', label: 'Reports', icon: 'trend', tour: 'reports' },
+  null,
+  { to: '/settings', label: 'Settings', icon: 'settings', tour: 'settings' },
+  { to: '/guide', label: 'Guide', icon: 'info', tour: 'guide' },
 ];
 
 const TITLE = {
@@ -39,8 +43,9 @@ const TITLE = {
   '/lifecycle': 'Lifecycle',
   '/exceptions': 'Exceptions',
   '/alerts': 'Alerts',
-  '/cover': 'Cover',
-  '/requests': 'Requests',
+  '/staffing': 'Staffing',
+  '/cover': 'Staffing',
+  '/requests': 'Staffing',
   '/timesheets': 'Timesheets',
   '/rota': 'Rota',
   '/clients': 'Clients',
@@ -101,8 +106,12 @@ export default function AdminLayout() {
   const isOn = (to, end) => (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`));
   // Reports absorbed the Audit page (still reachable at /audit), so its rail item
   // lights up on both paths.
-  const navActive = (item) =>
-    item.to === '/reports' ? (isOn('/reports') || pathname === '/audit') : isOn(item.to, item.end);
+  const navActive = (item) => {
+    if (item.to === '/reports') return isOn('/reports') || pathname === '/audit';
+    // Staffing absorbed Cover + Requests (still reachable at those paths).
+    if (item.to === '/staffing') return isOn('/staffing') || pathname === '/cover' || pathname === '/requests';
+    return isOn(item.to, item.end);
+  };
   // Detail/sub-pages (e.g. /employees/:id, /clients/:id) get a Back control in
   // the top bar instead of one inside each page. backTo is the parent list; null
   // on top-level pages, where no Back is shown.
@@ -125,6 +134,7 @@ export default function AdminLayout() {
   });
 
   return (
+    <TourRoot>
     <div
       style={{
         ...s('height:100vh;display:flex;background:var(--d-bg);overflow:hidden'),
@@ -146,6 +156,7 @@ export default function AdminLayout() {
             return (
               <div
                 key={item.to}
+                data-tour={`nav-${item.tour}`}
                 onClick={() => navigate(item.to)}
                 onMouseEnter={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
@@ -161,8 +172,8 @@ export default function AdminLayout() {
           })}
         </div>
 
-        {/* Account actions — pinned at the rail bottom: theme toggle + sign out.
-            (The avatar itself stays in the top bar as the profile link.) */}
+        {/* Account actions — pinned at the rail bottom: theme toggle only.
+            (Sign out lives in the top bar next to the profile.) */}
         <div style={s('flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:12px;margin-top:8px;border-top:1px solid var(--d-border);width:54px')}>
           <div
             onClick={toggle}
@@ -174,24 +185,14 @@ export default function AdminLayout() {
           >
             <Icon name={dark ? 'sun' : 'moon'} size={19} />
           </div>
-          <div
-            onClick={async () => { await logout(); navigate('/login'); }}
-            onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setRailHover({ label: 'Sign out', y: r.top + r.height / 2, x: r.right }); }}
-            onMouseLeave={() => setRailHover(null)}
-            title="Sign out"
-            className="hv"
-            style={{ ...s('width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;background:var(--d-card);color:var(--d-danger-dot)'), '--hbg': 'var(--d-danger-bg)' }}
-          >
-            <Icon name="logout" size={19} />
-          </div>
         </div>
       </div>
 
       {/* Main */}
       <main style={s('flex:1;min-width:0;height:100vh;overflow:auto;display:flex;flex-direction:column;padding:20px 24px;gap:18px')}>
-        {/* Top bar — a clean utility strip: Back (on sub-pages), the page title,
-            then search + notifications. Account moved to the rail. */}
-        <div style={s('height:70px;flex:none;background:var(--d-panel);border-radius:24px;display:flex;align-items:center;padding:0 14px 0 22px;gap:14px')}>
+        {/* Top bar: Back (on sub-pages) · a centred search · notifications, profile
+            and sign out on the right. */}
+        <div style={s('height:70px;flex:none;background:var(--d-panel);border-radius:24px;display:flex;align-items:center;padding:0 14px 0 18px;gap:12px')}>
           {backTo && (
             <div onClick={() => navigate(backTo)} title="Back" className="hv"
               style={{ ...s('height:40px;border-radius:20px;background:var(--d-card);display:flex;align-items:center;gap:7px;padding:0 15px 0 12px;cursor:pointer;color:var(--d-ink2);font-size:13px;font-weight:700;flex:none'), '--hbg': 'var(--d-card-hover)' }}>
@@ -200,19 +201,21 @@ export default function AdminLayout() {
           )}
           <div style={s('flex:1')} />
 
-          {/* ⌘K search */}
-          <div onClick={() => setPaletteOpen(true)} className="hv" title="Search (⌘K)"
-            style={{ ...s('height:44px;border-radius:22px;background:var(--d-card);display:flex;align-items:center;gap:10px;padding:0 16px;cursor:pointer;width:260px;max-width:38vw'), '--hbg': 'var(--d-card-hover)' }}>
-            <Icon name="search" size={17} />
-            <span style={s('flex:1;font-size:13px;font-weight:500;color:var(--d-muted)')}>Search carers, clients, pages…</span>
-            <kbd style={s('font-size:11px;font-weight:700;color:var(--d-muted);background:var(--d-field);border-radius:7px;padding:2px 6px')}>⌘K</kbd>
+          {/* ⌘K search — centred, roomier, with a clear input affordance. */}
+          <div onClick={() => setPaletteOpen(true)} className="topbar-search" title="Search (⌘K)"
+            style={{ ...s('height:46px;border-radius:23px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;gap:11px;padding:0 8px 0 18px;cursor:text;width:min(480px,44vw)') }}>
+            <Icon name="search" size={18} />
+            <span style={s('flex:1;font-size:13.5px;font-weight:500;color:var(--d-muted)')}>Search carers, clients, pages…</span>
+            <kbd style={s('font-size:11px;font-weight:700;color:var(--d-ink2);background:var(--d-card);border:1px solid var(--d-border);border-radius:8px;padding:3px 8px')}>⌘K</kbd>
           </div>
+
+          <div style={s('flex:1')} />
+
+          <TourLauncher />
 
           <NotificationsBell />
 
-          {/* Avatar — profile link (click opens your profile). No dropdown; the
-              account actions live on the rail. Click the small badge to change
-              your photo. */}
+          {/* Avatar — profile link. Click the small badge to change your photo. */}
           <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatarPick} />
           <div onClick={() => navigate('/profile')} title="Your profile" className="hv"
             style={{ ...s('height:46px;border-radius:24px;background:var(--d-card);display:flex;align-items:center;gap:11px;padding:0 14px 0 6px;cursor:pointer;color:var(--d-ink);flex:none'), '--hbg': 'var(--d-card-hover)' }}>
@@ -224,6 +227,12 @@ export default function AdminLayout() {
             </div>
             <div style={s('font-size:13.5px;font-weight:600;letter-spacing:-0.1px;white-space:nowrap')}>{admin?.full_name ?? 'Account'}</div>
           </div>
+
+          {/* Sign out — moved here from the rail. */}
+          <div onClick={async () => { await logout(); navigate('/login'); }} title="Sign out" className="hv"
+            style={{ ...s('width:46px;height:46px;border-radius:23px;background:var(--d-card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-danger-dot);flex:none'), '--hbg': 'var(--d-danger-bg)' }}>
+            <Icon name="logout" size={19} />
+          </div>
         </div>
 
         {/* Page title — its own heading row directly under the nav bar. Sits tight
@@ -232,6 +241,10 @@ export default function AdminLayout() {
         <div style={s('flex:none;padding:2px 6px;margin-bottom:-8px')}>
           <div style={s('font-size:28px;font-weight:700;letter-spacing:-0.6px;color:var(--d-ink)')}>{title}</div>
         </div>
+
+        {/* One-time nudge to enable push — shows only for admins who haven't
+            decided yet, above the page content. Self-hides otherwise. */}
+        <PushOptInBanner />
 
         {/* Page content — the office pages render here, unchanged */}
         <div style={s('flex:1;min-height:0')}>
@@ -256,5 +269,6 @@ export default function AdminLayout() {
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
+    </TourRoot>
   );
 }

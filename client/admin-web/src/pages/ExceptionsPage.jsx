@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getExceptions, correctClock, resolveAlert, listAudit } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -29,7 +30,7 @@ const typeLabel = (t) => TYPE[t]?.label ?? (t ?? '').replace(/_/g, ' ');
 function isToday(iso) { return iso && new Date(iso).toDateString() === new Date().toDateString(); }
 
 /* -------- amend / resolve drawer -------- */
-function ExceptionDrawer({ ex, onClose, onDone }) {
+function ExceptionModal({ ex, onClose, onDone }) {
   const toast = useToast();
   const { canManage } = useAuth();
   const [inTime, setInTime] = useState(ex.actualIn ? formatTime(ex.actualIn) : '');
@@ -61,17 +62,21 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
   const upper = s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.06em');
   const field = { ...s('height:42px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:0 13px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
 
-  return (
-    <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;justify-content:flex-end;z-index:100'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-      <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:480px;height:100%;background:var(--d-card);display:flex;flex-direction:column;overflow:hidden')}>
-        <div style={s('padding:20px 24px 15px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:12px')}>
-          <div style={s('flex:1;min-width:0')}>
-            <div style={s('font-size:18px;font-weight:700;color:var(--d-ink)')}>{typeLabel(ex.type)} · {ex.carerName ?? 'Unassigned'}</div>
-            <div style={s('display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px')}><SeverityPill severity={ex.severity} /><span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{[ex.client, ex.address].filter(Boolean).join(' · ')}</span></div>
-          </div>
-          <div onClick={onClose} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-        </div>
+  const footer = (
+    <div style={s('display:flex;flex-wrap:wrap;gap:10px')}>
+      {canAmend && canManage && <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={save}>{busy ? 'Saving…' : 'Save & verify'}</Button>}
+      {ex.alertId && canManage && <Button icon="check" onClick={accept}>Accept as is</Button>}
+      <Button onClick={onClose}>Cancel</Button>
+    </div>
+  );
 
+  return (
+    <Modal
+      onClose={onClose}
+      title={`${typeLabel(ex.type)} · ${ex.carerName ?? 'Unassigned'}`}
+      subtitle={<span style={s('display:flex;flex-wrap:wrap;align-items:center;gap:8px')}><SeverityPill severity={ex.severity} /><span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{[ex.client, ex.address].filter(Boolean).join(' · ')}</span></span>}
+      footer={footer}
+    >
         <div style={s('flex:1;overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;gap:18px')}>
           <div style={s('background:var(--d-warn-bg);color:var(--d-warn-ink);border-radius:12px;padding:12px 15px;font-size:12.5px;font-weight:600')}>{ex.discrepancy || meta.discrepancy}</div>
 
@@ -124,14 +129,7 @@ function ExceptionDrawer({ ex, onClose, onDone }) {
             {ex.source === 'alert' ? `Raised automatically ${formatDate(ex.raised)} at ${formatTime(ex.raised)} — open until resolved.` : 'Flagged for review; no automatic escalation triggered.'}
           </div>
         </div>
-
-        <div style={s('padding:16px 24px;border-top:1px solid var(--d-border);display:flex;flex-wrap:wrap;gap:10px')}>
-          {canAmend && canManage && <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={save}>{busy ? 'Saving…' : 'Save & verify'}</Button>}
-          {ex.alertId && canManage && <Button icon="check" onClick={accept}>Accept as is</Button>}
-          <Button onClick={onClose}>Cancel</Button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -208,8 +206,8 @@ function ExceptionsInner() {
       <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,1fr) 320px' }}>
         {/* Queue */}
         <div style={s('display:flex;flex-direction:column;gap:12px;min-width:0')}>
-          <SegTabs tabs={tabs} active={filter} onSelect={setFilter} />
-          <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
+          <span data-tour="exceptions-filters"><SegTabs tabs={tabs} active={filter} onSelect={setFilter} /></span>
+          <div data-tour="exceptions-queue" style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
             {rows.length === 0 ? (
               <div style={s('display:flex;flex-direction:column;align-items:center;gap:10px;padding:46px 20px')}>
                 <div style={s('width:52px;height:52px;border-radius:16px;background:var(--d-ok-bg);display:flex;align-items:center;justify-content:center;color:var(--d-ok-ink)')}><Icon name="check" size={24} /></div>
@@ -268,7 +266,7 @@ function ExceptionsInner() {
         </div>
       </div>
 
-      {selected && <ExceptionDrawer ex={selected} onClose={() => setSelected(null)} onDone={load} />}
+      {selected && <ExceptionModal ex={selected} onClose={() => setSelected(null)} onDone={load} />}
     </div>
   );
 }
@@ -297,7 +295,7 @@ export default function ExceptionsPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column')}>
-      <Tabs tabs={AREA_TABS} active={tab} onSelect={select} />
+      <span data-tour="exceptions-tabs"><Tabs tabs={AREA_TABS} active={tab} onSelect={select} /></span>
       <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(AREA_TABS, tab) }}>
         {tab === 'alerts' ? <AlertsPage /> : tab === 'lifecycle' ? <LifecyclePage /> : <ExceptionsInner />}
       </div>

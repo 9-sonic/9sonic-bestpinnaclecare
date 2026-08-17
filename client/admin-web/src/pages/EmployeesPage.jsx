@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listEmployees, inviteEmployee } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
+import InfoHint from '../components/common/InfoHint.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -108,14 +110,14 @@ function EmployeesTab() {
       </div>
 
       {/* Toolbar */}
-      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
+      <div data-tour="employees-toolbar" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
         <div style={s('height:46px;flex:1;min-width:220px;background:var(--d-field);border-radius:23px;display:flex;align-items:center;gap:10px;padding:0 18px')}>
           <Icon name="search" size={17} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email or reference" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
         </div>
         <div onClick={() => setShowInactive((v) => !v)} className="hv" style={{ ...s('height:46px;border-radius:23px;display:flex;align-items:center;gap:8px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:700'), background: showInactive ? 'var(--d-pill)' : 'var(--d-card)', color: showInactive ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': showInactive ? 'var(--d-pill-hover)' : 'var(--d-card-hover)' }}><Icon name="eye" size={16} /> Show inactive</div>
         <div style={s('flex:1')} />
-        {canManage && <Button variant="primary" icon="plus" onClick={openInvite}>Invite carer</Button>}
+        {canManage && <span data-tour="employees-invite" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={openInvite}>Invite carer</Button><InfoHint text="Invite a new carer by name and work email. They get an email to set their own password — the account stays inactive until they do, so no one else can use it." /></span>}
       </div>
 
       {/* Staff table */}
@@ -159,29 +161,28 @@ function EmployeesTab() {
 
       {/* Invite / edit modal */}
       {modalOpen && (
-        <div onClick={closeModal} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
-          <div onClick={(ev) => ev.stopPropagation()} style={s('width:100%;max-width:520px;max-height:88vh;background:var(--d-card);border-radius:28px;display:flex;flex-direction:column;overflow:hidden')}>
-            <div style={s('padding:22px 24px 8px;display:flex;align-items:center')}>
-              <div style={s('font-size:19px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>Invite a carer</div>
-              <div style={s('flex:1')} />
-              <div onClick={closeModal} className="hv" style={{ ...s('width:34px;height:34px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={16} /></div>
-            </div>
-            <div style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
-              <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password. The account stays inactive until they use it.</div>
-              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-                <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
-                <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
-              </div>
-              <Field label="Work email" error={errors.email}><input style={input(errors.email)} type="email" value={form.email} onChange={set('email')} /></Field>
-              <Field label="Mobile"><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
-              <Field label="Staff reference"><input style={input(false)} value={form.employee_reference} onChange={set('employee_reference')} placeholder="EMP-0000" /></Field>
-            </div>
-            <div style={s('padding:16px 24px 22px;display:flex;justify-content:flex-end;gap:10px')}>
-              <Button onClick={closeModal}>Cancel</Button>
+        <Modal
+          onClose={closeModal}
+          title="Invite a carer"
+          maxWidth={520}
+          footer={(
+            <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
+              <span data-tour="employees-modal-cancel"><Button onClick={closeModal}>Cancel</Button></span>
               <Button variant="primary" icon="check" onClick={saving ? undefined : handleSave}>{saving ? 'Saving…' : 'Send invitation'}</Button>
             </div>
+          )}
+        >
+          <div data-tour="employees-modal" style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
+            <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password. The account stays inactive until they use it.</div>
+            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
+              <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
+            </div>
+            <Field label="Work email" error={errors.email}><input style={input(errors.email)} type="email" value={form.email} onChange={set('email')} /></Field>
+            <Field label="Mobile"><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
+            <Field label="Staff reference"><input style={input(false)} value={form.employee_reference} onChange={set('employee_reference')} placeholder="EMP-0000" /></Field>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -210,7 +211,7 @@ export default function EmployeesPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column')}>
-      <Tabs tabs={TABS} active={tab} onSelect={select} />
+      <span data-tour="employees-tabs"><Tabs tabs={TABS} active={tab} onSelect={select} /></span>
       <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
         {tab === 'office' ? <TeamPage /> : <EmployeesTab />}
       </div>
