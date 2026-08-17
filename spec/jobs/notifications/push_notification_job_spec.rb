@@ -3,6 +3,19 @@ require "rails_helper"
 RSpec.describe Notifications::PushNotificationJob, type: :job do
   let(:admin) { create(:admin) }
 
+  # Web Push is configured via the server .env, which CI (correctly) does not
+  # have — so stub the config to enabled with fake VAPID keys. This keeps the job
+  # specs self-contained and independent of the ambient environment. The
+  # "not configured" case overrides this in its own example.
+  before do
+    cfg = ActiveSupport::OrderedOptions.new
+    cfg.public_key  = "test-public-key"
+    cfg.private_key = "test-private-key"
+    cfg.subject     = "mailto:test@bestpinnaclecare.co.uk"
+    cfg.enabled     = true
+    allow(Rails.configuration).to receive(:web_push).and_return(cfg)
+  end
+
   # A registered browser with a valid-looking Web Push subscription.
   def register_device(owner: admin, **attrs)
     owner.devices.create!({
@@ -78,7 +91,9 @@ RSpec.describe Notifications::PushNotificationJob, type: :job do
   it "marks failed (no raise) when web push is not configured" do
     register_device
     notification = push_notification
-    allow(Rails.configuration.web_push).to receive(:enabled).and_return(false)
+    disabled = ActiveSupport::OrderedOptions.new
+    disabled.enabled = false
+    allow(Rails.configuration).to receive(:web_push).and_return(disabled)
 
     expect { described_class.perform_now(notification.id) }.not_to raise_error
     expect(notification.reload).to have_attributes(status: "failed", failed_reason: "web push not configured")
