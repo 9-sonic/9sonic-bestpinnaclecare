@@ -76,4 +76,44 @@ RSpec.describe "Admin attendance audit export", type: :request do
     get "/api/v1/admin/attendance_audit_exports", params: { type: "csv" }
     expect(response).to have_http_status(:unauthorized)
   end
+
+  describe "GET /admin/attendance_audit_exports/rows — JSON for the on-screen table" do
+    it "returns the same rows as JSON" do
+      seed_visit(start: 2.hours.ago, late_in: 5)
+
+      get "/api/v1/admin/attendance_audit_exports/rows", headers: auth
+      expect(response).to have_http_status(:ok)
+      rows = response.parsed_body
+      expect(rows.size).to eq(1)
+      expect(rows.first).to include("staff", "service_user" => "Amber Kingham", "late_in" => 5)
+    end
+
+    it "filters by service_user_id" do
+      seed_visit(start: 1.hour.ago)
+      other_su = create(:service_user, first_name: "Other", last_name: "Client")
+      v2 = create(:visit, service_user: other_su, scheduled_start: 1.hour.ago, scheduled_end: 15.minutes.ago)
+      create(:visit_assignment, visit: v2)
+
+      get "/api/v1/admin/attendance_audit_exports/rows", params: { service_user_id: su.id }, headers: auth
+      rows = response.parsed_body
+      expect(rows.size).to eq(1)
+      expect(rows.first["service_user"]).to eq("Amber Kingham")
+    end
+
+    it "filters by employee_id" do
+      va1 = seed_visit(start: 1.hour.ago)
+      other_visit = create(:visit, service_user: su, scheduled_start: 1.hour.ago, scheduled_end: 15.minutes.ago)
+      create(:visit_assignment, visit: other_visit)
+
+      get "/api/v1/admin/attendance_audit_exports/rows", params: { employee_id: va1.employee_id }, headers: auth
+      rows = response.parsed_body
+      expect(rows.size).to eq(1)
+      expect(rows.first["staff"]).to eq(va1.employee.full_name)
+    end
+
+    it "requires an admin token" do
+      get "/api/v1/admin/attendance_audit_exports/rows"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

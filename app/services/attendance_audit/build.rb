@@ -20,13 +20,15 @@ module AttendanceAudit
   )
 
   class Build
-    def self.call(from:, to:)
-      new(from, to).call
+    def self.call(from:, to:, service_user_id: nil, employee_id: nil)
+      new(from, to, service_user_id: service_user_id, employee_id: employee_id).call
     end
 
-    def initialize(from, to)
+    def initialize(from, to, service_user_id: nil, employee_id: nil)
       @from = from
       @to   = to
+      @service_user_id = service_user_id
+      @employee_id = employee_id
     end
 
     def call
@@ -37,15 +39,17 @@ module AttendanceAudit
 
     # Every assigned slot whose visit starts in the range, delivered or not, in a
     # stable order (client, then start time) so the export reads like a rota.
+    # Optionally narrowed to one client and/or one carer for on-screen filtering.
     def assignments
-      VisitAssignment
+      scope = VisitAssignment
         .assigned
         .joins(:visit)
         .includes(:employee, :clock_events, visit: :service_user)
         .where(visits: { scheduled_start: @from..@to })
         .where.not(lifecycle_state: :cancelled)
-        .order("visits.scheduled_start ASC")
-        .to_a
+      scope = scope.where(visits: { service_user_id: @service_user_id }) if @service_user_id.present?
+      scope = scope.where(employee_id: @employee_id) if @employee_id.present?
+      scope.order("visits.scheduled_start ASC").to_a
     end
 
     def row_for(a)

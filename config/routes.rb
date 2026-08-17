@@ -137,6 +137,7 @@ Rails.application.routes.draw do
         get "report_exports",        to: "report_exports#show"
         get "audit_exports",         to: "audit_exports#show"
         get "attendance_audit_exports", to: "attendance_audit_exports#show" # CQC visit-attendance CSV/XLSX
+        get "attendance_audit_exports/rows", to: "attendance_audit_exports#rows" # same rows as JSON, for the on-screen table
         get "rota_exports",          to: "rota_exports#show"
         resources :timesheet_disputes, only: %i[index] do
           member { post :resolve }
