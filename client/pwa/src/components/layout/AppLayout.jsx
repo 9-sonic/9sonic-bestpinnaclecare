@@ -37,7 +37,14 @@ export default function AppLayout() {
       .catch(() => {});
   }, [user]);
   useEffect(() => { refreshUnread(); }, [refreshUnread, pathname]);
-  useEffect(() => subscribeInbox(() => refreshUnread()), [refreshUnread]);
+
+  // Only messages affect the tab badge. Notifications are handled by the two
+  // screens that display them (Home and Notifications) via useInboxNotifications
+  // — there is no notification badge in the nav for this to update.
+  useEffect(
+    () => subscribeInbox((payload) => { if (payload?.type === 'message') refreshUnread(); }),
+    [refreshUnread]
+  );
 
   // Pull to refresh re-mounts the routed screen by changing its key, which
   // re-runs whatever it fetches on mount. That keeps the gesture working for

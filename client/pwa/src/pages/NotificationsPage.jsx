@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listNotifications, markAllRead, markSeen } from '../api/notifications.js';
+import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Icon from '../components/common/Icon.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
@@ -27,6 +28,11 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
+  const load = useCallback(
+    () => listNotifications().then(setItems).catch(() => {}),
+    []
+  );
+
   useEffect(() => {
     let active = true;
     listNotifications()
@@ -36,6 +42,9 @@ export default function NotificationsPage() {
       active = false;
     };
   }, []);
+
+  // Arrives live rather than on the next visit to this screen.
+  useInboxNotifications(load);
 
   const unread = items.filter((n) => !n.read);
   const shown = filter === 'unread' ? unread : items;

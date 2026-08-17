@@ -24,6 +24,17 @@ export async function listThreads(viewer) {
   });
 }
 
+// Just the messages, for refreshing an open thread.
+//
+// getThread below has to fetch the conversation list too, because that is where
+// the thread's name and participants live. None of that changes when a message
+// arrives, so refetching it on every socket payload doubled the requests for a
+// busy conversation. Screens use getThread once on open and this thereafter.
+export async function getThreadMessages(id, viewer) {
+  const msgs = env.useMock ? await mock.listMessages(id) : await api.get(`/conversations/${id}/messages`);
+  return toMessages(msgs, { viewerType: 'Employee', viewerId: viewer?.id });
+}
+
 export async function getThread(id, viewer) {
   const [convos, msgs] = await Promise.all([
     env.useMock ? mock.listConversations() : api.get('/conversations'),
