@@ -113,8 +113,22 @@ RSpec.describe "Staff PWA endpoints", type: :request do
       get "/api/v1/staff/summary", headers: auth
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body).to include("hours_worked_minutes", "visits_count", "miles")
-      expect(response.parsed_body["contracted_minutes"]).to eq(2250) # 37.5h
       expect(response.parsed_body["by_weekday"]["visits"].size).to eq(7)
+    end
+
+    it "derives contracted_minutes from the real scheduled shift time this week, not the static HR field" do
+      today = Date.current.beginning_of_week + 1.day
+      v = create(:visit, service_user: su, scheduled_start: today.to_time + 9.hours, scheduled_end: today.to_time + 12.hours) # 3h
+      create(:visit_assignment, visit: v, employee: employee)
+
+      get "/api/v1/staff/summary", headers: auth
+      # 3h scheduled -> 180 minutes, regardless of the 37.5h static contracted_hours_per_week on the record.
+      expect(response.parsed_body["contracted_minutes"]).to eq(180)
+    end
+
+    it "returns nil contracted_minutes when nothing is on the rota this week (frontend falls back to a default)" do
+      get "/api/v1/staff/summary", headers: auth
+      expect(response.parsed_body["contracted_minutes"]).to be_nil
     end
   end
 end

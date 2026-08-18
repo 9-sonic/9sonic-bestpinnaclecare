@@ -76,7 +76,8 @@ aisha = Employee.create!(
   last_name: "Yusuf",
   role: :carer,
   active: true,
-  accepted_invite_at: 14.days.ago
+  accepted_invite_at: 14.days.ago,
+  contracted_hours_per_week: 37.5
 )
 tom = Employee.create!(
   email: "tom@bestpinnacle.test",
@@ -85,7 +86,8 @@ tom = Employee.create!(
   last_name: "Whitfield",
   role: :carer,
   active: true,
-  accepted_invite_at: 20.days.ago
+  accepted_invite_at: 20.days.ago,
+  contracted_hours_per_week: 40
 )
 
 # ---------------------------------------------------------------------------
