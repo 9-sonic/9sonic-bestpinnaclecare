@@ -16,6 +16,13 @@
       are the single clearest tell of a generated interface, so there are none.
 --------------------------------------------------------------------------- */
 :root {
+  /* Tells the platform which way round this document is, which is what the OS
+     reads to tint the Android system navigation bar, the scrollbars and any
+     native control. Without it the phone assumes light and leaves a white nav
+     bar sitting under a dark app. Driven by data-theme, not the OS preference,
+     so it follows the switch in Profile. */
+  color-scheme: light;
+
   /* Brand, teal (primary) */
   --teal-800: #016675;
   --teal-700: #00808f;
@@ -287,6 +294,8 @@
    they do on iOS and Android, and the brand teal is brightened so it still
    carries against a dark background. */
 :root[data-theme='dark'] {
+  color-scheme: dark;
+
   --color-bg: #0e161d;
   --color-surface: #17222c;
   --color-surface-alt: #1e2b36;

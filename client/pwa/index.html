@@ -6,7 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0"
     />
-    <meta name="theme-color" content="#10b3c6" />
+    <!-- Tints the phone's status bar. It has to match --color-bg, the canvas
+         directly underneath it, or the bar reads as a stripe of unrelated
+         colour above the app — which is what the old brand teal did over a
+         near-white header. One tag, no media attribute: the script below sets
+         it from the saved theme before first paint, and a second media-scoped
+         tag would take precedence over whatever the script wrote.
+         Keep these two literals in step with --color-bg in variables.css. -->
+    <meta name="theme-color" content="#f8fcff" />
     <meta name="description" content="Clock in and out, view shifts and message your team." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -45,7 +52,7 @@
           document.documentElement.dataset.theme = dark ? 'dark' : 'light';
           document
             .querySelector('meta[name="theme-color"]')
-            .setAttribute('content', dark ? '#0f171e' : '#10b3c6');
+            .setAttribute('content', dark ? '#0d151c' : '#f8fcff');
           // Larger text preference, applied before paint to avoid a reflow.
           document.documentElement.dataset.textSize =
             localStorage.getItem('bpc.textSize') === 'large' ? 'large' : 'normal';
