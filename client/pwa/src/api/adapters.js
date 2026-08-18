@@ -21,7 +21,7 @@ const UI_STATUS = {
   scheduled: 'upcoming',
   check_in_window: 'upcoming',
   grace_period: 'upcoming',
-  late: 'upcoming',
+  late: 'active',
   in_progress: 'active',
   overdue: 'active',
   pending_review: 'completed',
@@ -33,7 +33,14 @@ const UI_STATUS = {
 // States the carer should be nudged about, surfaced as a flag on the shift.
 const ATTENTION_STATES = new Set(['late', 'overdue', 'missed', 'pending_review']);
 
-export function uiStatus(lifecycleState) {
+export function uiStatus(lifecycleState, va) {
+  // `pending_review` is used both after a late clock-IN (carer is still working)
+  // and after a clock-OUT with an anomaly (shift is done). The static map can't
+  // tell them apart, so check the actual times: if the carer has clocked in but
+  // not out, they are still on shift.
+  if (lifecycleState === 'pending_review' && va?.actual_start && !va?.actual_end) {
+    return 'active';
+  }
   return UI_STATUS[lifecycleState] ?? 'upcoming';
 }
 
@@ -65,7 +72,7 @@ export function toShift(va) {
     clockOutAt: va.actual_end ?? null,
     workedMinutes: va.worked_minutes ?? null,
 
-    status: uiStatus(va.lifecycle_state),
+    status: uiStatus(va.lifecycle_state, va),
     lifecycleState: va.lifecycle_state,
     needsAttention: ATTENTION_STATES.has(va.lifecycle_state),
     flags: va.flags ?? [],

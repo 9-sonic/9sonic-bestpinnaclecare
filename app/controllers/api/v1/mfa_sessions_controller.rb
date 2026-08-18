@@ -13,6 +13,10 @@ module Api
         if Mfa::Verify.call(resource, params[:otp_code])
           render_access(resource, scope, SERIALIZERS.fetch(scope))
         else
+          Auth::RecordLoginAttempt.call(
+            scope: scope, request: request, resource: resource,
+            success: false, failure_reason: "invalid_mfa_code"
+          )
           render json: { error: "invalid_code" }, status: :unauthorized
         end
       end

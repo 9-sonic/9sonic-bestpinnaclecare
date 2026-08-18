@@ -73,6 +73,86 @@ module Reports
           (data[:late_by_client] || []).each do |l|
             csv << [ l[:client], l[:visits], l[:late] ]
           end
+          csv << []
+
+          # Staffing / cover health
+          csv << %w[metric value]
+          st = data[:staffing] || {}
+          csv << [ "total_visits", st[:total_visits] ]
+          csv << [ "needed_cover", st[:needed_cover] ]
+          csv << [ "filled", st[:filled] ]
+          csv << [ "still_unfilled", st[:still_unfilled] ]
+          csv << [ "cover_rate_pct", st[:cover_rate_pct] ]
+          csv << [ "fill_rate_pct", st[:fill_rate_pct] ]
+          csv << [ "avg_time_to_fill_min", st[:avg_time_to_fill_min] ]
+          csv << []
+
+          # Cover needed by client
+          csv << %w[client visits unfilled]
+          (data[:cover_by_client] || []).each do |c|
+            csv << [ c[:client], c[:visits], c[:unfilled] ]
+          end
+          csv << []
+
+          # Carer requests (swap/drop/overtime/availability/leave)
+          csv << %w[metric value]
+          rq = data[:requests] || {}
+          csv << [ "total", rq[:total] ]
+          csv << [ "pending", rq[:pending] ]
+          csv << [ "approved", rq[:approved] ]
+          csv << [ "declined", rq[:declined] ]
+          csv << [ "approval_rate_pct", rq[:approval_rate_pct] ]
+          csv << [ "avg_turnaround_hours", rq[:avg_turnaround_hours] ]
+          csv << []
+          csv << %w[kind count]
+          (rq[:by_kind] || []).each do |k|
+            csv << [ k[:kind], k[:count] ]
+          end
+          csv << []
+
+          # Requests by carer
+          csv << %w[carer total pending]
+          (data[:requests_by_carer] || []).each do |r|
+            csv << [ r[:carer], r[:total], r[:pending] ]
+          end
+          csv << []
+
+          # Carer reliability
+          csv << %w[carer visits on_time late missed on_time_pct]
+          (data[:carer_reliability] || []).each do |c|
+            csv << [ c[:carer], c[:visits], c[:on_time], c[:late], c[:missed], c[:on_time_pct] ]
+          end
+          csv << []
+
+          # Care delivery
+          csv << %w[metric value]
+          cd = data[:care_delivery] || {}
+          csv << [ "tasks_total", cd[:tasks_total] ]
+          csv << [ "tasks_done", cd[:tasks_done] ]
+          csv << [ "tasks_pct", cd[:tasks_pct] ]
+          csv << [ "notes_recorded", cd[:notes_recorded] ]
+          csv << [ "visits_with_notes", cd[:visits_with_notes] ]
+          csv << []
+
+          # Task completion by day
+          csv << %w[date label total done pct]
+          (data[:tasks_by_day] || []).each do |d|
+            csv << [ d[:date], d[:label], d[:total], d[:done], d[:pct] ]
+          end
+          csv << []
+
+          # Care delivery by client
+          csv << %w[client tasks_total tasks_done tasks_pct]
+          (data[:care_by_client] || []).each do |c|
+            csv << [ c[:client], c[:tasks_total], c[:tasks_done], c[:tasks_pct] ]
+          end
+          csv << []
+
+          # Care delivery by carer
+          csv << %w[carer tasks_total tasks_done tasks_pct]
+          (data[:care_by_carer] || []).each do |c|
+            csv << [ c[:carer], c[:tasks_total], c[:tasks_done], c[:tasks_pct] ]
+          end
         end
       end
     end

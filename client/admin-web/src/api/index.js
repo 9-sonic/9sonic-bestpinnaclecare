@@ -63,7 +63,13 @@ export const getLiveBoard = () => api.get('/admin/live_board');
 export const getExceptions = () => api.get('/admin/exceptions');
 
 // Append-only Event audit log (read-only): who did what, when and why.
+// Filters: event_type, aggregate_type, aggregate_id, actor_type, actor_id,
+// from, to, before (cursor), limit.
 export const listAudit = (params = {}) => api.get('/admin/audit', params);
+
+// Sign-in history (read-only): every login try, success or failure, with IP
+// and device info. Filters: resource_type, resource_id, success, from, to.
+export const listLoginAttempts = (params = {}) => api.get('/admin/login_attempts', params);
 
 // Clocking-performance aggregates over a date range.
 export const getReports = (params = {}) => api.get('/admin/reports', params);

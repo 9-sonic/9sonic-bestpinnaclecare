@@ -103,6 +103,7 @@ Rails.application.routes.draw do
         get  "live_board",        to: "live_board#index"
         get  "exceptions",        to: "exceptions#index"
         get  "audit",             to: "audit#index"          # append-only Event log (read-only)
+        get  "login_attempts",    to: "login_attempts#index" # sign-in history, success + failure (read-only)
         get  "reports",           to: "reports#index"        # clocking performance aggregates
         get  "cover",             to: "cover#index"          # unfilled visits + offers
         resources :cover_offers, only: %i[create] do

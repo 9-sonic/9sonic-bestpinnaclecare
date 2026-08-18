@@ -81,6 +81,13 @@ export default function OverviewTab({ range, setRange }) {
   const hoursByCarer = (data?.hours_by_carer ?? []).slice(0, 8).map((x) => ({ label: x.name.split(' ')[0], value: x.hours, color: CHART.primary }));
   const exceptionsByDay = (data?.exceptions_by_day ?? []).map((x) => ({ label: x.label, value: x.count }));
   const lateByClient = (data?.late_by_client ?? []).slice(0, 6);
+  const coverByClient = (data?.cover_by_client ?? []).slice(0, 6);
+  const requestsByKind = (data?.requests?.by_kind ?? []).map((k) => ({ label: k.kind, value: k.count, color: CHART.primary }));
+  const requestsByCarer = (data?.requests_by_carer ?? []).slice(0, 6);
+  const carerReliability = data?.carer_reliability ?? [];
+  const tasksByDay = (data?.tasks_by_day ?? []).map((d) => ({ label: d.label, value: d.pct }));
+  const careByClient = (data?.care_by_client ?? []).slice(0, 6);
+  const careByCarer = (data?.care_by_carer ?? []).slice(0, 6);
 
   if (loading && !data) return <Spinner fullscreen />;
 
@@ -186,6 +193,183 @@ export default function OverviewTab({ range, setRange }) {
           </TableWrap>
         )}
       </Panel>
+
+      <Panel padded={false} style={{ padding: '20px 22px' }}>
+        <PanelTitle hint="How much of the period needed the cover board, and how quickly it got filled">Staffing &amp; cover health</PanelTitle>
+        {(() => {
+          const st = data?.staffing ?? {};
+          if (!st.total_visits) return <Empty label="No published visits in this period." />;
+          const items = [
+            ['Needed cover', st.needed_cover ?? 0, st.cover_rate_pct != null ? `${st.cover_rate_pct}%` : null, 'warning'],
+            ['Filled', st.filled ?? 0, st.fill_rate_pct != null ? `${st.fill_rate_pct}%` : null, 'success'],
+            ['Still unfilled', st.still_unfilled ?? 0, null, 'danger'],
+            ['Avg time to fill', st.avg_time_to_fill_min != null ? `${st.avg_time_to_fill_min}m` : '—', null, 'muted'],
+          ];
+          return (
+            <div style={s('display:grid;grid-template-columns:repeat(4,1fr);gap:10px')}>
+              {items.map(([label, value, pct, tone]) => (
+                <div key={label} style={s('background:var(--d-panel);border-radius:14px;padding:14px;text-align:center')}>
+                  <div className="d-num" style={s('font-size:20px;font-weight:700;color:var(--d-ink)')}>{value}</div>
+                  <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:3px')}>{label}</div>
+                  {pct != null && <div style={s('margin-top:6px')}><Tag tone={tone}>{pct}</Tag></div>}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </Panel>
+
+      {coverByClient.length > 0 && (
+        <Panel padded={false} style={{ padding: '20px 22px' }}>
+          <PanelTitle hint="Clients whose visits most often needed the cover board">Cover needed by client</PanelTitle>
+          <TableWrap minWidth={420}>
+            <thead><tr><Th>Client</Th><Th align="right">Visits needing cover</Th><Th align="right">Still unfilled</Th></tr></thead>
+            <tbody>
+              {coverByClient.map((c) => (
+                <Row key={c.client}>
+                  <Td>{c.client}</Td>
+                  <Td align="right" mono>{c.visits}</Td>
+                  <Td align="right" mono>{c.unfilled > 0 ? <Tag tone="danger">{c.unfilled}</Tag> : <span style={s('color:var(--d-faint)')}>0</span>}</Td>
+                </Row>
+              ))}
+            </tbody>
+          </TableWrap>
+        </Panel>
+      )}
+
+      <div style={s('display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start')}>
+        <Panel padded={false} style={{ padding: '20px 22px' }}>
+          <PanelTitle hint="Swaps, drops, overtime, availability changes and leave — how responsive the office is">Requests &amp; leave</PanelTitle>
+          {(() => {
+            const rq = data?.requests ?? {};
+            if (!rq.total) return <Empty label="No requests raised in this period." />;
+            const items = [
+              ['Raised', rq.total ?? 0, null, 'muted'],
+              ['Pending', rq.pending ?? 0, null, 'warning'],
+              ['Approved', rq.approved ?? 0, `${rq.approval_rate_pct ?? 0}%`, 'success'],
+              ['Avg turnaround', rq.avg_turnaround_hours != null ? `${rq.avg_turnaround_hours}h` : '—', null, 'muted'],
+            ];
+            return (
+              <div style={s('display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px')}>
+                {items.map(([label, value, pct, tone]) => (
+                  <div key={label} style={s('background:var(--d-panel);border-radius:14px;padding:14px;text-align:center')}>
+                    <div className="d-num" style={s('font-size:20px;font-weight:700;color:var(--d-ink)')}>{value}</div>
+                    <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:3px')}>{label}</div>
+                    {pct != null && <div style={s('margin-top:6px')}><Tag tone={tone}>{pct}</Tag></div>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          {requestsByKind.length ? <BarChart data={requestsByKind} /> : null}
+        </Panel>
+
+        <Panel>
+          <PanelTitle hint="Who's raising the most swap/drop/overtime/leave requests">Requests by carer</PanelTitle>
+          {requestsByCarer.length === 0 ? <Empty /> : (
+            <div style={s('display:flex;flex-direction:column;gap:9px')}>
+              {requestsByCarer.map((r) => (
+                <div key={r.carer} style={s('display:flex;align-items:center;justify-content:space-between;background:var(--d-panel);border-radius:12px;padding:10px 13px')}>
+                  <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{r.carer}</span>
+                  <span style={s('display:flex;align-items:center;gap:8px')}>
+                    {r.pending > 0 && <Tag tone="warning">{r.pending} pending</Tag>}
+                    <span className="d-num" style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{r.total}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <Panel padded={false} style={{ padding: '20px 22px' }}>
+        <PanelTitle hint="On-time rate per carer, worst first — who most needs a conversation">Carer reliability</PanelTitle>
+        {carerReliability.length === 0 ? <Empty label="No visits in this period." /> : (
+          <TableWrap minWidth={560}>
+            <thead><tr><Th>Carer</Th><Th align="right">Visits</Th><Th align="right">On time</Th><Th align="right">Late</Th><Th align="right">Missed</Th><Th align="right">On-time rate</Th></tr></thead>
+            <tbody>
+              {carerReliability.map((c) => (
+                <Row key={c.carer}>
+                  <Td><b style={s('font-weight:700;color:var(--d-ink)')}>{c.carer}</b></Td>
+                  <Td align="right" mono>{c.visits}</Td>
+                  <Td align="right" mono>{c.on_time}</Td>
+                  <Td align="right" mono>{c.late > 0 ? <span style={s('color:var(--d-warn-ink)')}>{c.late}</span> : c.late}</Td>
+                  <Td align="right" mono>{c.missed > 0 ? <span style={s('color:var(--d-danger-ink)')}>{c.missed}</span> : c.missed}</Td>
+                  <Td align="right"><Tag tone={c.on_time_pct >= 90 ? 'success' : c.on_time_pct >= 75 ? 'warning' : 'danger'}>{c.on_time_pct}%</Tag></Td>
+                </Row>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+      </Panel>
+
+      <div style={s('display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start')}>
+        <Panel>
+          <PanelTitle hint="Care-task completion rate per day across the range">Task completion trend</PanelTitle>
+          {tasksByDay.length ? <LineChart series={tasksByDay} /> : <Empty />}
+        </Panel>
+        <Panel>
+          <PanelTitle hint="Tasks recorded, done, and how many visits got a written note">Care delivery this period</PanelTitle>
+          {(() => {
+            const cd = data?.care_delivery ?? {};
+            if (!cd.tasks_total && !cd.notes_recorded) return <Empty label="No care tasks or notes in this period." />;
+            const items = [
+              ['Tasks done', `${cd.tasks_done ?? 0}/${cd.tasks_total ?? 0}`, `${cd.tasks_pct ?? 100}%`],
+              ['Notes recorded', cd.notes_recorded ?? 0, null],
+              ['Visits with a note', cd.visits_with_notes ?? 0, null],
+            ];
+            return (
+              <div style={s('display:flex;flex-direction:column;gap:10px')}>
+                {items.map(([label, value, pct]) => (
+                  <div key={label} style={s('display:flex;align-items:center;justify-content:space-between;background:var(--d-panel);border-radius:12px;padding:11px 14px')}>
+                    <span style={s('font-size:12.5px;font-weight:600;color:var(--d-muted)')}>{label}</span>
+                    <span style={s('display:flex;align-items:center;gap:8px')}>
+                      <span className="d-num" style={s('font-size:14px;font-weight:700;color:var(--d-ink)')}>{value}</span>
+                      {pct != null && <Tag tone={cd.tasks_pct >= 90 ? 'success' : cd.tasks_pct >= 70 ? 'warning' : 'danger'}>{pct}</Tag>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </Panel>
+      </div>
+
+      {careByClient.length > 0 && (
+        <Panel padded={false} style={{ padding: '20px 22px' }}>
+          <PanelTitle hint="Task completion rate by client, worst first">Care delivery by client</PanelTitle>
+          <TableWrap minWidth={420}>
+            <thead><tr><Th>Client</Th><Th align="right">Tasks done</Th><Th align="right">Completion</Th></tr></thead>
+            <tbody>
+              {careByClient.map((c) => (
+                <Row key={c.client}>
+                  <Td>{c.client}</Td>
+                  <Td align="right" mono>{c.tasks_done}/{c.tasks_total}</Td>
+                  <Td align="right"><Tag tone={c.tasks_pct >= 90 ? 'success' : c.tasks_pct >= 70 ? 'warning' : 'danger'}>{c.tasks_pct}%</Tag></Td>
+                </Row>
+              ))}
+            </tbody>
+          </TableWrap>
+        </Panel>
+      )}
+
+      {careByCarer.length > 0 && (
+        <Panel padded={false} style={{ padding: '20px 22px' }}>
+          <PanelTitle hint="Task completion rate by carer, worst first">Care delivery by carer</PanelTitle>
+          <TableWrap minWidth={420}>
+            <thead><tr><Th>Carer</Th><Th align="right">Tasks done</Th><Th align="right">Completion</Th></tr></thead>
+            <tbody>
+              {careByCarer.map((c) => (
+                <Row key={c.carer}>
+                  <Td>{c.carer}</Td>
+                  <Td align="right" mono>{c.tasks_done}/{c.tasks_total}</Td>
+                  <Td align="right"><Tag tone={c.tasks_pct >= 90 ? 'success' : c.tasks_pct >= 70 ? 'warning' : 'danger'}>{c.tasks_pct}%</Tag></Td>
+                </Row>
+              ))}
+            </tbody>
+          </TableWrap>
+        </Panel>
+      )}
     </div>
   );
 }

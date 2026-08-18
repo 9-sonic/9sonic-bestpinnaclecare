@@ -58,6 +58,7 @@ jobs:
               - 'db/**'
               - 'lib/**'
               - 'bin/**'
+              - '.github/workflows/deploy.yml'
               - 'public/**'
               - 'vendor/**'
               - 'deploy/**'

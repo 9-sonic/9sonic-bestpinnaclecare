@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -287,7 +287,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_120000) do
     t.bigint "aggregate_id", null: false
     t.text "aggregate_type", null: false
     t.uuid "client_event_id"
+    t.text "device_fingerprint"
     t.text "event_type", null: false
+    t.text "ip_address"
     t.timestamptz "occurred_at", null: false
     t.jsonb "payload", default: {}, null: false
     t.timestamptz "recorded_at", default: -> { "now()" }, null: false
@@ -302,6 +304,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_120000) do
     t.timestamptz "exp", null: false
     t.string "jti", null: false
     t.index ["jti"], name: "index_jwt_denylist_on_jti"
+  end
+
+  create_table "login_attempts", force: :cascade do |t|
+    t.text "attempted_email", null: false
+    t.timestamptz "created_at", default: -> { "now()" }, null: false
+    t.text "device_fingerprint"
+    t.text "failure_reason"
+    t.text "ip_address"
+    t.timestamptz "occurred_at", null: false
+    t.bigint "resource_id"
+    t.text "resource_type"
+    t.text "scope", null: false
+    t.boolean "success", null: false
+    t.text "user_agent"
+    t.index ["attempted_email"], name: "index_login_attempts_on_attempted_email"
+    t.index ["occurred_at"], name: "index_login_attempts_on_occurred_at", order: :desc
+    t.index ["resource_type", "resource_id"], name: "index_login_attempts_on_resource_type_and_resource_id"
   end
 
   create_table "message_attachments", force: :cascade do |t|
