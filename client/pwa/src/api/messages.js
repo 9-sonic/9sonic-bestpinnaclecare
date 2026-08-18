@@ -30,9 +30,12 @@ export async function listThreads(viewer) {
 // the thread's name and participants live. None of that changes when a message
 // arrives, so refetching it on every socket payload doubled the requests for a
 // busy conversation. Screens use getThread once on open and this thereafter.
-export async function getThreadMessages(id, viewer) {
+// `participants` comes from the thread already held in state (ChatPage passes
+// thread.participants) — refreshing on every socket message never re-fetches
+// the conversation, so this is the only source for who's who on that path.
+export async function getThreadMessages(id, viewer, participants) {
   const msgs = env.useMock ? await mock.listMessages(id) : await api.get(`/conversations/${id}/messages`);
-  return toMessages(msgs, { viewerType: 'Employee', viewerId: viewer?.id });
+  return toMessages(msgs, { viewerType: 'Employee', viewerId: viewer?.id, participants, nameFor });
 }
 
 export async function getThread(id, viewer) {
@@ -52,7 +55,12 @@ export async function getThread(id, viewer) {
 
   return {
     ...thread,
-    messages: toMessages(msgs, { viewerType: 'Employee', viewerId: viewer?.id }),
+    messages: toMessages(msgs, {
+      viewerType: 'Employee',
+      viewerId: viewer?.id,
+      participants: convo?.participants,
+      nameFor,
+    }),
   };
 }
 

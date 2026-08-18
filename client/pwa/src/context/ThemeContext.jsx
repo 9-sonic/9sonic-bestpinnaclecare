@@ -19,9 +19,11 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', dark ? '#0f171e' : '#10b3c6');
+    // The phone tints its status bar with this. Read back off --color-bg rather
+    // than repeated as a literal, so the bar can never drift from the canvas it
+    // sits above the way the old hard-coded teal had.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim();
+    if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
   }, [dark]);
 
   const toggle = useCallback(() => setDark((d) => !d), []);

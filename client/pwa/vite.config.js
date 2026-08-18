@@ -14,42 +14,20 @@ export default defineConfig({
     react(),
     VitePWA({
       // prompt: we surface our own "new version ready" bar instead of
-      // silently swapping the app out from under a carer mid-shift.
+      // silently swapping the app out from under a carer mid-shift. src/sw.js
+      // implements that wait-for-SKIP_WAITING behaviour by hand.
       registerType: 'prompt',
+      // injectManifest, not the default generateSW: a fully generated worker
+      // has no hook for a `push` event listener. src/sw.js is the real worker
+      // source — precaching, the offline navigation fallback, and both
+      // runtime-caching rules are reproduced there explicitly (see the
+      // comment at the top of that file), plus push/notificationclick.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: ['logo.png', 'pwa-icons/favicon.svg', 'pwa-icons/apple-touch-icon.png'],
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Offline clock-in is a Must — navigation falls back to the cached shell.
-        navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            // API GETs: serve fresh when online, fall back to cache offline.
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // The four typefaces the design is drawn in. A carer opens this
-            // app in a dead zone routinely, and a font that only arrives with
-            // signal means the app changes shape depending on where they are
-            // standing. Cache first, kept for a year: the files are immutable
-            // and revisioned by URL.
-            urlPattern: ({ url }) =>
-              url.origin === 'https://fonts.googleapis.com' ||
-              url.origin === 'https://fonts.gstatic.com',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'font-cache',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
       manifest: {
         // Plain ASCII deliberately. This string is shown on the Android install
@@ -60,8 +38,14 @@ export default defineConfig({
         short_name: 'Pinnacle',
         description:
           'Clock in and out, view your shifts, capture GPS and message your team.',
-        theme_color: '#10b3c6',
-        background_color: '#ffffff',
+        // The status bar tint the installed app launches with, before the page
+        // gets a chance to set its own. Matches --color-bg so it agrees with
+        // the meta tag in index.html instead of flashing brand teal first.
+        theme_color: '#f8fcff',
+        // The native splash screen behind the icon. This is the colour #boot in
+        // index.html paints, sampled from the top of the wallpaper — white here
+        // meant the launch went white, then teal, then app.
+        background_color: '#047c7f',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

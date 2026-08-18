@@ -82,13 +82,22 @@ module Notifications
       }.to_json
     end
 
-    # Where a click should land the admin. Messages -> the conversation; alerts ->
-    # the exceptions board; otherwise the live board.
+    # Where a click should land. Admin and carer are separate SPAs with separate
+    # routers: the office app has no per-conversation route (MessagesPage picks
+    # the thread from in-page state, not the URL), so only the carer PWA — which
+    # does have /messages/:threadId — gets a click that opens straight into the
+    # conversation. Subject is the Conversation, set by
+    # Messaging::SendMessage.notify.
     def click_url(notification)
+      staff = notification.recipient_type == "Employee"
+
       case notification.notification_type
-      when "message" then "/messages"
-      when "alert"   then "/exceptions"
-      else "/"
+      when "message"
+        staff && notification.subject_id ? "/messages/#{notification.subject_id}" : "/messages"
+      when "alert"
+        staff ? "/messages" : "/exceptions"
+      else
+        staff ? "/home" : "/"
       end
     end
   end

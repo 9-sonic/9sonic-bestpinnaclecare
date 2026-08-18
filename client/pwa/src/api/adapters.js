@@ -255,16 +255,36 @@ export function toThread(convo, { viewerType, viewerId, nameFor } = {}) {
 
 export const toThreads = (list = [], ctx) => list.map((c) => toThread(c, ctx));
 
-export function toMessage(m, { viewerType, viewerId } = {}) {
+// `participants` is the conversation's participant list (id_type, id, full_name),
+// the same shape ConversationSerializer embeds. MessageSerializer has never sent
+// a sender name or nested sender object — only sender_type/sender_id — so a
+// thread with more than two people (any channel/group) rendered every bubble
+// unattributed. Matching sender_type+sender_id against the conversation's own
+// participants is the fix, and it works for every thread kind because it does
+// not depend on the API ever adding a field it does not have today.
+function senderIn(participants, m) {
+  return (participants ?? []).find((p) => p.type === m.sender_type && p.id === m.sender_id);
+}
+
+export function toMessage(m, { viewerType, viewerId, participants, nameFor } = {}) {
+  const mine = m.sender_type === viewerType && m.sender_id === viewerId;
+  const sender = !mine ? senderIn(participants, m) : null;
   return {
     id: String(m.id),
-    mine: m.sender_type === viewerType && m.sender_id === viewerId,
+    mine,
     text: m.body ?? '',
     at: m.created_at,
     // Who said it, for the label above the bubble. It only gets drawn on
     // other people's messages, and it matters in a channel where several
     // people post; a thread of unattributed bubbles is unreadable.
-    senderName: m.sender_name ?? m.sender?.full_name ?? m.sender?.name ?? '',
+    senderName:
+      m.sender_name ??
+      m.sender?.full_name ??
+      m.sender?.name ??
+      sender?.full_name ??
+      sender?.name ??
+      (sender ? nameFor?.(sender) : undefined) ??
+      '',
     // Only ever shown on your own messages. Reporting that you have read
     // someone else's message back to yourself is noise.
     readAt: m.read_at ?? null,

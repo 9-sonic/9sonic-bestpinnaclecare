@@ -55,6 +55,13 @@ export default function ChatPage() {
   const [showQuick, setShowQuick] = useState(true);
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
+  // Read by the socket effect below, which intentionally does not depend on
+  // `thread` itself (that would tear the subscription down and rebuild it on
+  // every message). A ref keeps it seeing the current participant list anyway.
+  const participantsRef = useRef(null);
+  useEffect(() => {
+    participantsRef.current = thread?.participants;
+  }, [thread?.participants]);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +86,7 @@ export default function ChatPage() {
       if (String(payload.message.conversation_id) !== String(threadId)) return;
       // Messages only: the thread's name and participants are already loaded
       // and do not change when a message arrives.
-      getThreadMessages(threadId, user)
+      getThreadMessages(threadId, user, participantsRef.current)
         .then((messages) => {
           setThread((prev) => (prev ? { ...prev, messages } : prev));
           markRead(messages?.[messages.length - 1]?.id);
