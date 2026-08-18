@@ -13,12 +13,22 @@ module Api
 
           by_visits = Array.new(7, 0)
           by_hours  = Array.new(7, 0)
-          vas.includes(:visit).each { |va| by_visits[weekday(va.visit.scheduled_start.to_date)] += 1 }
+          scheduled_minutes = 0
+          vas.includes(:visit).each do |va|
+            by_visits[weekday(va.visit.scheduled_start.to_date)] += 1
+            scheduled_minutes += ((va.visit.scheduled_end - va.visit.scheduled_start) / 60.0).round
+          end
           lines.each { |l| by_hours[weekday(l.work_date)] += l.worked_minutes }
 
           render json: {
             hours_worked_minutes: lines.sum(:worked_minutes),
-            contracted_minutes:   (current_employee.contracted_hours_per_week.to_f * 60).round,
+            # The real aggregate of this carer's rostered shift time for the
+            # requested week — not a manually-typed HR figure, which drifts out
+            # of date and was landing as 0 whenever nobody had entered one. nil
+            # only when nothing is on the rota for them in this window at all,
+            # so the frontend's "no data" fallback (40h) is reserved for a
+            # carer with no assignments here rather than treated as normal.
+            contracted_minutes:   vas.exists? ? scheduled_minutes : nil,
             visits_count:         vas.count,
             clients_count:        vas.distinct.count("visits.service_user_id"),
             miles:                current_employee.mileage_claims.where(travel_date: from..to).sum(:miles).to_f,

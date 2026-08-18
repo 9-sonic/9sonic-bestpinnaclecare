@@ -413,8 +413,9 @@ export function toSummary(payload = {}) {
     week: {
       hoursWorked: Math.round(hours),
       hours,
-      // 40 remains the fallback only while contracted hours are unset on the
-      // employee record. It is an assumption, not a contract figure.
+      // contracted_minutes is the real sum of this carer's rostered shift time
+      // for the week (SummaryController), not a manually-entered HR figure. 40
+      // is only the fallback for a carer with nothing on the rota this week.
       hoursTarget: contractedMinutes ? Math.round(contractedMinutes / 60) : 40,
       shifts: payload.visits_count ?? 0,
       clients: payload.clients_count ?? 0,
