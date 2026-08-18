@@ -16,6 +16,7 @@ import { listThreads } from '../../api/messages.js';
 import { subscribeInbox } from '../../api/cable.js';
 import { MenuContext } from './MenuContext.js';
 import { prefetchTabs } from '../../utils/prefetch.js';
+import { playSound } from '../../utils/sounds.js';
 
 // Shell for the tabbed screens.
 // Mobile: content plus a bottom tab bar. Desktop: persistent sidebar.
@@ -44,6 +45,26 @@ export default function AppLayout() {
   useEffect(
     () => subscribeInbox((payload) => { if (payload?.type === 'message') refreshUnread(); }),
     [refreshUnread]
+  );
+
+  // App-wide inbox cue, mirroring the office app: a distinct sound for a new
+  // chat message versus a system notification/alert, so a carer with the
+  // screen on but not looking at it still notices. Runs here (not on a single
+  // screen) since the layout is always mounted while the app is open — this is
+  // the in-tab cue; the OS push tone (sw.js) is what fires when it isn't.
+  useEffect(
+    () =>
+      subscribeInbox((payload) => {
+        if (!payload?.type) return;
+        if (payload.type === 'message') {
+          const m = payload.message;
+          const fromMe = m?.sender_type === 'Employee' && m?.sender_id === user?.id;
+          if (!fromMe) playSound('message');
+        } else if (payload.type === 'notification' || payload.type === 'alert') {
+          playSound('notification');
+        }
+      }),
+    [user?.id]
   );
 
   // Pull to refresh re-mounts the routed screen by changing its key, which

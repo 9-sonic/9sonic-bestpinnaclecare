@@ -78,6 +78,13 @@ self.addEventListener('push', (event) => {
     // Collapse repeats of the same subject (e.g. several messages in one
     // thread) into a single notification instead of stacking the tray.
     tag: data.tag || undefined,
+    // A carer is often mid-visit with the phone in a pocket — silent: false
+    // (the default, made explicit here) plays the OS notification tone, and
+    // vibrate gives a second, non-audio cue. renotify so a second push with
+    // the same tag re-alerts instead of updating the tray silently.
+    silent: false,
+    vibrate: [200, 100, 200],
+    renotify: Boolean(data.tag),
     // Carried through to notificationclick as the deep-link target.
     data: { url: data.url || '/home' },
   };
