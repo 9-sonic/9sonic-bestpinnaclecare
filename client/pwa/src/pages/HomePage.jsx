@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
@@ -11,11 +11,13 @@ import Icon from '../components/common/Icon.jsx';
 import Avatar from '../components/common/Avatar.jsx';
 import Button from '../components/common/Button.jsx';
 import Modal from '../components/common/Modal.jsx';
+import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import Skeleton, { SkeletonCard, SkeletonList } from '../components/common/Skeleton.jsx';
 import ShiftCard from '../components/shifts/ShiftCard.jsx';
 import { formatTime, formatTimeRange, formatDayLabel } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
 import { prefetchRoute } from '../utils/prefetch.js';
+import { useExitConfirm } from '../hooks/useExitConfirm.js';
 
 // How far off a visit is, in the words a carer would use. Returns null once the
 // visit has started, because "in -5 min" is worse than saying nothing.
@@ -156,7 +158,9 @@ const QUICK_ACTIONS = [
   { to: '/shifts', icon: 'calendar', tint: 'blue', label: 'My rota', hint: 'Visits this week' },
   { to: '/timesheet', icon: 'file', tint: 'purple', label: 'Timesheet', hint: 'Hours and pay' },
   { to: '/messages', icon: 'chat', tint: 'green', label: 'Messages', hint: 'Talk to the office' },
-  { to: '/profile/availability', icon: 'user', tint: 'amber', label: 'Availability', hint: 'When you can work' },
+  // Availability is not surfaced for now — same call as the Profile screen and
+  // the menu drawer. Uncomment to bring it back; the route still works.
+  // { to: '/profile/availability', icon: 'user', tint: 'amber', label: 'Availability', hint: 'When you can work' },
   { to: '/help', icon: 'help', tint: 'pink', label: 'Help', hint: 'Guides and contacts' },
 ];
 
@@ -170,6 +174,18 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
+  // Set once the carer has chosen to leave, so closing the sheet afterwards
+  // does not put the guard back on a stack we are in the middle of rewinding.
+  const leaving = useRef(false);
+
+  // Back on home offers to leave rather than retracing the carer's steps. The
+  // sheet is itself a Modal, so backing out of it pops that overlay's own entry
+  // and lands here again — hence the open check, so it closes rather than
+  // immediately reopening.
+  const { rearm } = useExitConfirm(true, () => {
+    if (!exitOpen) setExitOpen(true);
+  });
 
   useEffect(() => {
     let active = true;
@@ -236,6 +252,21 @@ export default function HomePage() {
   const target = week?.hoursTarget ?? 40;
   const worked = week?.hours ?? 0;
   const pct = target > 0 ? Math.min(100, Math.round((worked / target) * 100)) : 0;
+
+  // Leaving is the browser's call, not ours: there is no API that reliably
+  // closes a page. window.close() does end an installed PWA on Android, which
+  // is where this matters, but a normal browser tab is entitled to refuse it.
+  // So the fallback rewinds to the entry the app was opened on — from there the
+  // next back press leaves for certain, rather than the tap doing nothing.
+  function handleExit() {
+    leaving.current = true;
+    window.close();
+    setTimeout(() => {
+      if (!window.closed && window.history.length > 1) {
+        window.history.go(-(window.history.length - 1));
+      }
+    }, 200);
+  }
 
   async function handleReadAll() {
     tapFeedback();
@@ -464,6 +495,22 @@ export default function HomePage() {
         <Icon name="pin" size={13} />
         Your location is only recorded when you clock in or out.
       </p>
+
+      <ConfirmDialog
+        open={exitOpen}
+        onClose={() => {
+          setExitOpen(false);
+          // Put the guard back, or the next back press walks the stack again.
+          // Not when leaving: that stack is already on its way out.
+          if (!leaving.current) rearm();
+        }}
+        onConfirm={handleExit}
+        title="Leave the app?"
+        icon="logout"
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        message="You will stay signed in, and anything waiting to sync is kept on this phone until you open the app again."
+      />
 
       <Modal
         open={bellOpen}
