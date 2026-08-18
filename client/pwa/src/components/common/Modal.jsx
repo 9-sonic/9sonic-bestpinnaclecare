@@ -20,6 +20,17 @@ export default function Modal({ open, onClose, title, children, footer, size = '
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
+  // Keep the latest onClose in a ref rather than the effect's dependency array.
+  // onClose is nearly always an inline function with a fresh identity on every
+  // parent render — and a form re-renders its parent on every keystroke — so
+  // depending on it re-ran this whole effect per character typed. The cleanup
+  // pulled focus back to whatever was focused before the sheet opened and the
+  // re-run then focused the panel's first control (the close button), which on
+  // a phone reads as the keyboard shutting after each letter. Same fix as
+  // client/admin-web's Modal (80f85a1); this one was missed at the time.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useHistoryOverlay(open, onClose);
   useScrollLock(open);
 
@@ -30,7 +41,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
     function onKeyDown(e) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -60,7 +71,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
       clearTimeout(t);
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
