@@ -71,6 +71,77 @@ module Reports
           end
         end
 
+        wb.add_worksheet(name: "Staffing") do |sheet|
+          st = data[:staffing] || {}
+          sheet.add_row %w[metric value]
+          %i[total_visits needed_cover filled still_unfilled cover_rate_pct fill_rate_pct avg_time_to_fill_min].each do |k|
+            sheet.add_row [ k.to_s, st[k] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Cover by Client") do |sheet|
+          sheet.add_row %w[client visits unfilled]
+          (data[:cover_by_client] || []).each do |c|
+            sheet.add_row [ c[:client], c[:visits], c[:unfilled] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Carer Requests") do |sheet|
+          rq = data[:requests] || {}
+          sheet.add_row %w[metric value]
+          %i[total pending approved declined approval_rate_pct avg_turnaround_hours].each do |k|
+            sheet.add_row [ k.to_s, rq[k] ]
+          end
+          sheet.add_row []
+          sheet.add_row %w[kind count]
+          (rq[:by_kind] || []).each do |k|
+            sheet.add_row [ k[:kind], k[:count] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Requests by Carer") do |sheet|
+          sheet.add_row %w[carer total pending]
+          (data[:requests_by_carer] || []).each do |r|
+            sheet.add_row [ r[:carer], r[:total], r[:pending] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Carer Reliability") do |sheet|
+          sheet.add_row %w[carer visits on_time late missed on_time_pct]
+          (data[:carer_reliability] || []).each do |c|
+            sheet.add_row [ c[:carer], c[:visits], c[:on_time], c[:late], c[:missed], c[:on_time_pct] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Care Delivery") do |sheet|
+          cd = data[:care_delivery] || {}
+          sheet.add_row %w[metric value]
+          %i[tasks_total tasks_done tasks_pct notes_recorded visits_with_notes].each do |k|
+            sheet.add_row [ k.to_s, cd[k] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Tasks by Day") do |sheet|
+          sheet.add_row %w[date label total done pct]
+          (data[:tasks_by_day] || []).each do |d|
+            sheet.add_row [ d[:date], d[:label], d[:total], d[:done], d[:pct] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Care by Client") do |sheet|
+          sheet.add_row %w[client tasks_total tasks_done tasks_pct]
+          (data[:care_by_client] || []).each do |c|
+            sheet.add_row [ c[:client], c[:tasks_total], c[:tasks_done], c[:tasks_pct] ]
+          end
+        end
+
+        wb.add_worksheet(name: "Care by Carer") do |sheet|
+          sheet.add_row %w[carer tasks_total tasks_done tasks_pct]
+          (data[:care_by_carer] || []).each do |c|
+            sheet.add_row [ c[:carer], c[:tasks_total], c[:tasks_done], c[:tasks_pct] ]
+          end
+        end
+
         package.to_stream.read
       end
     end
