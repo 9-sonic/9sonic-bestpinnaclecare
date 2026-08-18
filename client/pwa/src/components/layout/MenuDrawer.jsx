@@ -25,7 +25,11 @@ const SECTIONS = [
     items: [
       { icon: 'user', label: 'My profile', to: '/profile' },
       { icon: 'file', label: 'Personal details', to: '/profile/details' },
-      { icon: 'calendar', label: 'Availability', to: '/profile/availability' },
+      // Availability is not surfaced for now, matching the Profile screen,
+      // which dropped its own row earlier for the same reason. The route, the
+      // screen and its route test all still exist, so uncommenting this line
+      // is the only change needed to bring it back.
+      // { icon: 'calendar', label: 'Availability', to: '/profile/availability' },
       { icon: 'settings', label: 'Preferences', to: '/profile/preferences' },
     ],
   },
