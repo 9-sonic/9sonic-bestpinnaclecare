@@ -11,13 +11,13 @@ import Icon from '../components/common/Icon.jsx';
 import Avatar from '../components/common/Avatar.jsx';
 import Button from '../components/common/Button.jsx';
 import Modal from '../components/common/Modal.jsx';
-import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import Skeleton, { SkeletonCard, SkeletonList } from '../components/common/Skeleton.jsx';
 import ShiftCard from '../components/shifts/ShiftCard.jsx';
 import { formatTime, formatTimeRange, formatDayLabel } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
 import { prefetchRoute } from '../utils/prefetch.js';
 import { useExitConfirm } from '../hooks/useExitConfirm.js';
+import { useToast } from '../context/ToastContext.jsx';
 
 // How far off a visit is, in the words a carer would use. Returns null once the
 // visit has started, because "in -5 min" is worse than saying nothing.
@@ -174,12 +174,12 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
-  const [exitOpen, setExitOpen] = useState(false);
+  const toast = useToast();
 
-  // Back on home offers to leave rather than retracing the carer's steps. The
-  // hook re-arms its own history guard before this fires, so dismissing the
-  // sheet does not immediately trigger another ask.
-  useExitConfirm(true, () => setExitOpen(true));
+  // Back on home warns instead of retracing the carer's steps through every
+  // screen they have already visited. See useExitConfirm for why this is a
+  // toast and a second press, not a dialog trying to force the app closed.
+  useExitConfirm(true, () => toast.info('Press back again to exit', 2000));
 
   useEffect(() => {
     let active = true;
@@ -246,20 +246,6 @@ export default function HomePage() {
   const target = week?.hoursTarget ?? 40;
   const worked = week?.hours ?? 0;
   const pct = target > 0 ? Math.min(100, Math.round((worked / target) * 100)) : 0;
-
-  // Leaving is the browser's call, not ours: there is no API that reliably
-  // closes a page. window.close() does end an installed PWA on Android, which
-  // is where this matters, but a normal browser tab is entitled to refuse it.
-  // So the fallback rewinds to the entry the app was opened on — from there the
-  // next back press leaves for certain, rather than the tap doing nothing.
-  function handleExit() {
-    window.close();
-    setTimeout(() => {
-      if (!window.closed && window.history.length > 1) {
-        window.history.go(-(window.history.length - 1));
-      }
-    }, 200);
-  }
 
   async function handleReadAll() {
     tapFeedback();
@@ -488,17 +474,6 @@ export default function HomePage() {
         <Icon name="pin" size={13} />
         Your location is only recorded when you clock in or out.
       </p>
-
-      <ConfirmDialog
-        open={exitOpen}
-        onClose={() => setExitOpen(false)}
-        onConfirm={handleExit}
-        title="Leave the app?"
-        icon="logout"
-        confirmLabel="Leave"
-        cancelLabel="Stay"
-        message="You will stay signed in, and anything waiting to sync is kept on this phone until you open the app again."
-      />
 
       <Modal
         open={bellOpen}
