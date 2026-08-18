@@ -22,8 +22,26 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
   const [refreshing, setRefreshing] = useState(false);
   const start = useRef(null);
   const armed = useRef(false);
+  // The actual scrolling element is .app-content, the nearest scrollable
+  // ancestor — this component's own wrapper never scrolls. window.scrollY is
+  // always 0 here (see global.css: html/body/#root are overflow:hidden so the
+  // document itself never moves), so checking it made every pull look like it
+  // started at the top even deep in a long list, and the gesture fought
+  // ordinary scrolling instead of only firing at the real top. Resolved lazily
+  // and cached: .app-content's position relative to this wrapper is fixed for
+  // the life of the component, so one DOM walk is enough.
+  const root = useRef(null);
+  const scroller = useRef(undefined);
 
-  const atTop = () => (window.scrollY || document.documentElement.scrollTop) <= 0;
+  const atTop = () => {
+    if (scroller.current === undefined) {
+      scroller.current = root.current?.closest('.app-content') ?? window;
+    }
+    if (scroller.current === window) {
+      return (window.scrollY || document.documentElement.scrollTop) <= 0;
+    }
+    return scroller.current.scrollTop <= 0;
+  };
 
   const finish = useCallback(async () => {
     if (pull >= TRIGGER_PX && !refreshing) {
@@ -91,7 +109,7 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
   const ready = pull >= TRIGGER_PX;
 
   return (
-    <div className="ptr">
+    <div className="ptr" ref={root}>
       <div
         className={`ptr__indicator${refreshing ? ' ptr__indicator--busy' : ''}`}
         style={{ height: pull, opacity: pull > 0 ? 1 : 0 }}
