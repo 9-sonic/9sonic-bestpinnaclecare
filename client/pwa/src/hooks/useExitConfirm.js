@@ -8,15 +8,14 @@ import { useCallback, useEffect, useRef } from 'react';
 // navigating. The entry carries a marker in history.state, which is what tells
 // the two cases apart:
 //
-//   landed ON the guard      back from a deeper screen (Shifts -> Home). The
-//                            marker is present, so this is ordinary back
-//                            navigation and nothing is asked.
-//   popped OFF the guard     back while home was already showing. The marker
-//                            is gone, so there is nothing further back inside
-//                            the app worth going to — ask about leaving.
+//   landed ON the guard      ordinary back navigation (Shifts -> Home), or an
+//                            overlay unwinding its own entry. Stay quiet.
+//   popped OFF the guard     back was pressed with home already showing, so
+//                            there is nothing further back inside the app
+//                            worth going to. Ask about leaving.
 //
 // Deliberately NOT removed when home unmounts. An earlier shape did that, and
-// the cleanup's history.back() landed *after* the router had pushed the new
+// the cleanup's history.back() landed after the router had pushed the new
 // screen, so tapping a tab from home bounced straight back to home. Leaving the
 // entry costs one stack slot and breaks nothing: the marker check means
 // re-entering home never stacks a second guard.
@@ -35,24 +34,25 @@ export function useExitConfirm(enabled, onAsk) {
     guard();
 
     function handlePop() {
-      // An overlay closing also pops — but that lands back ON the guard, so the
-      // marker is still there and this correctly stays quiet.
-      if (!window.history.state?.bpcExitGuard) onAskRef.current?.();
+      if (window.history.state?.bpcExitGuard) return;
+
+      // Re-arm BEFORE the sheet opens, not after it closes.
+      //
+      // The sheet is a Modal, so it pushes a history entry of its own, and
+      // dismissing it pops that entry back off, which fires popstate here
+      // again. With the guard already restored underneath, that pop lands on
+      // the marker and returns above. Without it, the pop landed on a bare
+      // entry and re-asked instantly, so "Stay" and tapping outside both
+      // reopened the sheet forever; only the hardware back button appeared to
+      // work, and only because the re-ask happened to be a no-op while the
+      // sheet was still open.
+      guard();
+      onAskRef.current?.();
     }
 
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
   }, [enabled, guard]);
-
-  // Called when the carer backs out of the confirmation. The sheet is a Modal,
-  // so useHistoryOverlay is unwinding its own entry on a deferred tick; re-arm
-  // after that lands, or the re-pushed guard would be the thing it pops. The
-  // marker check makes the timing forgiving rather than exact.
-  const rearm = useCallback(() => {
-    setTimeout(guard, 120);
-  }, [guard]);
-
-  return { rearm };
 }
 
 export default useExitConfirm;
