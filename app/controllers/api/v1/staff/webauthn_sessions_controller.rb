@@ -35,6 +35,10 @@ module Api
           if employee.is_a?(Employee) && employee.active_for_authentication?
             render_access(employee, :employee, EmployeeSerializer)
           else
+            Auth::RecordLoginAttempt.call(
+              scope: :employee, request: request, resource: employee.is_a?(Employee) ? employee : nil,
+              success: false, failure_reason: "webauthn_failed"
+            )
             render json: { error: "authentication_failed" }, status: :unauthorized
           end
         end

@@ -8,11 +8,13 @@ module Events
   class Record
     def self.call(aggregate:, event_type:, actor: nil, payload: {}, occurred_at: Time.current, client_event_id: nil)
       attrs = {
-        aggregate:       aggregate,
-        event_type:      event_type.to_s,
-        payload:         payload,
-        occurred_at:     occurred_at,
-        client_event_id: client_event_id
+        aggregate:          aggregate,
+        event_type:         event_type.to_s,
+        payload:            payload,
+        occurred_at:        occurred_at,
+        client_event_id:    client_event_id,
+        ip_address:         Current.ip_address,
+        device_fingerprint: Current.device_fingerprint
       }
       if actor
         attrs[:actor] = actor

@@ -10,9 +10,11 @@ class EventSerializer
       actor_name:     actor_name(e),
       aggregate_type: e.aggregate_type,
       aggregate_id:   e.aggregate_id,
-      payload:        e.payload,
-      occurred_at:    e.occurred_at&.iso8601,
-      recorded_at:    e.recorded_at&.iso8601
+      payload:            e.payload,
+      occurred_at:        e.occurred_at&.iso8601,
+      recorded_at:        e.recorded_at&.iso8601,
+      ip_address:         e.ip_address,
+      device_fingerprint: e.device_fingerprint
     }
   end
 
