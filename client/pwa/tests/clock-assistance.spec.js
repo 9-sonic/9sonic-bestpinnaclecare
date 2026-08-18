@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn, watchForErrors, expectNoHorizontalScroll } from './helpers.js';
+import { signIn, watchForErrors, expectNoHorizontalScroll, clockAction, clockButton } from './helpers.js';
 
 // Clock-in assistance requests (kind=clock_assistance), sent through the carer
 // requests pipeline and queued offline when there is no signal.
@@ -122,19 +122,17 @@ test.describe('clock assistance requests', () => {
     const errors = watchForErrors(page);
     await signIn(page);
 
-    // Clock in on the first visit… (`exact`: "Clock In" is a substring of
-    // "Can't clock in?", and non-exact role matching is substring-based.)
+    // Clock in on the first visit…
     await page.goto('/clock');
-    const clockIn = page.getByRole('button', { name: 'Clock In', exact: true });
-    await expect(clockIn).toBeVisible({ timeout: 10000 });
-    await clockIn.click();
+    await expect(clockButton(page, 'Clock In')).toBeVisible({ timeout: 10000 });
+    await clockAction(page, 'Clock In');
     await expect(page.getByText('Clocked in')).toBeVisible({ timeout: 10000 });
 
     // …then try to clock in on another one, which the server refuses. (In
     // demo mode this conflict is the only clock failure that can be forced
     // deterministically; geofence and GPS failures come from the live API.)
     await page.goto('/clock?shift=103');
-    await page.getByRole('button', { name: 'Clock In', exact: true }).click();
+    await clockAction(page, 'Clock In');
     await expect(page.locator('.clock-error')).toBeVisible({ timeout: 10000 });
 
     // No reload from here: the captured error context lives in page state.

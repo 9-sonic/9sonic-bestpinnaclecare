@@ -20,6 +20,29 @@ export async function signIn(page) {
   await page.evaluate(() => document.fonts.ready).catch(() => {});
 }
 
+// Clocking in and out ask for confirmation first, so a tap on the screen's
+// button only opens a sheet — the location request and the event both happen
+// after the carer confirms. These do the whole gesture so a test can still read
+// as one action.
+//
+// Scoped to .clock-actions rather than queried off the page, for two reasons:
+// "Clock In" is a substring of "Can't clock in?", and once the sheet is open its
+// confirm button carries the same label as the button that opened it.
+export function clockButton(page, label) {
+  return page.locator('.clock-actions').getByRole('button', { name: label, exact: true });
+}
+
+// Deliberately does NOT wait for the sheet to close. Confirming starts the work
+// and the sheet stays up showing its busy state until it finishes, so waiting
+// here would mean waiting out the whole clock action — which would hide the
+// mid-flight states ("Checking location…") some of these tests exist to check.
+export async function clockAction(page, label) {
+  await clockButton(page, label).click();
+  const confirm = page.getByRole('dialog').getByRole('button', { name: label, exact: true });
+  await expect(confirm).toBeVisible();
+  await confirm.click();
+}
+
 // Every route the carer can reach, with something on each that proves the page
 // actually rendered rather than falling back to an error boundary.
 export const ROUTES = [
