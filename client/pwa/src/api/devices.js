@@ -9,12 +9,11 @@ import { deviceFingerprint } from '../utils/ids.js';
 // which device a clock tap came from. The same fingerprint rides on every clock
 // event, so the two join up.
 //
-// The endpoint also accepts a `push_subscription`, and this function takes one,
-// but every caller passes nothing — deliberately. There is no push transport at
-// either end yet: the PWA has no service-worker push handler and no VAPID key,
-// and server-side the `push` notification rows are written with status "queued"
-// and never sent by anything. Subscribing a carer's browser to a channel with
-// no sender would be theatre. Wire both halves together, or neither.
+// The endpoint also accepts a `push_subscription`. Every call on the sign-in
+// path still passes none — registration there must never block reaching the
+// clock screen, and a carer who hasn't opted in has nothing to subscribe.
+// `../lib/push.js` sends one explicitly once a carer turns push on from
+// Preferences.
 //
 // Registration is best effort: it must never block or fail a sign-in, because a
 // carer who cannot get past the login screen cannot clock in.
@@ -45,4 +44,19 @@ export async function registerDevice({ pushSubscription } = {}) {
 // awaiting registerDevice directly.
 export function registerDeviceQuietly(options) {
   return registerDevice(options).catch(() => ({ ok: false }));
+}
+
+// DELETE /staff/devices/:fingerprint — revokes this browser's device row (and
+// with it, any push subscription stored against it). Used when a carer turns
+// push off from Preferences.
+export function deleteDevice(fingerprint) {
+  if (env.useMock || !fingerprint) return Promise.resolve({ ok: true });
+  return api.delete(`/staff/devices/${fingerprint}`);
+}
+
+// GET /staff/push/config — { enabled, public_key }. Fetched at runtime rather
+// than baked into the build so the VAPID key can rotate without a redeploy.
+export function getPushConfig() {
+  if (env.useMock) return Promise.resolve({ enabled: false, public_key: null });
+  return api.get('/staff/push/config');
 }

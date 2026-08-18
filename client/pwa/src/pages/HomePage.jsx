@@ -11,10 +11,13 @@ import Icon from '../components/common/Icon.jsx';
 import Avatar from '../components/common/Avatar.jsx';
 import Button from '../components/common/Button.jsx';
 import Modal from '../components/common/Modal.jsx';
-import Skeleton from '../components/common/Skeleton.jsx';
+import Skeleton, { SkeletonCard, SkeletonList } from '../components/common/Skeleton.jsx';
 import ShiftCard from '../components/shifts/ShiftCard.jsx';
 import { formatTime, formatTimeRange, formatDayLabel } from '../utils/format.js';
 import { tapFeedback } from '../utils/haptics.js';
+import { prefetchRoute } from '../utils/prefetch.js';
+import { useExitConfirm } from '../hooks/useExitConfirm.js';
+import { useToast } from '../context/ToastContext.jsx';
 
 // How far off a visit is, in the words a carer would use. Returns null once the
 // visit has started, because "in -5 min" is worse than saying nothing.
@@ -148,6 +151,19 @@ function MiniStat({ value, label, sub, icon, tint, loading, onClick }) {
   );
 }
 
+// Where a carer goes when the day has no visits on it. Every one of these is a
+// route that already exists, so nothing here promises a screen we do not have.
+const QUICK_ACTIONS = [
+  { to: '/clock', icon: 'clock', tint: 'teal', label: 'Clock in / out', hint: 'Start or end a shift' },
+  { to: '/shifts', icon: 'calendar', tint: 'blue', label: 'My rota', hint: 'Visits this week' },
+  { to: '/timesheet', icon: 'file', tint: 'purple', label: 'Timesheet', hint: 'Hours and pay' },
+  { to: '/messages', icon: 'chat', tint: 'green', label: 'Messages', hint: 'Talk to the office' },
+  // Availability is not surfaced for now — same call as the Profile screen and
+  // the menu drawer. Uncomment to bring it back; the route still works.
+  // { to: '/profile/availability', icon: 'user', tint: 'amber', label: 'Availability', hint: 'When you can work' },
+  { to: '/help', icon: 'help', tint: 'pink', label: 'Help', hint: 'Guides and contacts' },
+];
+
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -158,6 +174,12 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
+  const toast = useToast();
+
+  // Back on home warns instead of retracing the carer's steps through every
+  // screen they have already visited. See useExitConfirm for why this is a
+  // toast and a second press, not a dialog trying to force the app closed.
+  useExitConfirm(true, () => toast.info('Press back again to exit', 2000));
 
   useEffect(() => {
     let active = true;
@@ -201,6 +223,15 @@ export default function HomePage() {
 
   const remaining = today.filter((s) => s.status === 'upcoming').length;
   const doneToday = today.filter((s) => s.status === 'completed').length;
+
+  // The soonest visit after today. Only read when today is empty, where it is
+  // the one piece of real information that answers "so when am I next out?".
+  const nextUp = useMemo(() => {
+    const now = Date.now();
+    return shifts
+      .filter((s) => new Date(s.startsAt).getTime() > now && s.status === 'upcoming')
+      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0] ?? null;
+  }, [shifts]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -261,7 +292,16 @@ export default function HomePage() {
         )}
       </div>
 
-      {focus && (
+      {/* Stands in for whichever of the featured-visit card or the "no visits"
+          card is coming, so the fetch window never drops straight to the bare
+          stats row. Same shape budget as either one: one card. */}
+      {loading && (
+        <section className="home-sec">
+          <SkeletonCard />
+        </section>
+      )}
+
+      {!loading && focus && (
         <section className="home-sec">
           <div className="section-head section-head--inset">
             <span className="section-head__title">
@@ -285,6 +325,44 @@ export default function HomePage() {
               onCall={() => { tapFeedback(); navigate('/messages'); }}
             />
           </div>
+        </section>
+      )}
+
+      {/* Nothing on the rota today. The page still has to say something true and
+          leave the carer somewhere to go, otherwise everything below the stats
+          is blank space. Held back until the fetch settles so an empty first
+          render does not flash "no visits" at someone who has six. */}
+      {!loading && today.length === 0 && (
+        <section className="home-sec">
+          <article className="dayclear">
+            <span className="dayclear__icon">
+              <Icon name="calendar" size={24} />
+            </span>
+            <h3 className="dayclear__title">No visits today</h3>
+            <p className="dayclear__text">
+              {nextUp
+                ? `Your next visit is ${formatDayLabel(nextUp.startsAt)} at ${formatTime(nextUp.startsAt)}.`
+                : 'Nothing is on your rota yet. The office will let you know as soon as a visit is assigned.'}
+            </p>
+            <div className="dayclear__actions">
+              {nextUp && (
+                <button
+                  type="button"
+                  className="dayclear__btn dayclear__btn--solid"
+                  onClick={() => { tapFeedback(); navigate(`/shifts/${nextUp.id}`); }}
+                >
+                  View next visit
+                </button>
+              )}
+              <button
+                type="button"
+                className="dayclear__btn"
+                onClick={() => { tapFeedback(); navigate('/shifts'); }}
+              >
+                See my rota
+              </button>
+            </div>
+          </article>
         </section>
       )}
 
@@ -324,7 +402,15 @@ export default function HomePage() {
 
       {/* The rest of the day. Each row carries enough to act on without
           opening it: when, who, where, and what the visit is for. */}
-      {today.length > 0 && (
+      {/* Stands in for whichever of the today list or the quick-actions grid is
+          coming. Two rows, roughly the footprint of either. */}
+      {loading && (
+        <section className="home-sec">
+          <SkeletonList count={2} />
+        </section>
+      )}
+
+      {!loading && today.length > 0 && (
         <section className="home-sec">
           <div className="section-head section-head--inset">
             <span className="section-head__title">Today</span>
@@ -346,6 +432,33 @@ export default function HomePage() {
                   onDetails={() => navigate(`/shifts/${s.id}`)}
                 />
               ))}
+          </div>
+        </section>
+      )}
+
+      {/* Only on a clear day. On a day with visits the list below is what the
+          carer came for, and a grid of links under it would compete with it. */}
+      {!loading && today.length === 0 && (
+        <section className="home-sec">
+          <div className="section-head section-head--inset">
+            <span className="section-head__title">Quick actions</span>
+          </div>
+          <div className="qgrid">
+            {QUICK_ACTIONS.map((a) => (
+              <button
+                key={a.to}
+                type="button"
+                className="qgrid__item"
+                onPointerDown={() => prefetchRoute(a.to)}
+                onClick={() => { tapFeedback(); navigate(a.to); }}
+              >
+                <span className={`qgrid__icon tile-icon tile-icon--${a.tint}`}>
+                  <Icon name={a.icon} size={18} />
+                </span>
+                <span className="qgrid__label">{a.label}</span>
+                <span className="qgrid__hint">{a.hint}</span>
+              </button>
+            ))}
           </div>
         </section>
       )}

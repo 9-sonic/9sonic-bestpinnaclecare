@@ -13,6 +13,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Modal from '../components/common/Modal.jsx';
+import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import AssistanceRequestDialog from '../components/clock/AssistanceRequestDialog.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useOnline } from '../hooks/useOnline.js';
@@ -329,8 +330,16 @@ export default function ClockPage() {
     }
   }
 
-  const handleClockIn = () => runClockAction('clock_in');
-  const handleClockOut = () => runClockAction('clock_out');
+  // Confirmed before anything happens — including before location is asked
+  // for, so a tap that gets cancelled at the sheet never raises a permission
+  // prompt or sends an event. Deliberately overrides the "tap once" shape the
+  // rest of this screen was built around (see the comments above on
+  // checkLocation): a carer asked for this explicitly, aware it adds a step
+  // to every clock in and out. If that trade turns out wrong in practice,
+  // this is the one place to revert.
+  const [confirming, setConfirming] = useState(null); // null | 'clock_in' | 'clock_out'
+  const handleClockIn = () => { tapFeedback(); setConfirming('clock_in'); };
+  const handleClockOut = () => { tapFeedback(); setConfirming('clock_out'); };
 
   async function handleBreak() {
     tapFeedback();
@@ -637,6 +646,35 @@ export default function ClockPage() {
         // Sent or queued: the whole episode is over, so close the advice
         // sheet sitting underneath as well.
         onSubmitted={() => setHelpOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={confirming === 'clock_in'}
+        onClose={() => setConfirming(null)}
+        onConfirm={() => runClockAction('clock_in')}
+        title="Clock in?"
+        icon="clock"
+        confirmLabel="Clock In"
+        message={
+          shift
+            ? `Clock in for your visit with ${shift.client}. Your location is recorded at the moment you confirm.`
+            : 'Your location is recorded at the moment you confirm.'
+        }
+      />
+
+      <ConfirmDialog
+        open={confirming === 'clock_out'}
+        onClose={() => setConfirming(null)}
+        onConfirm={() => runClockAction('clock_out')}
+        title="Clock out?"
+        icon="clock"
+        destructive
+        confirmLabel="Clock Out"
+        message={
+          shift
+            ? `End your visit with ${shift.client} after ${formatElapsed(elapsedMs)} on shift${onBreak ? ' (on break right now)' : ''}. Your location is recorded at the moment you confirm.`
+            : 'Your location is recorded at the moment you confirm.'
+        }
       />
     </div>
   );

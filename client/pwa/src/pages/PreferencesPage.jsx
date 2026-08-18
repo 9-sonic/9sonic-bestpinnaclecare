@@ -9,6 +9,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { requestPasswordReset } from '../api/auth.js';
 import { getPreferences, updatePreferences } from '../api/notifications.js';
+import { enablePush, disablePush, pushSupported, pushPermission, isSubscribed } from '../utils/push.js';
+import { tapFeedback } from '../utils/haptics.js';
 
 const TINTS = {
   teal: { bg: 'var(--teal-050)', fg: 'var(--color-primary)' },
@@ -64,6 +66,67 @@ export default function PreferencesPage() {
     () => document.documentElement.dataset.textSize === 'large'
   );
   const [passwordBusy, setPasswordBusy] = useState(false);
+
+  // The device-level switch: does *this browser* have an active push
+  // subscription at all. Separate from the per-type rows above, which only
+  // decide whether a given event is sent once a device is subscribed — that
+  // is why they can stay in their existing on-by-default state without ever
+  // having promised push before now.
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushState, setPushState] = useState('checking'); // checking | ready | unsupported | denied
+
+  useEffect(() => {
+    let active = true;
+    if (!pushSupported()) {
+      setPushState('unsupported');
+      return undefined;
+    }
+    if (pushPermission() === 'denied') {
+      setPushState('denied');
+      return undefined;
+    }
+    isSubscribed()
+      .then((sub) => {
+        if (!active) return;
+        setPushOn(sub);
+        setPushState('ready');
+      })
+      .catch(() => active && setPushState('ready'));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handlePushToggle() {
+    if (pushBusy || pushState === 'unsupported' || pushState === 'denied') return;
+    tapFeedback();
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+        toast.info('Push notifications turned off on this device');
+      } else {
+        const res = await enablePush();
+        if (res.ok) {
+          setPushOn(true);
+          toast.success('Push notifications are on for this device');
+        } else if (res.reason === 'denied') {
+          setPushState('denied');
+          toast.error('Notifications are blocked. Allow them in your browser settings to turn this on.');
+        } else if (res.reason === 'not_configured') {
+          toast.error('Push is not set up on the server yet.');
+        } else {
+          toast.error('Could not turn on push notifications.');
+        }
+      }
+    } catch {
+      toast.error('Could not update push notifications');
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   // These switches used to be plain useState: they moved, and nothing was
   // written anywhere. Now they read and write real NotificationPreference rows.
@@ -168,6 +231,25 @@ export default function PreferencesPage() {
 
       <p className="list-group__label">Notifications</p>
       <Card className="stack-card" padded={false}>
+        <Row
+          icon="bell"
+          tint={TINTS.info}
+          label="Push notifications on this device"
+          hint={
+            pushState === 'unsupported'
+              ? 'Not available on this browser'
+              : pushState === 'denied'
+                ? 'Blocked — allow in your browser settings'
+                : 'Get a notification even when the app is closed'
+          }
+          trailing={
+            <Switch
+              on={pushOn}
+              onChange={handlePushToggle}
+              label="Push notifications on this device"
+            />
+          }
+        />
         <Row
           icon="calendar"
           tint={TINTS.teal}

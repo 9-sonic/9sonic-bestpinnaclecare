@@ -8,7 +8,7 @@
 // every case here taps first and then reads the chip and the toast.
 
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers.js';
+import { signIn, clockAction, clockButton } from './helpers.js';
 
 // Edith Thornbury's address in the mock data (12 Rosewood Avenue, Leeds), and a
 // point plainly outside its 150m geofence. "Verified" has to mean *here*, so a
@@ -45,7 +45,7 @@ const CASES = [
   { mode: 'none', tone: 'warn', match: /Not verified · no location signal/ },
 ];
 
-const clockIn = (page) => page.getByRole('button', { name: /Clock In/i }).first();
+const clockIn = (page) => clockButton(page, 'Clock In');
 
 for (const c of CASES) {
   test(`chip: ${c.mode}`, async ({ page }) => {
@@ -60,7 +60,7 @@ for (const c of CASES) {
     // Nothing is said about location until the carer asks to clock in.
     await expect(chip).toHaveCount(0);
 
-    await btn.click();
+    await clockAction(page, 'Clock In');
     await expect(chip).toHaveClass(new RegExp(`verifychip--${c.tone}`), { timeout: 8000 });
     await expect(chip).toHaveText(c.match);
 
@@ -74,8 +74,7 @@ for (const c of CASES) {
     await expect(retry).toHaveCount(c.tone === 'warn' ? 1 : 0);
 
     // Clocking must never be blocked by a location failure.
-    await expect(clockIn(page).or(page.getByRole('button', { name: /Clock Out/i })).first())
-      .toBeEnabled();
+    await expect(clockIn(page).or(clockButton(page, 'Clock Out')).first()).toBeEnabled();
   });
 }
 
@@ -93,7 +92,14 @@ test('opening the screen never asks for location', async ({ page }) => {
   await expect(page.locator('.verifychip')).toHaveCount(0);
   expect(await page.evaluate(() => window.__asked)).toBe(0);
 
+  // Nor does opening the confirmation sheet: the ask comes after the carer
+  // confirms, so a tap they change their mind about never raises a prompt.
   await clockIn(page).click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toBeVisible();
+  expect(await page.evaluate(() => window.__asked)).toBe(0);
+
+  await sheet.getByRole('button', { name: 'Clock In', exact: true }).click();
   await expect(page.locator('.verifychip--ok')).toBeVisible({ timeout: 8000 });
 });
 
@@ -101,7 +107,7 @@ test('pending is shown while looking, then resolves', async ({ page }) => {
   await page.addInitScript(fake('slow'));
   await signIn(page);
   await page.goto('/clock');
-  await clockIn(page).click();
+  await clockAction(page, 'Clock In');
   const chip = page.locator('.verifychip');
   await expect(chip).toHaveClass(/verifychip--pending/);
   await expect(chip).toHaveText(/Checking location/);
@@ -120,7 +126,7 @@ test('retry recovers to verified', async ({ page }) => {
   `);
   await signIn(page);
   await page.goto('/clock');
-  await clockIn(page).click();
+  await clockAction(page, 'Clock In');
   const chip = page.locator('.verifychip');
   await expect(chip).toHaveClass(/verifychip--warn/, { timeout: 8000 });
   await page.evaluate(() => { window.__allow = true; });
