@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
 } from '../api/format.js';
-import { Button, Tag, Avatar, SegTabs } from '../ds/console.jsx';
+import { Button, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 
 // A cancelled visit is not "short-staffed" — it's cancelled. Only a live visit
 // with fewer active carers than required counts as unfilled.
@@ -44,6 +44,8 @@ const CHIP = {
 // (its carer was withdrawn, so there's no active assignment to read from).
 const stateOf = (v) => (v.status === 'cancelled' ? 'cancelled' : (v.assignments?.[0]?.lifecycle_state) ?? 'scheduled');
 const chipFor = (v) => (isShort(v) ? null : CHIP[LIFECYCLE_TONE[stateOf(v)] ?? 'neutral']);
+// Lifecycle tone -> the Tag component's tone names (list view's status pill).
+const L2TAG = { neutral: 'muted', info: 'info', warn: 'warning', active: 'info', danger: 'danger', success: 'success' };
 
 // A visit is editable unless it's cancelled — its record stands. Past and
 // already-started visits can be retimed too (admin reconciliation); every edit
@@ -498,6 +500,7 @@ export default function RotaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('carer');
+  const [layout, setLayout] = useState('grid'); // 'grid' | 'list' — how the week is drawn, independent of the carer/client grouping above
   const [assigning, setAssigning] = useState(null);
   const [creating, setCreating] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -554,6 +557,14 @@ export default function RotaPage() {
       cell: (d) => visits.filter((v) => v.service_user?.id === c.id && sameDay(v.scheduled_start, d)),
     }));
   }, [view, employees, serviceUsers, visits]);
+
+  // List layout: every visit in the week, one row each, earliest first — an
+  // agenda rather than a grid. Independent of `view` (carer/client grouping
+  // only matters to the grid's rows/columns).
+  const listRows = useMemo(
+    () => [...visits].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)),
+    [visits],
+  );
 
   const drafts = useMemo(() => visits.filter((v) => v.status === 'draft'), [visits]);
 
@@ -692,6 +703,14 @@ export default function RotaPage() {
           <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
           <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
           <span data-tour="rota-view"><SegTabs tabs={viewTabs} active={view} onSelect={setView} /></span>
+          <div data-tour="rota-layout" style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
+            {[{ key: 'grid', icon: 'calendar', label: 'Grid' }, { key: 'list', icon: 'menu', label: 'List' }].map((o) => (
+              <div key={o.key} onClick={() => setLayout(o.key)} title={`${o.label} view`}
+                style={{ ...s('display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700'), background: layout === o.key ? 'var(--d-card)' : 'transparent', color: layout === o.key ? 'var(--d-ink)' : 'var(--d-muted)' }}>
+                <Icon name={o.icon} size={14} />{o.label}
+              </div>
+            ))}
+          </div>
           <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
         </div>
         <div style={s('display:flex;flex-wrap:wrap;gap:12px;font-size:11px;font-weight:600;color:var(--d-muted)')}>
@@ -703,50 +722,87 @@ export default function RotaPage() {
 
       <p style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin:0')}>Click a block to open it — an unfilled visit opens the assign panel, a filled one its detail. Use the dot on a block to select visits for a bulk action.</p>
 
-      {loading ? <Spinner /> : (
-        <>
-          {/* Grid — bordered spreadsheet: sticky first column, ruled cells */}
-          <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
-            <div style={s('overflow-x:auto')}>
-              <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: GRID, minWidth: 1080 }}>
-                <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>
-                {weekDays.map((d) => (
-                  <div key={d.num} style={{ ...s('text-align:center;padding:7px 2px;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border)'), background: d.today ? 'var(--d-primary-soft)' : 'var(--d-panel)' }}>
-                    <div style={{ ...s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-muted)' }}>{d.label}</div>
-                    <div className="d-num" style={{ ...s('font-size:14px;font-weight:700'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-ink)' }}>{d.num}</div>
-                  </div>
-                ))}
+      {loading ? <Spinner /> : layout === 'list' ? (
+        /* List — every visit in the week, one row each, earliest first. Same
+           click/right-click/select behaviour as a grid block, just as a table
+           row: left-click opens the drawer, right-click the quick-action menu,
+           the checkbox feeds the same bulk bar. */
+        <div data-tour="rota-list" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden;padding:12px 14px')}>
+          {listRows.length === 0 ? (
+            <div style={s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)')}>No visits this week.</div>
+          ) : (
+            <TableWrap minWidth={880}>
+              <thead><tr><Th>{' '}</Th><Th>Day</Th><Th>Time</Th><Th>Client</Th><Th>Carer</Th><Th align="right">Status</Th></tr></thead>
+              <tbody>
+                {listRows.map((v) => {
+                  const short = isShort(v);
+                  const cancelled = v.status === 'cancelled';
+                  const carer = v.assignments?.[0]?.employee;
+                  return (
+                    <Row key={v.id} onClick={() => openBlock(v)} selected={selected.includes(v.id)}>
+                      <Td>
+                        <span onClick={(e) => { e.stopPropagation(); toggleSel(v.id); }} aria-label="Select visit"
+                          style={{ ...s('display:inline-block;width:15px;height:15px;border-radius:50%;border:1px solid var(--d-border);cursor:pointer'), background: selected.includes(v.id) ? 'var(--d-primary)' : 'transparent' }} />
+                      </Td>
+                      <Td mono>{new Date(v.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</Td>
+                      <Td mono>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</Td>
+                      <Td><span style={{ ...s('font-weight:700;color:var(--d-ink)'), textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>{fullName(v.service_user)}</span></Td>
+                      <Td>{carer ? fullName(carer) : <span style={s('color:var(--d-faint)')}>Unassigned</span>}</Td>
+                      <Td align="right">
+                        <span onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, visit: v }); }}>
+                          {cancelled ? <Tag tone="muted">Cancelled</Tag>
+                            : short ? <Tag tone="warning">Unfilled</Tag>
+                              : <Tag tone={L2TAG[LIFECYCLE_TONE[stateOf(v)]] ?? 'muted'}>{LIFECYCLE_LABELS[stateOf(v)]}</Tag>}
+                        </span>
+                      </Td>
+                    </Row>
+                  );
+                })}
+              </tbody>
+            </TableWrap>
+          )}
+        </div>
+      ) : (
+        /* Grid — bordered spreadsheet: sticky first column, ruled cells */
+        <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
+          <div style={s('overflow-x:auto')}>
+            <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: GRID, minWidth: 1080 }}>
+              <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>
+              {weekDays.map((d) => (
+                <div key={d.num} style={{ ...s('text-align:center;padding:7px 2px;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border)'), background: d.today ? 'var(--d-primary-soft)' : 'var(--d-panel)' }}>
+                  <div style={{ ...s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-muted)' }}>{d.label}</div>
+                  <div className="d-num" style={{ ...s('font-size:14px;font-weight:700'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-ink)' }}>{d.num}</div>
+                </div>
+              ))}
 
-                {rows.length === 0 ? (
-                  <div style={{ ...s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)'), gridColumn: '1 / -1' }}>No {view === 'carer' ? 'carers' : 'clients'} to show.</div>
-                ) : rows.map((row) => (
-                  <Fragment key={row.id}>
-                    <div style={s('position:sticky;left:0;z-index:3;background:var(--d-card);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:8px 12px')}>
-                      <Avatar initials={row.initials} size="sm" />
-                      <div style={s('min-width:0')}>
-                        <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.title}</div>
-                        <div className="d-num" style={s('font-size:10.5px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.sub}</div>
-                      </div>
+              {rows.length === 0 ? (
+                <div style={{ ...s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)'), gridColumn: '1 / -1' }}>No {view === 'carer' ? 'carers' : 'clients'} to show.</div>
+              ) : rows.map((row) => (
+                <Fragment key={row.id}>
+                  <div style={s('position:sticky;left:0;z-index:3;background:var(--d-card);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:8px 12px')}>
+                    <Avatar initials={row.initials} size="sm" />
+                    <div style={s('min-width:0')}>
+                      <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.title}</div>
+                      <div className="d-num" style={s('font-size:10.5px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.sub}</div>
                     </div>
-                    {weekDays.map((d) => {
-                      const cell = row.cell(d.date);
-                      return (
-                        <div key={d.num} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column;gap:5px')}>
-                          {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onToggle={() => toggleSel(v.id)} onOpen={() => openBlock(v)} onContext={(e) => setMenu({ x: e.clientX, y: e.clientY, visit: v })} />)}
-                          {canManage && view === 'client' && (
-                            <button type="button" aria-label="Add visit" onClick={() => setCreating({ day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
-                              className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </div>
+                  </div>
+                  {weekDays.map((d) => {
+                    const cell = row.cell(d.date);
+                    return (
+                      <div key={d.num} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column;gap:5px')}>
+                        {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onToggle={() => toggleSel(v.id)} onOpen={() => openBlock(v)} onContext={(e) => setMenu({ x: e.clientX, y: e.clientY, visit: v })} />)}
+                        {canManage && view === 'client' && (
+                          <button type="button" aria-label="Add visit" onClick={() => setCreating({ day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
+                            className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </div>
           </div>
-
-        </>
+        </div>
       )}
 
       {/* Bulk bar — matches the design; every action wired to a real endpoint */}
