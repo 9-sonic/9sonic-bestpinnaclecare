@@ -93,7 +93,14 @@ module Notifications
 
       case notification.notification_type
       when "message"
-        staff && notification.subject_id ? "/messages/#{notification.subject_id}" : "/messages"
+        # Spelled out as an if rather than a ternary: `&&` binds tighter than
+        # `? :` so the one-liner was already correct, but it read ambiguously
+        # enough that a reviewer parsed it the other way round.
+        if staff && notification.subject_id
+          "/messages/#{notification.subject_id}"
+        else
+          "/messages"
+        end
       when "alert"
         staff ? "/messages" : "/exceptions"
       else
