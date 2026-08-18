@@ -192,6 +192,7 @@ Rails.application.routes.draw do
         # Devices (push) + passkey management
         post   "devices", to: "devices#create"
         delete "devices/:fingerprint", to: "devices#destroy"
+        get    "push/config", to: "push#show"
         get    "webauthn/credentials",     to: "webauthn_credentials#index"
         delete "webauthn/credentials/:id", to: "webauthn_credentials#destroy"
       end
