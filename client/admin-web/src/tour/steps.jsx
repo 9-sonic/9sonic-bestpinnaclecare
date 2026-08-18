@@ -130,6 +130,11 @@ export const TOUR_PAGES = [
           'See the same week grouped by carer, or by client. "By client" shows each person and the visits they are due.',
       },
       {
+        anchor: 'rota-layout',
+        content:
+          'Grid shows the week as a spreadsheet; List shows every visit in one scrollable table, earliest first — handy for scanning or exporting a plain list.',
+      },
+      {
         anchor: 'rota-generate',
         content:
           'This builds next week automatically from your care packages, so you are not typing every recurring visit by hand.',
