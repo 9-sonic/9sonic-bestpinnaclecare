@@ -21,6 +21,11 @@ self.addEventListener('push', (event) => {
     badge: '/logo.png',
     // Collapse repeats of the same subject into one notification.
     tag: data.tag || undefined,
+    // silent: false (the default, made explicit) plays the OS notification
+    // tone; renotify so a second push with the same tag re-alerts the admin
+    // rather than silently updating the tray.
+    silent: false,
+    renotify: Boolean(data.tag),
     // Carry the click target through to notificationclick.
     data: { url: data.url || '/' },
   };
