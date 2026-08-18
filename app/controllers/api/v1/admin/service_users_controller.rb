@@ -116,12 +116,25 @@ module Api
 
         def create
           su = ServiceUser.create!(service_user_params)
+          Events::Record.call(
+            aggregate: su, actor: current_admin, event_type: "service_user.created",
+            payload: { changes: su.attributes.slice(*service_user_params.keys.map(&:to_s)) }
+          )
           render json: ServiceUserSerializer.call(su), status: :created
         end
 
         def update
           su = ServiceUser.find(params[:id])
+          before = su.attributes.slice(*service_user_params.keys.map(&:to_s))
           su.update!(service_user_params)
+          after = su.attributes.slice(*service_user_params.keys.map(&:to_s))
+          changed = after.keys.select { |k| before[k] != after[k] }
+          if changed.any?
+            Events::Record.call(
+              aggregate: su, actor: current_admin, event_type: "service_user.updated",
+              payload: { from: before.slice(*changed), to: after.slice(*changed) }
+            )
+          end
           render json: ServiceUserSerializer.call(su)
         end
 

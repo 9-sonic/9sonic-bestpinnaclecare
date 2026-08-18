@@ -219,7 +219,7 @@ export const TOUR_PAGES = [
       {
         anchor: 'reports-tabs',
         content:
-          'Reports has three tabs: Overview (the numbers and charts you\'re looking at), Change log (the full audit trail of every change — who, when and why), and Exports (every download, including the CQC visit-attendance audit). Click a tab to switch.',
+          'Reports has four tabs: Overview (the numbers and charts you\'re looking at), Change log (every record change — clients, staff, visits, corrections — who, when and why), Sign-ins (every login attempt, with IP and device), and Exports (every download, including the CQC visit-attendance audit). Click a tab to switch.',
       },
       {
         anchor: 'reports-content',

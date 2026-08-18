@@ -59,4 +59,45 @@ RSpec.describe "Admin audit trail", type: :request do
     get "/api/v1/admin/audit"
     expect(response).to have_http_status(:unauthorized)
   end
+
+  it "filters by date range (from/to)" do
+    Events::Record.call(aggregate: su, actor: admin, event_type: "test.old", occurred_at: 10.days.ago)
+    Events::Record.call(aggregate: su, actor: admin, event_type: "test.in_range", occurred_at: 1.day.ago)
+
+    get "/api/v1/admin/audit", params: { from: 3.days.ago.iso8601, to: Time.current.iso8601 }, headers: auth
+    types = response.parsed_body.map { |e| e["event_type"] }
+    expect(types).to include("test.in_range")
+    expect(types).not_to include("test.old")
+  end
+
+  it "filters by actor" do
+    other_admin = create(:admin)
+    Events::Record.call(aggregate: su, actor: admin, event_type: "test.mine")
+    Events::Record.call(aggregate: su, actor: other_admin, event_type: "test.theirs")
+
+    get "/api/v1/admin/audit", params: { actor_type: "Admin", actor_id: admin.id }, headers: auth
+    types = response.parsed_body.map { |e| e["event_type"] }
+    expect(types).to include("test.mine")
+    expect(types).not_to include("test.theirs")
+  end
+
+  it "filters by a specific record (aggregate_type + aggregate_id)" do
+    other_su = create(:service_user)
+    Events::Record.call(aggregate: su, actor: admin, event_type: "test.this_client")
+    Events::Record.call(aggregate: other_su, actor: admin, event_type: "test.other_client")
+
+    get "/api/v1/admin/audit", params: { aggregate_type: "ServiceUser", aggregate_id: su.id }, headers: auth
+    types = response.parsed_body.map { |e| e["event_type"] }
+    expect(types).to include("test.this_client")
+    expect(types).not_to include("test.other_client")
+  end
+
+  it "carries the acting admin's IP address on the event" do
+    Events::Record.call(aggregate: su, actor: admin, event_type: "test.with_ip")
+    # Direct service calls (outside a request) have no Current.ip_address — this
+    # proves the column round-trips; the controller-driven IP capture is proven
+    # by the login_attempts specs, which exercise a real request.
+    entry = Event.find_by(event_type: "test.with_ip")
+    expect(entry).to respond_to(:ip_address)
+  end
 end

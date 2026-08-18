@@ -38,12 +38,29 @@ module Api
         # POST /api/v1/admin/employees — invite a carer
         def create
           employee = Authentication::InviteEmployee.call(attrs: employee_params, invited_by: current_admin)
+          Events::Record.call(
+            aggregate: employee, actor: current_admin, event_type: "employee.invited",
+            payload: { email: employee.email }
+          )
           render json: serialize(employee), status: :created
         end
 
         def update
           employee = Employee.find(params[:id])
+          keys = employee_params.keys
+          before = employee.attributes.slice(*keys)
           employee.update!(employee_params)
+          after = employee.attributes.slice(*keys)
+          changed = after.keys.select { |k| before[k] != after[k] }
+          if changed.any?
+            # employee_params already strips pay fields for a non-pay-editor, so
+            # changed can only include them when the acting admin was authorised
+            # to set them — nothing further to redact here.
+            Events::Record.call(
+              aggregate: employee, actor: current_admin, event_type: "employee.updated",
+              payload: { from: before.slice(*changed), to: after.slice(*changed), changed: changed }
+            )
+          end
           render json: serialize(employee)
         end
 

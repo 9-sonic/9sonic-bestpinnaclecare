@@ -5,17 +5,18 @@ import Icon from '../components/common/Icon.jsx';
 import Tabs, { panelRadius } from '../ds/Tabs.jsx';
 import { Panel, PanelTitle, SegTabs } from '../ds/console.jsx';
 import OverviewTab, { RANGES, ReportPackExport } from './ReportsPage.jsx';
-import ChangeLogTab, { VisitAuditExport, AuditLogExport } from './AuditPage.jsx';
+import ChangeLogTab, { VisitAuditExport, AuditLogExport, SignInsTab } from './AuditPage.jsx';
 
 // Reporting hub — Overview (KPIs + charts), Change log (the append-only audit
-// trail) and Exports (every download in one place) under one nav item, grouped
-// by what you're producing rather than by page. Each tab reuses the existing
-// page pieces; the active tab lives in the URL (?tab=changelog|exports) so
-// refresh, back and deep-links behave. The former /audit and /reports routes
-// still resolve here.
+// trail), Sign-ins (login history) and Exports (every download in one place)
+// under one nav item, grouped by what you're producing rather than by page.
+// Each tab reuses the existing page pieces; the active tab lives in the URL
+// (?tab=changelog|signins|exports) so refresh, back and deep-links behave.
+// The former /audit and /reports routes still resolve here.
 const TABS = [
   { key: 'overview', label: 'Overview', icon: 'trend' },
   { key: 'changelog', label: 'Change log', icon: 'file' },
+  { key: 'signins', label: 'Sign-ins', icon: 'shield' },
   { key: 'exports', label: 'Exports', icon: 'download' },
 ];
 const KEYS = TABS.map((t) => t.key);
@@ -81,8 +82,9 @@ export default function ReportsHub() {
       <span data-tour="reports-tabs"><Tabs tabs={TABS} active={tab} onSelect={select} /></span>
       <div data-tour="reports-content" style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
         {tab === 'changelog' ? <ChangeLogTab />
-          : tab === 'exports' ? <ExportsTab />
-            : <OverviewTab range={range} setRange={setRange} />}
+          : tab === 'signins' ? <SignInsTab />
+            : tab === 'exports' ? <ExportsTab />
+              : <OverviewTab range={range} setRange={setRange} />}
       </div>
     </div>
   );
