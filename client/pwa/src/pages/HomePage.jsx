@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
@@ -175,17 +175,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
-  // Set once the carer has chosen to leave, so closing the sheet afterwards
-  // does not put the guard back on a stack we are in the middle of rewinding.
-  const leaving = useRef(false);
 
   // Back on home offers to leave rather than retracing the carer's steps. The
-  // sheet is itself a Modal, so backing out of it pops that overlay's own entry
-  // and lands here again — hence the open check, so it closes rather than
-  // immediately reopening.
-  const { rearm } = useExitConfirm(true, () => {
-    if (!exitOpen) setExitOpen(true);
-  });
+  // hook re-arms its own history guard before this fires, so dismissing the
+  // sheet does not immediately trigger another ask.
+  useExitConfirm(true, () => setExitOpen(true));
 
   useEffect(() => {
     let active = true;
@@ -259,7 +253,6 @@ export default function HomePage() {
   // So the fallback rewinds to the entry the app was opened on — from there the
   // next back press leaves for certain, rather than the tap doing nothing.
   function handleExit() {
-    leaving.current = true;
     window.close();
     setTimeout(() => {
       if (!window.closed && window.history.length > 1) {
@@ -498,12 +491,7 @@ export default function HomePage() {
 
       <ConfirmDialog
         open={exitOpen}
-        onClose={() => {
-          setExitOpen(false);
-          // Put the guard back, or the next back press walks the stack again.
-          // Not when leaving: that stack is already on its way out.
-          if (!leaving.current) rearm();
-        }}
+        onClose={() => setExitOpen(false)}
         onConfirm={handleExit}
         title="Leave the app?"
         icon="logout"
