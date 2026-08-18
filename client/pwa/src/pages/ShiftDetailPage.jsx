@@ -168,6 +168,13 @@ export default function ShiftDetailPage() {
   const doneCount = tickable.filter((p) => p.task.done).length;
   const allDone = tickable.length > 0 && doneCount === tickable.length;
 
+  // A finished visit is a record, not a thing to act on: clocking into it again
+  // would open a second attendance story for a visit that already has one, and
+  // routing to an address the carer has already been to and left is noise.
+  // Visit notes stay editable — writing up what happened is normal after the
+  // fact, and the note has its own audited save path.
+  const isCompleted = shift.status === 'completed';
+
   return (
     <div className="page--flush">
       <ScreenHeader
@@ -211,22 +218,32 @@ export default function ShiftDetailPage() {
 
         {/* Structured Info Tiles */}
         <div className="detail-hero__tiles">
-          {shift.address && (
-            <button
-              type="button"
-              className="detail-hero__tile"
-              onClick={() => {
-                tapFeedback();
-                navigate(`/navigate/${shift.id}`);
-              }}
-            >
-              <span className="tile-icon tile-icon--teal">
-                <Icon name="pin" size={15} />
-              </span>
-              <span className="detail-hero__tile-text">{shift.address}</span>
-              <Icon name="chevronRight" size={16} className="detail-hero__tile-chevron" />
-            </button>
-          )}
+          {shift.address &&
+            (isCompleted ? (
+              // Still shown — where the visit was is part of the record — but
+              // inert, with no chevron promising a route that is over.
+              <div className="detail-hero__tile detail-hero__tile--static">
+                <span className="tile-icon tile-icon--teal">
+                  <Icon name="pin" size={15} />
+                </span>
+                <span className="detail-hero__tile-text">{shift.address}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="detail-hero__tile"
+                onClick={() => {
+                  tapFeedback();
+                  navigate(`/navigate/${shift.id}`);
+                }}
+              >
+                <span className="tile-icon tile-icon--teal">
+                  <Icon name="pin" size={15} />
+                </span>
+                <span className="detail-hero__tile-text">{shift.address}</span>
+                <Icon name="chevronRight" size={16} className="detail-hero__tile-chevron" />
+              </button>
+            ))}
 
           {shift.accessNotes && (
             <div className="detail-hero__access">
@@ -268,7 +285,7 @@ export default function ShiftDetailPage() {
             >
               <Icon name="clock" size={14} /> Cover requested
             </Button>
-          ) : shift.status !== 'completed' ? (
+          ) : !isCompleted ? (
             <Button
               variant="white"
               size="sm"
@@ -284,6 +301,7 @@ export default function ShiftDetailPage() {
           <Button
             size="sm"
             pill
+            disabled={isCompleted}
             onClick={() => {
               tapFeedback();
               navigate(`/clock?shift=${shift.id}`);

@@ -2059,15 +2059,50 @@ body {
 
 .detail-hero__actions {
   display: flex;
-  gap: var(--space-2);
+  /* A long label ("Cover requested") drops the row to a second line rather
+     than squeezing its siblings off the edge of the card. */
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: var(--space-1);
 }
 
 .detail-hero__actions .btn {
-  flex: 1;
-  min-height: 42px;
+  /* flex-basis 0 rather than auto, and min-width 0 to go with it: flex items
+     will not shrink below their content width by default, so "Cover requested"
+     held the row wider than the card and pushed "Clock in" outside it. */
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 var(--space-2);
+  gap: 5px;
   border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 700;
+  white-space: nowrap;
+  /* Positioning context for the hit area below. */
+  position: relative;
+}
+
+/* 40px on screen is under the 44px a finger needs, so the target is restored
+   invisibly rather than by making the row tall again — the same treatment
+   .fvisit__btn and .vcard__go already get. */
+.detail-hero__actions .btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* The address tile on a finished visit: same shape, nothing to press. */
+.detail-hero__tile--static {
+  cursor: default;
+}
+
+.detail-hero__tile--static:hover {
+  border-color: var(--color-border);
 }
 
 .plan-row {
