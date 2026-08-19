@@ -84,7 +84,7 @@ export default function ProfilePage() {
 
   return (
     <div className="page--flush">
-      <WaveHeader height={220} photo curve="profile">
+      <WaveHeader height={220} photo>
         <div className="profile__bar">
           <span className="profile__bar-spacer" />
           <span className="profile__bar-title">Profile</span>
