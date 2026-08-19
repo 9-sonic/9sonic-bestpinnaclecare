@@ -6421,7 +6421,9 @@ body:has(.drawer-backdrop) .app-content {
 
 /* Photo variant. object-position pins the crop to the bottom of the artwork so
    the header shows the dunes, not the sky — the same slice the board uses. The
-   file is the one the splash screen already loaded. */
+   file is the one the splash screen already loaded. Shown full width, full
+   height now — the bottom used to be cut out to a single wave curve; the
+   .onde band below sits over it instead. */
 .wave__photo {
   position: absolute;
   inset: 0;
@@ -6432,11 +6434,70 @@ body:has(.drawer-backdrop) .app-content {
   object-position: bottom;
 }
 
-/* Carries the clipPath definition only; nothing to paint. */
-.wave__clip {
+/* Layered, drifting waves along the header's bottom edge. One shape (#onda,
+   defined once in WaveHeader.jsx), repeated four times at different vertical
+   offsets and opacities, each sliding sideways on its own loop — the classic
+   parallax-ocean technique, not a library. Deliberately a full swap for the
+   single-curve clip-path this used to be, not a layer added on top of it: the
+   old version was tried, reported as not reading like a real wave, and
+   dropped rather than patched.
+   transform is the only thing animating, which is what makes four
+   simultaneous layers still cheap: it is a compositor-only property, so every
+   layer runs on the GPU with no per-frame repaint, unlike the clip-path
+   version this replaces, which had to repaint the clipped region on every
+   frame. prefers-reduced-motion is already handled globally (see the
+   @media (prefers-reduced-motion: reduce) block near the top of this file),
+   so nothing extra was needed here for that. */
+.onde {
   position: absolute;
-  width: 0;
-  height: 0;
+  left: 0;
+  right: 0;
+  bottom: -1px; /* Sealed against the header's edge, the same fix Safari's own gap needs. */
+  width: 100%;
+  height: 64px;
+}
+
+.onde__layer {
+  animation: onde-drift 25s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+}
+
+/* Four depths of the same wave: three translucent teal passes stacking into
+   each other, then one solid pass in the page's own background colour, which
+   is what actually seals the header into whatever the page shows underneath
+   it (var(--color-bg), so this stays correct in dark mode without a second
+   rule). Each layer's speed and start offset are different so the four never
+   fall into a visibly mechanical lockstep. */
+.onde__layer--1 {
+  fill: color-mix(in srgb, var(--brand-deep) 55%, transparent);
+  animation-delay: -2s;
+  animation-duration: 7s;
+}
+
+.onde__layer--2 {
+  fill: color-mix(in srgb, var(--brand-deep) 35%, transparent);
+  animation-delay: -3s;
+  animation-duration: 10s;
+}
+
+.onde__layer--3 {
+  fill: color-mix(in srgb, var(--brand-deep) 15%, transparent);
+  animation-delay: -4s;
+  animation-duration: 13s;
+}
+
+.onde__layer--4 {
+  fill: var(--color-bg);
+  animation-delay: -5s;
+  animation-duration: 20s;
+}
+
+@keyframes onde-drift {
+  0% {
+    transform: translate3d(-90px, 0, 0);
+  }
+  100% {
+    transform: translate3d(85px, 0, 0);
+  }
 }
 
 .wave__content {

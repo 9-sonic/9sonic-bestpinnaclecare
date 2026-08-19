@@ -11,55 +11,55 @@ import { useId } from 'react';
 //   preserveAspectRatio is set to slice so the artwork fills any width without
 //   the curve flattening out on a tablet.
 //
-// - photo: the illustrated wallpaper, cropped to its bottom section (the dunes)
-//   and cut off by the wave. This is the same file the splash screen shows, so
-//   on the launch path it is already decoded and the header paints immediately.
-//   Opt in per page; the vector stays the default so the other headers that use
-//   this component are unaffected.
+// - photo: the illustrated wallpaper, shown full width with a band of layered,
+//   drifting waves along the bottom edge (.onde below) rather than a single
+//   fixed curve cropped out of the photo. This is the same file the splash
+//   screen shows, so on the launch path it is already decoded and the header
+//   paints immediately. Opt in per page; the vector stays the default so the
+//   other headers that use this component are unaffected.
 //
-// Wave paths are expressed in objectBoundingBox units (0..1) rather than a
-// viewBox, so one path scales to any width without preserveAspectRatio or
-// pixel maths. Coordinates come from the Penpot boards, normalised to the
-// visible slice of the artwork.
-//
-// The two screens do not share a curve: sign in drops steeply from the right
-// and troughs near the middle, while profile is shallower and troughs further
-// right, leaving room for the avatar to straddle it.
-const WAVE_PATHS = {
-  signin: `M0,0 L1,0 L1,0.6001
-    C1,0.6001 0.9812,0.7154 0.8995,0.8182
-    C0.7945,0.9504 0.6059,1.0678 0.4346,0.9541
-    C0.3338,0.8872 0.2603,0.8347 0.1976,0.8257
-    C0.0597,0.806 0,0.9088 0,0.9088 Z`,
-  profile: `M0,0 L1,0 L1,0.7636
-    L0.97,0.8045 L0.8952,0.8773 L0.79,0.9364 L0.6522,0.9818
-    C0.6522,0.9818 0.5609,1.0098 0.4466,0.9955
-    C0.3315,0.981 0.2028,0.9353 0.1101,0.8773
-    C0.1004,0.8712 0.0767,0.8528 0.0611,0.8364
-    C0.0321,0.8058 0.0005,0.7752 0,0.7591 Z`,
-};
-
-export default function WaveHeader({ height = 210, photo = false, curve = 'signin', children }) {
-  const clipId = useId();
+// The wave band is the classic layered-parallax-ocean technique: one wave
+// shape, drawn once, repeated with <use> at a few vertical offsets and
+// opacities, each drifting sideways on its own loop via CSS transform. Chosen
+// over the single-curve clip-path this used to be specifically because it was
+// tried and looked wrong — flagged directly rather than reworked quietly. It
+// is also cheaper: transform is a compositor-only property, so every layer
+// animates on the GPU with no per-frame repaint, unlike the earlier version's
+// clip-path shape morph, which had to repaint the clipped region on every
+// frame. See global.css (.onde, .onde__layer) for the animation itself.
+export default function WaveHeader({ height = 210, photo = false, children }) {
+  const waveId = useId();
 
   return (
     <div className="wave" style={{ height }}>
       {photo ? (
         <>
-          <svg className="wave__clip" aria-hidden="true">
-            <defs>
-              <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-                <path d={WAVE_PATHS[curve] ?? WAVE_PATHS.signin} />
-              </clipPath>
-            </defs>
-          </svg>
           <img
             className="wave__photo"
             src="/brand/wallpaper.webp"
             alt=""
             aria-hidden="true"
-            style={{ clipPath: `url(#${clipId})` }}
           />
+          <svg
+            className="onde"
+            viewBox="0 24 150 28"
+            preserveAspectRatio="none"
+            shapeRendering="auto"
+            aria-hidden="true"
+          >
+            <defs>
+              <path
+                id={waveId}
+                d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352Z"
+              />
+            </defs>
+            <g className="onde__parallax">
+              <use href={`#${waveId}`} x="48" y="0" className="onde__layer onde__layer--1" />
+              <use href={`#${waveId}`} x="48" y="3" className="onde__layer onde__layer--2" />
+              <use href={`#${waveId}`} x="48" y="5" className="onde__layer onde__layer--3" />
+              <use href={`#${waveId}`} x="48" y="7" className="onde__layer onde__layer--4" />
+            </g>
+          </svg>
         </>
       ) : (
         <svg
