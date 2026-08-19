@@ -4,7 +4,11 @@ module Sync
   # coords/radius/access notes so the device can do the provisional geofence.
   class BuildChangeset
     def self.call(employee:, since: nil)
-      scope = employee.visit_assignments.assigned.non_terminal.includes(visit: :service_user)
+      # Only published visits sync to the device — a draft is the office still
+      # planning and must not reach the carer (matches Staff::VisitsController).
+      scope = employee.visit_assignments.assigned.non_terminal
+                      .joins(:visit).where(visits: { status: :published })
+                      .includes(visit: :service_user)
       scope = scope.where("visit_assignments.updated_at > ?", since) if since.present?
       assignments = scope.order("visit_assignments.updated_at").to_a
 

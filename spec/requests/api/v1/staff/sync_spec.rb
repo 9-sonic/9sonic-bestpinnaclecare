@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Staff offline sync", type: :request do
   let(:employee)     { create(:employee) }
   let(:service_user) { create(:service_user, lat: 53.4808, lng: -2.2426) }
-  let(:visit)        { create(:visit, service_user: service_user) }
+  let(:visit)        { create(:visit, service_user: service_user, status: :published) }
   let!(:va)          { create(:visit_assignment, visit: visit, employee: employee) }
   let(:auth)         { { "Authorization" => "Bearer #{jwt_for(employee, :employee)}" } }
 
@@ -40,5 +40,15 @@ RSpec.describe "Staff offline sync", type: :request do
     expect(body["visits"].size).to eq(1)
     expect(body.dig("visits", 0, "visit", "service_user", "lat")).to eq(53.4808)
     expect(body["cursor"]).to be_present
+  end
+
+  it "does not sync a draft visit to the device (only published reach the carer)" do
+    draft = create(:visit, service_user: service_user, status: :draft)
+    create(:visit_assignment, visit: draft, employee: employee)
+
+    get "/api/v1/staff/sync/changes", headers: auth
+    ids = response.parsed_body["visits"].map { |v| v["visit"]["id"] }
+    expect(ids).to include(visit.id)      # the published one
+    expect(ids).not_to include(draft.id)  # the draft one
   end
 end
