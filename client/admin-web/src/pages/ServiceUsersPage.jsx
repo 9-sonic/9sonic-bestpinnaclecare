@@ -9,7 +9,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName, addressOf } from '../api/format.js';
-import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, Pager } from '../ds/console.jsx';
+import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, Pager, fieldStyle, SearchBox } from '../ds/console.jsx';
 
 const EMPTY = {
   first_name: '', last_name: '', reference: '', phone: '',
@@ -27,7 +27,7 @@ function Field({ label, hint, children, full }) {
     </label>
   );
 }
-const inputStyle = { ...s('height:46px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%'), fontFamily: 'inherit', border: '1.5px solid transparent' };
+const inputStyle = fieldStyle();
 
 export default function ServiceUsersPage() {
   const toast = useToast();
@@ -91,9 +91,8 @@ export default function ServiceUsersPage() {
 
       {/* Toolbar */}
       <div data-tour="clients-toolbar" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('height:46px;flex:1;min-width:220px;background:var(--d-field);border-radius:23px;display:flex;align-items:center;gap:10px;padding:0 18px')}>
-          <Icon name="search" size={17} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, reference or postcode" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+        <div style={s('flex:1;min-width:220px')}>
+          <SearchBox value={query} onChange={setQuery} placeholder="Search name, reference or postcode" />
         </div>
         <div style={s('flex:1')} />
         {canManage && <span data-tour="clients-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={openCreate}>Add a person</Button><InfoHint text="Add a new client with their name and address. The geofence (carers clock in within 150m) is located from the address automatically — you only enter coordinates to correct where the pin lands." /></span>}

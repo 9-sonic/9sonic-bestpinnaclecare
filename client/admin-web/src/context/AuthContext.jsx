@@ -84,7 +84,6 @@ export function AuthProvider({ children }) {
       isAuthenticated: !!admin,
       mfaRequired: !!mfaToken,
       canManage: MANAGING_ROLES.has(admin?.role),
-      isFinance: admin?.role === 'finance' || MANAGING_ROLES.has(admin?.role),
       login,
       submitMfa,
       cancelMfa: () => setMfaToken(null),

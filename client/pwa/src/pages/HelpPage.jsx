@@ -22,10 +22,6 @@ const FAQS = [
     q: 'How do I change the days I can work?',
     a: 'Open Profile, then Availability. Tap the times you can work and save. Your manager sees the update straight away.',
   },
-  {
-    q: 'When is my timesheet due?',
-    a: 'Submit by Sunday 6pm. Open the Timesheet screen, check the entries, then tap Submit for approval.',
-  },
 ];
 
 export default function HelpPage() {

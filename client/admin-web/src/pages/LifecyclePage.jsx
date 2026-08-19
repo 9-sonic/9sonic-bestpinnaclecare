@@ -13,7 +13,7 @@ import { LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatDate } from '../api
 const L2TAG = { neutral: 'muted', info: 'info', warn: 'warning', active: 'info', danger: 'danger', success: 'success' };
 const DESC = {
   in_progress: 'Carer clocked in and currently delivering care.',
-  completed: 'Shift finished, verified and released to payroll.',
+  completed: 'Shift finished and verified.',
   late: 'Clock in landed after the grace period.',
   pending_review: 'Sitting with a manager in the exceptions queue.',
 };

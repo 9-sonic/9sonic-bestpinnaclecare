@@ -10,7 +10,7 @@ import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.j
 import {
   getEmployee, updateEmployee, uploadEmployeeAvatar, removeEmployeeAvatar,
   getEmployeeAvailability, getCarerProfile, listCarerNotes, listCarerVisits,
-  listCarerClockEvents, listCarerTimesheetLines, listCarerRequests,
+  listCarerClockEvents, listCarerRequests,
 } from '../api/index.js';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -18,7 +18,6 @@ const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'notes', label: 'Notes' },
   { key: 'visits', label: 'Visits' },
-  { key: 'timesheet', label: 'Timesheet' },
   { key: 'clock', label: 'Clock history' },
   { key: 'requests', label: 'Requests' },
   { key: 'availability', label: 'Availability' },
@@ -32,7 +31,6 @@ const fmt = (iso, withTime = true) => {
       : { day: '2-digit', month: 'short', year: 'numeric' });
   } catch { return iso; }
 };
-const hrs = (m) => `${Math.floor((m ?? 0) / 60)}h ${(m ?? 0) % 60}m`;
 
 export default function CarerDetailPage() {
   const { id } = useParams();
@@ -66,7 +64,7 @@ export default function CarerDetailPage() {
     let active = true;
     setTabLoading(true);
     const loader = {
-      notes: listCarerNotes, visits: listCarerVisits, timesheet: listCarerTimesheetLines,
+      notes: listCarerNotes, visits: listCarerVisits,
       clock: listCarerClockEvents, requests: listCarerRequests,
       availability: (i) => getEmployeeAvailability(i).then((rows) => ({ items: rows })),
     }[tab];
@@ -203,7 +201,6 @@ export default function CarerDetailPage() {
           : rows.length === 0 ? <Muted>Nothing here yet.</Muted>
           : tab === 'notes' ? rows.map((n) => <NoteCard key={n.id} n={n} />)
           : tab === 'visits' ? rows.map((v) => <Line key={v.id} title={v.visit?.service_user?.full_name || `Visit ${v.visit_id}`} sub={`${fmt(v.visit?.scheduled_start)} · ${v.lifecycle_state?.replace(/_/g, ' ')}`} />)
-          : tab === 'timesheet' ? rows.map((l) => <Line key={l.id} title={`${fmt(l.work_date, false)} — ${hrs(l.worked_minutes)} worked`} sub={`Scheduled ${hrs(l.scheduled_minutes)} · Break ${hrs(l.break_minutes)}${l.approved_at ? ` · approved by ${l.approved_by}` : ''}`} />)
           : tab === 'clock' ? rows.map((c) => <Line key={c.id} title={`${c.kind?.replace(/_/g, ' ')} · ${fmt(c.occurred_at)}`} sub={`${c.service_user ?? ''}${c.geofence_result ? ` · ${c.geofence_result.replace(/_/g, ' ')}` : ''}`} />)
           : tab === 'requests' ? rows.map((r) => (
               <div key={r.id} style={s('background:var(--d-panel);border-radius:12px;padding:12px 14px;margin-bottom:8px')}>

@@ -20,7 +20,6 @@ DEMO_MFA_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".freeze
 tables = %w[
   visit_notes visit_tasks care_plan_items employee_availabilities mileage_claims
   clock_events events visit_assignments visits care_package_slots service_users
-  timesheet_disputes timesheet_lines timesheet_periods
   message_receipts message_attachments messages conversation_participants conversations
   notifications notification_preferences alerts
   refresh_tokens devices webauthn_credentials jwt_denylist

@@ -15,7 +15,6 @@ const KINDS = {
   visit_changed: { icon: 'calendar', tone: 'info', label: 'Rota' },
   visit_assigned: { icon: 'calendar', tone: 'info', label: 'Rota' },
   message: { icon: 'chat', tone: 'teal', label: 'Message' },
-  timesheet_reminder: { icon: 'wallet', tone: 'warn', label: 'Timesheet' },
   training_due: { icon: 'shield', tone: 'purple', label: 'Training' },
   alert: { icon: 'alert', tone: 'danger', label: 'Alert' },
 };

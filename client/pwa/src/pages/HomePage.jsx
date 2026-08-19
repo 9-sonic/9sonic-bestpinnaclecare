@@ -123,7 +123,7 @@ function HoursRing({ worked, target, loading }) {
           <span className="hours-ring__unit">h</span>
         </span>
       </div>
-      <span className="hours-ring__sub">of {target} contracted</span>
+      <span className="hours-ring__sub">of {target}h scheduled</span>
     </div>
   );
 }
@@ -156,7 +156,6 @@ function MiniStat({ value, label, sub, icon, tint, loading, onClick }) {
 const QUICK_ACTIONS = [
   { to: '/clock', icon: 'clock', tint: 'teal', label: 'Clock in / out', hint: 'Start or end a shift' },
   { to: '/shifts', icon: 'calendar', tint: 'blue', label: 'My rota', hint: 'Visits this week' },
-  { to: '/timesheet', icon: 'file', tint: 'purple', label: 'Timesheet', hint: 'Hours and pay' },
   { to: '/messages', icon: 'chat', tint: 'green', label: 'Messages', hint: 'Talk to the office' },
   // Availability is not surfaced for now — same call as the Profile screen and
   // the menu drawer. Uncomment to bring it back; the route still works.
@@ -242,10 +241,9 @@ export default function HomePage() {
     month: 'long',
   });
 
-  // Progress towards the contracted week, shown as a bar under the metrics.
+  // Worked vs scheduled hours this week, shown as a ring under the metrics.
   const target = week?.hoursTarget ?? 40;
   const worked = week?.hours ?? 0;
-  const pct = target > 0 ? Math.min(100, Math.round((worked / target) * 100)) : 0;
 
   async function handleReadAll() {
     tapFeedback();
@@ -395,7 +393,7 @@ export default function HomePage() {
             icon="trend"
             tint="purple"
             loading={loading}
-            onClick={() => navigate('/timesheet')}
+            onClick={() => navigate('/overview')}
           />
         </div>
       </section>

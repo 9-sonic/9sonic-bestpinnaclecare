@@ -103,8 +103,13 @@ export default function OverviewTab({ range, setRange }) {
         </div>
       </Panel>
 
-      {/* Range selector — normal tabs */}
-      <SegTabs active={range} onSelect={setRange} tabs={RANGES.map((r) => ({ key: r.id, label: r.label }))} />
+      {/* Range selector, with the report-pack download for the chosen range on
+          the right — the export lives with the data it exports. */}
+      <div style={s('display:flex;align-items:center;gap:14px;flex-wrap:wrap')}>
+        <SegTabs active={range} onSelect={setRange} tabs={RANGES.map((r) => ({ key: r.id, label: r.label }))} />
+        <div style={s('flex:1')} />
+        <ReportPackExport range={range} />
+      </div>
 
       {/* Stat tiles */}
       <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px')}>
@@ -195,7 +200,7 @@ export default function OverviewTab({ range, setRange }) {
       </Panel>
 
       <Panel padded={false} style={{ padding: '20px 22px' }}>
-        <PanelTitle hint="How much of the period needed the cover board, and how quickly it got filled">Staffing &amp; cover health</PanelTitle>
+        <PanelTitle hint="How much of the period needed cover, and how quickly it got filled">Staffing &amp; cover health</PanelTitle>
         {(() => {
           const st = data?.staffing ?? {};
           if (!st.total_visits) return <Empty label="No published visits in this period." />;
@@ -221,7 +226,7 @@ export default function OverviewTab({ range, setRange }) {
 
       {coverByClient.length > 0 && (
         <Panel padded={false} style={{ padding: '20px 22px' }}>
-          <PanelTitle hint="Clients whose visits most often needed the cover board">Cover needed by client</PanelTitle>
+          <PanelTitle hint="Clients whose visits most often needed cover">Cover needed by client</PanelTitle>
           <TableWrap minWidth={420}>
             <thead><tr><Th>Client</Th><Th align="right">Visits needing cover</Th><Th align="right">Still unfilled</Th></tr></thead>
             <tbody>
@@ -239,7 +244,7 @@ export default function OverviewTab({ range, setRange }) {
 
       <div style={s('display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start')}>
         <Panel padded={false} style={{ padding: '20px 22px' }}>
-          <PanelTitle hint="Swaps, drops, overtime, availability changes and leave — how responsive the office is">Requests &amp; leave</PanelTitle>
+          <PanelTitle hint="Swaps, drops, overtime and availability changes — how responsive the office is">Requests</PanelTitle>
           {(() => {
             const rq = data?.requests ?? {};
             if (!rq.total) return <Empty label="No requests raised in this period." />;
@@ -265,7 +270,7 @@ export default function OverviewTab({ range, setRange }) {
         </Panel>
 
         <Panel>
-          <PanelTitle hint="Who's raising the most swap/drop/overtime/leave requests">Requests by carer</PanelTitle>
+          <PanelTitle hint="Who's raising the most swap/drop/overtime requests">Requests by carer</PanelTitle>
           {requestsByCarer.length === 0 ? <Empty /> : (
             <div style={s('display:flex;flex-direction:column;gap:9px')}>
               {requestsByCarer.map((r) => (

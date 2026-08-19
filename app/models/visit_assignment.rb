@@ -6,7 +6,6 @@ class VisitAssignment < ApplicationRecord
   belongs_to :assigned_by, class_name: "Admin", foreign_key: :assigned_by_admin_id, optional: true
   has_many   :clock_events, dependent: :restrict_with_error
   has_many   :alerts, as: :subject
-  has_many   :timesheet_lines
   has_many   :visit_tasks, dependent: :destroy
   has_many   :visit_notes, dependent: :restrict_with_error
 

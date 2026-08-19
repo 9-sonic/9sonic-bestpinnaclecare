@@ -166,18 +166,6 @@ export async function syncChanges(since) {
   };
 }
 
-/* ------------------------------ Timesheet -------------------------------- */
-
-export async function getTimesheet() {
-  await delay(260);
-  return loadDb().timesheet_lines;
-}
-
-export async function raiseDispute({ timesheetLineId, reason }) {
-  await delay(300);
-  return { id: Date.now(), timesheet_line_id: timesheetLineId, reason, state: 'open' };
-}
-
 /* ---------------------------- Notifications ------------------------------ */
 
 export async function listNotifications() {

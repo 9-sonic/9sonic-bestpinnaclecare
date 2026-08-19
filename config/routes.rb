@@ -89,7 +89,6 @@ Rails.application.routes.draw do
           get "visits",          to: "carer_profile#visits"
           get "notes",           to: "carer_profile#notes"
           get "clock_events",    to: "carer_profile#clock_events"
-          get "timesheet_lines", to: "carer_profile#timesheet_lines"
           get "requests",        to: "carer_profile#requests"
         end
         resources :admins,    only: %i[index show create update]
@@ -126,23 +125,12 @@ Rails.application.routes.draw do
           end
         end
 
-        # Timesheets / attendance
-        resources :timesheet_periods, only: %i[index show create] do
-          member do
-            post :approve
-            post :approve_carer   # approve one carer's lines within the period
-            post :lock
-          end
-        end
-        get "timesheet_exports/:id", to: "timesheet_exports#show"
+        # Exports
         get "report_exports",        to: "report_exports#show"
         get "audit_exports",         to: "audit_exports#show"
         get "attendance_audit_exports", to: "attendance_audit_exports#show" # CQC visit-attendance CSV/XLSX
         get "attendance_audit_exports/rows", to: "attendance_audit_exports#rows" # same rows as JSON, for the on-screen table
         get "rota_exports",          to: "rota_exports#show"
-        resources :timesheet_disputes, only: %i[index] do
-          member { post :resolve }
-        end
       end
 
       # Carer PWA (Employee)
@@ -166,10 +154,6 @@ Rails.application.routes.draw do
         post "sync/events",  to: "sync#events"
         get  "sync/changes", to: "sync#changes"
 
-        # Attendance
-        get  "timesheet",         to: "timesheet#show"
-        get  "timesheet_periods", to: "timesheet_periods#index"
-        post "disputes",          to: "disputes#create"
         resources :requests, only: %i[index create]   # carer raises swap/drop/overtime/leave
 
         # Profile, availability, summary

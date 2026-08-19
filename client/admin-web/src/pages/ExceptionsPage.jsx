@@ -8,7 +8,6 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs } from '../ds/console.jsx';
-import Tabs, { panelRadius } from '../ds/Tabs.jsx';
 import AlertsPage from './AlertsPage.jsx';
 import LifecyclePage from './LifecyclePage.jsx';
 import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.js';
@@ -16,7 +15,7 @@ import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.
 const SEV = { danger: 'high', warn: 'medium', neutral: 'low', info: 'low', active: 'low', success: 'low' };
 const initsName = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const initsPerson = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || '?';
-const ACTION_LABEL = { 'clock.corrected': 'Amended clock', 'timesheet.approved': 'Approved period', 'assignment.created': 'Assigned carer', 'request.approved': 'Approved request', 'request.declined': 'Declined request', 'cover.accepted': 'Cover filled' };
+const ACTION_LABEL = { 'clock.corrected': 'Amended clock', 'assignment.created': 'Assigned carer', 'request.approved': 'Approved request', 'request.declined': 'Declined request', 'cover.accepted': 'Cover filled' };
 
 const TYPE = {
   missed_visit: { label: 'Missed visit', discrepancy: 'No clock-in was recorded for this visit' },
@@ -294,9 +293,9 @@ export default function ExceptionsPage() {
   };
 
   return (
-    <div style={s('display:flex;flex-direction:column')}>
-      <span data-tour="exceptions-tabs"><Tabs tabs={AREA_TABS} active={tab} onSelect={select} /></span>
-      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(AREA_TABS, tab) }}>
+    <div style={s('display:flex;flex-direction:column;gap:12px')}>
+      <span data-tour="exceptions-tabs"><SegTabs tabs={AREA_TABS} active={tab} onSelect={select} /></span>
+      <div style={s('background:var(--d-panel);padding:16px;border-radius:20px')}>
         {tab === 'alerts' ? <AlertsPage /> : tab === 'lifecycle' ? <LifecyclePage /> : <ExceptionsInner />}
       </div>
     </div>

@@ -5,7 +5,7 @@ import { listAttendanceAudit, exportAttendanceAudit, listServiceUsers, listEmplo
 import { fullName, formatDate, formatTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
-import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Row, DateField, SelectField, RangeChips, FilterBar } from '../ds/console.jsx';
 
 // CQC visit-attendance audit: one row per carer x visit, filterable by date
 // range, client and carer — the same data as the CSV/XLSX export
@@ -13,25 +13,6 @@ import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Ro
 // view never changes them.
 const iso = (d) => d.toISOString().slice(0, 10);
 const initials = (name) => (name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
-
-const dateField = (label, value, onChange, max) => (
-  <label style={s('display:flex;flex-direction:column;gap:5px')}>
-    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
-    <input type="date" value={value} max={max} onChange={(e) => onChange(e.target.value)}
-      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 13px'), fontFamily: 'inherit', colorScheme: 'light dark' }} />
-  </label>
-);
-
-const selectField = (label, value, onChange, options) => (
-  <label style={s('display:flex;flex-direction:column;gap:5px;min-width:180px')}>
-    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 11px'), fontFamily: 'inherit' }}>
-      <option value="">All</option>
-      {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-    </select>
-  </label>
-);
 
 export default function TimesheetsPage() {
   const toast = useToast();
@@ -59,6 +40,11 @@ export default function TimesheetsPage() {
   }, [from, to, serviceUserId, employeeId]);
 
   const setRange = (days) => { setTo(iso(new Date())); setFrom(iso(new Date(Date.now() - (days - 1) * 86400000))); };
+  // Which quick-range chip (if any) matches the current from/to, so it can read
+  // as selected. Matches only when To is today, like the chips set it.
+  const activeSpan = to === iso(new Date())
+    ? Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1
+    : null;
 
   const handleExport = async (type) => {
     setExporting(true);
@@ -92,22 +78,17 @@ export default function TimesheetsPage() {
       </div>
 
       <Panel>
-        <PanelTitle hint="One row per carer x visit — the CQC visit-attendance record">Visit attendance</PanelTitle>
-        <div data-tour="timesheets-period" style={s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:4px')}>
-          {dateField('From', from, setFrom, to)}
-          {dateField('To', to, (val) => setTo(val < from ? from : val))}
-          <div style={s('display:flex;gap:6px;align-items:center;height:40px')}>
-            {[{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }].map((r) => (
-              <button key={r.label} onClick={() => setRange(r.days)}
-                style={{ ...s('height:32px;padding:0 12px;border-radius:16px;background:var(--d-panel);color:var(--d-ink2);font-size:11.5px;font-weight:700;cursor:pointer;border:none'), fontFamily: 'inherit' }}>{r.label}</button>
-            ))}
-          </div>
-          {selectField('Client', serviceUserId, setServiceUserId, clientOptions)}
-          {selectField('Carer', employeeId, setEmployeeId, staffOptions)}
-          <div style={s('flex:1')} />
+        <PanelTitle>Visit attendance</PanelTitle>
+        <FilterBar data-tour="timesheets-period" style={{ marginTop: 4 }}>
+          <DateField label="From" value={from} onChange={setFrom} max={to} />
+          <DateField label="To" value={to} onChange={(val) => setTo(val < from ? from : val)} min={from} />
+          <RangeChips active={activeSpan} onSelect={setRange} />
+          <SelectField label="Client" value={serviceUserId} onChange={setServiceUserId} options={clientOptions} allLabel="All" />
+          <SelectField label="Carer" value={employeeId} onChange={setEmployeeId} options={staffOptions} allLabel="All" />
+          <FilterBar.Spacer />
           <Button icon="download" disabled={exporting} onClick={() => handleExport('csv')}>CSV</Button>
           <Button variant="primary" icon="download" disabled={exporting} onClick={() => handleExport('xlsx')}>{exporting ? 'Building…' : 'Export XLSX'}</Button>
-        </div>
+        </FilterBar>
       </Panel>
 
       {rows === null ? (
@@ -159,10 +140,6 @@ export default function TimesheetsPage() {
         </Panel>
       )}
 
-      <div style={s('display:flex;align-items:center;gap:10px;font-size:12px;font-weight:500;color:var(--d-muted);padding:0 4px')}>
-        <Icon name="shield" size={14} />
-        <span>Read straight from verified clock records — this view never changes them. To fix an actual clocked time, use a clock correction on Exceptions.</span>
-      </div>
     </div>
   );
 }

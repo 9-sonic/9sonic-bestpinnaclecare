@@ -9,8 +9,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
-import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
-import Tabs, { panelRadius } from '../ds/Tabs.jsx';
+import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager, SegTabs, fieldStyle, SearchBox } from '../ds/console.jsx';
 import TeamPage from './TeamPage.jsx';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
@@ -26,7 +25,7 @@ function Field({ label, error, hint, children, full }) {
     </label>
   );
 }
-const input = (error, disabled) => ({ ...s('height:46px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%'), fontFamily: 'inherit', border: `1.5px solid ${error ? 'var(--d-danger-ink)' : 'transparent'}`, opacity: disabled ? 0.6 : 1 });
+const input = (error, disabled) => fieldStyle({ error, disabled });
 
 function Meter({ value }) {
   if (value == null) return <span style={s('font-size:12px;font-weight:500;color:var(--d-faint)')}>—</span>;
@@ -111,9 +110,8 @@ function EmployeesTab() {
 
       {/* Toolbar */}
       <div data-tour="employees-toolbar" style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('height:46px;flex:1;min-width:220px;background:var(--d-field);border-radius:23px;display:flex;align-items:center;gap:10px;padding:0 18px')}>
-          <Icon name="search" size={17} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email or reference" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+        <div style={s('flex:1;min-width:220px')}>
+          <SearchBox value={query} onChange={setQuery} placeholder="Search name, email or reference" />
         </div>
         <div onClick={() => setShowInactive((v) => !v)} className="hv" style={{ ...s('height:46px;border-radius:23px;display:flex;align-items:center;gap:8px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:700'), background: showInactive ? 'var(--d-pill)' : 'var(--d-card)', color: showInactive ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': showInactive ? 'var(--d-pill-hover)' : 'var(--d-card-hover)' }}><Icon name="eye" size={16} /> Show inactive</div>
         <div style={s('flex:1')} />
@@ -210,9 +208,9 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div style={s('display:flex;flex-direction:column')}>
-      <span data-tour="employees-tabs"><Tabs tabs={TABS} active={tab} onSelect={select} /></span>
-      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(TABS, tab) }}>
+    <div style={s('display:flex;flex-direction:column;gap:12px')}>
+      <span data-tour="employees-tabs"><SegTabs tabs={TABS} active={tab} onSelect={select} /></span>
+      <div style={s('background:var(--d-panel);padding:16px;border-radius:20px')}>
         {tab === 'office' ? <TeamPage /> : <EmployeesTab />}
       </div>
     </div>

@@ -1,7 +1,7 @@
 import api from './client.js';
 import env from '../config/env.js';
 import * as mock from '../mocks/mockApi.js';
-import { toShifts, toTimesheet, summarise, toSummary } from './adapters.js';
+import { toShifts, toSummary } from './adapters.js';
 
 // The Home and Overview figures come from GET /staff/summary in one call. They
 // used to be derived from the visit list plus the timesheet — two round trips
@@ -35,33 +35,43 @@ export async function getSummary() {
   return deriveSummary({ from, to });
 }
 
-// The original derivation: visit list + timesheet, totalled client side.
+// Fallback derivation for the mock path (and any deployment predating
+// /staff/summary): worked hours come straight from each shift's own
+// workedMinutes (set at clock-out), not a timesheet.
 async function deriveSummary({ from, to }) {
-  const [visits, lines] = await Promise.all([
-    env.useMock ? mock.listVisits({ from, to }) : api.get('/staff/visits', { from, to }),
-    env.useMock ? mock.getTimesheet() : api.get('/staff/timesheet'),
-  ]);
-
+  const visits = env.useMock ? await mock.listVisits({ from, to }) : await api.get('/staff/visits', { from, to });
   const shifts = toShifts(visits);
-  const timesheet = toTimesheet(lines);
-  const { week } = summarise(shifts, timesheet);
 
   // Hours and visits per weekday, Monday first, for the Overview chart.
   const hours = Array(7).fill(0);
   const visitsPerDay = Array(7).fill(0);
-  timesheet.entries.forEach((e) => {
-    const day = (new Date(e.workDate).getDay() + 6) % 7;
-    hours[day] += (e.workedMinutes ?? 0) / 60;
+  let totalMinutes = 0;
+  let scheduledMinutes = 0;
+  shifts.forEach((s) => {
+    if (!s.startsAt) return;
+    const day = (new Date(s.startsAt).getDay() + 6) % 7;
+    const worked = s.workedMinutes ?? 0;
+    hours[day] += worked / 60;
     visitsPerDay[day] += 1;
+    totalMinutes += worked;
+    if (s.startsAt && s.endsAt) scheduledMinutes += Math.round((new Date(s.endsAt) - new Date(s.startsAt)) / 60000);
   });
 
+  const workedHours = Math.round((totalMinutes / 60) * 100) / 100;
   return {
-    week,
+    week: {
+      hoursWorked: Math.round(workedHours),
+      hours: workedHours,
+      hoursTarget: scheduledMinutes ? Math.round(scheduledMinutes / 60) : 40,
+      shifts: shifts.length,
+      clients: new Set(shifts.map((s) => s.client)).size,
+      miles: 0,
+    },
     weekly: {
       hours: hours.map((h) => Math.round(h * 10) / 10),
       visits: visitsPerDay,
-      // Mileage cannot be derived from visits or timesheet lines. The live
-      // path gets it from /staff/summary; there is nothing to read here.
+      // Mileage cannot be derived from visits. The live path gets it from
+      // /staff/summary; there is nothing to read here.
       miles: Array(7).fill(0),
     },
   };
@@ -148,15 +158,4 @@ export async function listClockHistory() {
   });
 
   return entries.sort((a, b) => new Date(b.at) - new Date(a.at));
-}
-
-export async function getTimesheet() {
-  const lines = env.useMock ? await mock.getTimesheet() : await api.get('/staff/timesheet');
-  return toTimesheet(lines);
-}
-
-// Raise a query against a timesheet line.
-export function raiseDispute({ timesheetLineId, reason }) {
-  if (env.useMock) return mock.raiseDispute({ timesheetLineId, reason });
-  return api.post('/staff/disputes', { timesheet_line_id: timesheetLineId, reason });
 }

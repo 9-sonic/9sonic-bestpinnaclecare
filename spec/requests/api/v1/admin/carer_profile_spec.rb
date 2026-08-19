@@ -59,17 +59,6 @@ RSpec.describe "Admin carer 360", type: :request do
     expect(response.parsed_body["items"].first).to include("kind" => "clock_in", "service_user" => su.full_name)
   end
 
-  it "GET timesheet_lines returns this carer's worked-hours lines" do
-    period = TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week)
-    carer.timesheet_lines.create!(
-      timesheet_period: period, visit_assignment: va, work_date: Date.current,
-      scheduled_minutes: 60, worked_minutes: 58, break_minutes: 0
-    )
-    get "/api/v1/admin/employees/#{carer.id}/timesheet_lines", headers: auth
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body["items"].first).to include("worked_minutes" => 58)
-  end
-
   it "GET requests returns all of this carer's requests" do
     carer.carer_requests.create!(kind: "leave", summary: "Annual leave", state: "pending")
     carer.carer_requests.create!(kind: "swap", summary: "Swap Tuesday", state: "approved")

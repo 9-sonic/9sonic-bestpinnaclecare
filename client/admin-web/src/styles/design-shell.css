@@ -9,7 +9,7 @@
    Structural neutrals are themed for light and dark. Status tokens (ok/warn/info/
    danger) carry a soft background + readable ink and are themed too, so a "late"
    or "on shift" badge holds up in either mode. */
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
   /* Neutral surfaces */
@@ -41,6 +41,16 @@
   --d-pill-ink: oklch(0.995 0.004 200);
   --d-pill-hover: oklch(0.54 0.1 201);
 
+  /* The fill a primary surface paints (CTA, hero, active tile). Flat by default
+     so nothing changes for the current skin; the PWA skin below swaps it for the
+     brand gradient. Components read this instead of --d-pill directly, which is
+     the single hook that lets the gradient reach buttons/hero/stat tiles without
+     touching page code. --d-shadow-card is likewise a no-op here and softened
+     under the skin. */
+  --d-grad-primary: var(--d-pill);
+  --d-shadow-card: none;
+  --d-shadow-cta: none;
+
   /* Status: soft background + ink */
   --d-ok-bg: oklch(0.93 0.06 158);
   --d-ok-ink: oklch(0.5 0.13 158);
@@ -56,6 +66,12 @@
   --d-danger-dot: oklch(0.55 0.18 25);
   --d-note-bg: oklch(0.95 0.025 205);
   --d-note-ink: oklch(0.44 0.045 210);
+
+  /* Unfilled visit — the one rota state with no semantic status equivalent
+     (it is "needs a carer", not an error). Orange keeps it distinct from late
+     amber and missed red. Tokenised so it themes for dark mode like the rest. */
+  --d-unfilled-ink: oklch(0.55 0.16 45);
+  --d-unfilled-bg: oklch(0.93 0.06 55);
 }
 
 :root[data-theme='dark'] {
@@ -98,6 +114,9 @@
   --d-danger-dot: oklch(0.66 0.18 25);
   --d-note-bg: oklch(0.27 0.035 210);
   --d-note-ink: oklch(0.82 0.035 210);
+
+  --d-unfilled-ink: oklch(0.78 0.14 55);
+  --d-unfilled-bg: oklch(0.33 0.07 50);
 }
 
 body {
@@ -110,6 +129,7 @@ body {
 .hv:hover {
   background: var(--hbg) !important;
 }
+
 
 /* Rota grid: reveal the per-cell "add visit" affordance on hover, and a subtle
    press feedback on draggable blocks (mirrors the design's .pressable). */
@@ -142,3 +162,72 @@ body {
 
 /* Icon grows on hover; the section-name label is rendered position:fixed from
    AdminLayout so the scrolling rail never clips it. */
+
+/* ---------------------------------------------------------------------------
+   PWA skin — the console's look.
+
+   The client wanted the office console to read as the same product as the carer
+   PWA. The PWA's identity lives in three things the console lacked: a cyan-to-
+   teal brand gradient on primary surfaces, a brighter near-white canvas with
+   cards that lift on soft wide shadows rather than sit flat, and roomier corners.
+   This block remaps the --d-* tokens that carry that identity. Values are sampled
+   straight from client/pwa .../variables.css: the #f8fcff canvas, the contrast-
+   corrected --grad-brand, the export's soft two-layer card shadow, and
+   --shadow-brand under the CTA.
+
+   AdminLayout puts data-skin="pwa" on the shell wrapper unconditionally, so this
+   is the console's permanent look. It is kept as a scoped block (rather than
+   folded into the base :root) so the whole reskin is legible in one place and
+   removing the one attribute in AdminLayout fully reverts it if ever needed. */
+[data-skin='pwa'] {
+  /* Brighter, cooler canvas + pure-white cards separated by shadow, not tint. */
+  --d-bg: #eef5fb;
+  --d-card: #ffffff;
+  --d-card-hover: #f4f8fc;
+  --d-panel: #e9f0f7;
+  --d-sage: #d6f3f5;      /* PWA avatar disc */
+
+  /* The brand gradient. --d-pill still feeds the flat active nav pill and hover;
+     --d-grad-primary is what buttons/hero/stat-tiles paint, so only the CTAs go
+     gradient while the rail pill stays a solid teal as it is in the PWA nav. */
+  --d-grad-primary: linear-gradient(115deg, #0a7e8e 0%, #05545f 100%);
+  --d-pill: #0a7e8e;
+  --d-pill-hover: #086b79;
+  --d-primary-soft: #e2f5f8;   /* pale teal tile behind hero content */
+  --d-ink2: #0d3d4a;           /* PWA avatar monogram ink */
+
+  /* Cards lift on a soft, wide, cool shadow (the Penpot export's two-layer
+     card) and the CTA carries a coloured brand lift. */
+  --d-shadow-card:
+    0 4px 12px -2px rgba(11, 18, 32, 0.08),
+    0 2px 4px -2px rgba(11, 18, 32, 0.05);
+  --d-shadow-cta: 0 8px 20px rgba(5, 96, 112, 0.3);
+
+  /* Card edge. In light mode shadow separates the card, so the hairline is
+     invisible; in dark mode (below) shadow does nothing on a dark surface, so
+     the hairline becomes visible and does the separating instead — the same
+     trick the PWA uses. StatCard/Panel paint this as their border. */
+  --d-card-line: transparent;
+}
+
+:root[data-theme='dark'] [data-skin='pwa'],
+[data-skin='pwa'][data-theme='dark'] {
+  --d-bg: #0d151c;
+  --d-card: #16212b;
+  --d-card-hover: #1d2a36;
+  --d-panel: #101922;
+  --d-sage: #14444c;
+
+  --d-grad-primary: linear-gradient(115deg, #0e7c8c 0%, #084e5b 100%);
+  --d-pill: #12879a;
+  --d-pill-hover: #0d6d7d;
+  --d-primary-soft: #16333c;
+
+  --d-shadow-card: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --d-shadow-cta: 0 8px 20px rgba(0, 0, 0, 0.45);
+
+  /* Visible hairline: on a dark surface the shadow does almost nothing, so the
+     card's edge has to be drawn. Cards were blending into the dark background
+     (the Exceptions stat cards especially) until this. */
+  --d-card-line: rgba(255, 255, 255, 0.09);
+}

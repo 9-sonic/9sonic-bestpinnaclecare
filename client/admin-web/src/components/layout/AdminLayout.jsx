@@ -136,9 +136,14 @@ export default function AdminLayout() {
   return (
     <TourRoot>
     <div
+      data-skin="pwa"
       style={{
         ...s('height:100vh;display:flex;background:var(--d-bg);overflow:hidden'),
-        fontFamily: "'Figtree', system-ui, -apple-system, sans-serif",
+        // Plus Jakarta Sans (the PWA's interface font) carries body text; Outfit
+        // carries headings/figures via .d-num. Matches the carer PWA so the two
+        // apps read as one product. The whole console is skinned to the PWA via
+        // data-skin="pwa" on this wrapper (tokens in design-shell.css).
+        fontFamily: "'Plus Jakarta Sans', 'Figtree', system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Rail */}

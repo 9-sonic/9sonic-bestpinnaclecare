@@ -17,7 +17,6 @@ const SECTIONS = [
       { icon: 'calendar', label: 'My shifts', to: '/shifts' },
       { icon: 'clock', label: 'Clock in and out', to: '/clock' },
       { icon: 'trend', label: 'Weekly overview', to: '/overview' },
-      { icon: 'wallet', label: 'Timesheet', to: '/timesheet' },
     ],
   },
   {

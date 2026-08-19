@@ -43,28 +43,6 @@ RSpec.describe "Code-review security fixes", type: :request do
     end
   end
 
-  describe "pay-rate writes restricted to finance / registered manager" do
-    it "ignores a coordinator's attempt to change pay (but keeps other edits)" do
-      coord = create(:admin, role: :coordinator)
-      emp = create(:employee, hourly_rate_pence: 1000)
-      patch "/api/v1/admin/employees/#{emp.id}",
-            params: { hourly_rate_pence: 9999, phone: "07700 900999" },
-            headers: { "Authorization" => "Bearer #{jwt_for(coord, :admin)}" }, as: :json
-      expect(response).to have_http_status(:ok)
-      expect(emp.reload.hourly_rate_pence).to eq(1000)
-      expect(emp.phone).to eq("07700 900999")
-    end
-
-    it "lets finance set the rate" do
-      fin = create(:admin, role: :finance)
-      emp = create(:employee)
-      patch "/api/v1/admin/employees/#{emp.id}",
-            params: { hourly_rate_pence: 1350 }, headers: { "Authorization" => "Bearer #{jwt_for(fin, :admin)}" }, as: :json
-      expect(response).to have_http_status(:ok)
-      expect(emp.reload.hourly_rate_pence).to eq(1350)
-    end
-  end
-
   describe "bad params don't 500" do
     it "summary tolerates garbage from/to" do
       emp = create(:employee)

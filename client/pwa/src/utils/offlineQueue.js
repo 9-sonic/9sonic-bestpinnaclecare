@@ -7,8 +7,9 @@
 // Two things make this safe to replay:
 //
 //   occurred_at      the moment the carer tapped, set on the device. The server
-//                    records this, not the arrival time, so payroll reflects
-//                    the real visit even if the phone syncs hours later.
+//                    records this, not the arrival time, so the attendance
+//                    record reflects the real visit even if the phone syncs
+//                    hours later.
 //   client_event_id  a UUID minted per tap. The server treats it as the
 //                    identity of the event, so sending the same one twice
 //                    changes nothing. This is what stops a retry turning into

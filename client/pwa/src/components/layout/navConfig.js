@@ -11,6 +11,5 @@ export const NAV_TABS = [
 // Extra destinations that only make sense with the room a desktop gives us.
 export const SECONDARY_LINKS = [
   { to: '/overview', icon: 'trend', label: 'Overview' },
-  { to: '/timesheet', icon: 'wallet', label: 'Timesheet' },
   { to: '/notifications', icon: 'bell', label: 'Notifications' },
 ];

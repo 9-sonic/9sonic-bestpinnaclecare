@@ -186,7 +186,6 @@ const NOTIFICATION_LINKS = {
   Visit: () => '/shifts',
   Conversation: (id) => `/messages/${id}`,
   Message: () => '/messages',
-  TimesheetPeriod: () => '/timesheet',
 };
 
 export function toNotification(n) {
@@ -365,36 +364,11 @@ export function toAvailabilityEntries(days = {}, previous = null) {
   });
 }
 
-// Timesheet lines -> the summary the Timesheet screen draws. Pay rates and
-// mileage do not exist in the API yet, so money is left out rather than guessed.
-export function toTimesheet(lines = []) {
-  const entries = lines.map((l) => ({
-    id: String(l.id),
-    visitAssignmentId: l.visit_assignment_id,
-    workDate: l.work_date,
-    scheduledMinutes: l.scheduled_minutes,
-    workedMinutes: l.worked_minutes,
-    breakMinutes: l.break_minutes,
-    flags: l.flags ?? [],
-    hours: Math.round(((l.worked_minutes ?? 0) / 60) * 100) / 100,
-  }));
-
-  const totalMinutes = entries.reduce((sum, e) => sum + (e.workedMinutes ?? 0), 0);
-
-  return {
-    entries,
-    totalMinutes,
-    totalHours: Math.round((totalMinutes / 60) * 100) / 100,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // GET /staff/summary -> the Home and Overview figures.
 //
-// This replaces deriving the same numbers from the visit list plus the
-// timesheet, which was two round trips on a phone every time the Home screen
-// opened. `by_weekday` is typed as a bare object in the spec, so the series are
-// read defensively and fall back to zeros rather than breaking the chart.
+// `by_weekday` is typed as a bare object in the spec, so the series are read
+// defensively and fall back to zeros rather than breaking the chart.
 // ---------------------------------------------------------------------------
 const zeros = () => Array(7).fill(0);
 
@@ -406,17 +380,17 @@ function series(source, key) {
 
 export function toSummary(payload = {}) {
   const workedMinutes = payload.hours_worked_minutes ?? 0;
-  const contractedMinutes = payload.contracted_minutes ?? null;
+  const scheduledMinutes = payload.scheduled_minutes ?? null;
   const hours = Math.round((workedMinutes / 60) * 100) / 100;
 
   return {
     week: {
       hoursWorked: Math.round(hours),
       hours,
-      // contracted_minutes is the real sum of this carer's rostered shift time
-      // for the week (SummaryController), not a manually-entered HR figure. 40
-      // is only the fallback for a carer with nothing on the rota this week.
-      hoursTarget: contractedMinutes ? Math.round(contractedMinutes / 60) : 40,
+      // scheduled_minutes is the sum of this carer's rostered shift time for
+      // the week — the target the worked hours are shown against. 40 is only
+      // the fallback for a carer with nothing on the rota this week.
+      hoursTarget: scheduledMinutes ? Math.round(scheduledMinutes / 60) : 40,
       shifts: payload.visits_count ?? 0,
       clients: payload.clients_count ?? 0,
       miles: payload.miles ?? 0,
@@ -425,23 +399,6 @@ export function toSummary(payload = {}) {
       hours: series(payload.by_weekday, 'hours').map((h) => Math.round(h * 10) / 10),
       visits: series(payload.by_weekday, 'visits'),
       miles: series(payload.by_weekday, 'miles'),
-    },
-  };
-}
-
-// Derives the Home screen figures from whatever the carer has this week.
-export function summarise(shifts = [], timesheet = { entries: [], totalHours: 0 }) {
-  const completed = shifts.filter((s) => s.status === 'completed');
-  const clients = new Set(shifts.map((s) => s.client)).size;
-
-  return {
-    week: {
-      hoursWorked: Math.round(timesheet.totalHours),
-      hoursTarget: 40, // Contracted hours are not in the API. See api_missing.md.
-      shifts: shifts.length,
-      hours: timesheet.totalHours,
-      clients,
-      completed: completed.length,
     },
   };
 }

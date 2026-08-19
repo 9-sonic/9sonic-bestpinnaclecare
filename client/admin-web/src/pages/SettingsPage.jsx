@@ -5,7 +5,7 @@ import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Button } from '../ds/console.jsx';
+import { Panel, PanelTitle, Button, fieldStyle } from '../ds/console.jsx';
 
 // System settings — the single place the office configures how clocking behaves.
 // Every field here is a REAL, enforced setting the backend reads at runtime
@@ -13,7 +13,7 @@ import { Panel, PanelTitle, Button } from '../ds/console.jsx';
 // grace period here and the escalation timing changes with it. Saves are audited
 // (settings.updated event) and gated to a registered manager / manager.
 
-const inputStyle = (dis) => ({ ...s('height:44px;border-radius:14px;background:var(--d-field);padding:0 14px;font-size:13.5px;font-weight:600;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid transparent'), fontFamily: 'inherit', opacity: dis ? 0.55 : 1 });
+const inputStyle = (dis) => fieldStyle({ disabled: dis });
 
 function Field({ label, hint, children }) {
   return (
@@ -27,7 +27,7 @@ function Field({ label, hint, children }) {
 
 function NumberField({ value, onChange, suffix, min, disabled }) {
   return (
-    <div style={{ ...s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 14px;border:1.5px solid transparent'), opacity: disabled ? 0.55 : 1 }}>
+    <div style={{ ...fieldStyle({ disabled }), display: 'flex', alignItems: 'center' }}>
       <input type="number" min={min} value={value ?? ''} onChange={onChange} disabled={disabled} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:600;color:var(--d-ink)'), fontFamily: 'inherit' }} />
       {suffix && <span style={s('font-size:12px;font-weight:600;color:var(--d-muted)')}>{suffix}</span>}
     </div>
@@ -51,15 +51,6 @@ const GEOFENCE_MODES = [
   { value: 'warn', label: 'Warn — the carer is warned but can still clock in' },
   { value: 'block', label: 'Block — a clock-in outside the fence is refused' },
 ];
-const PERIODS = [
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'fortnightly', label: 'Fortnightly' },
-  { value: 'four_weekly', label: 'Four-weekly' },
-];
-const WEEK_STARTS = [
-  { value: 'monday', label: 'Monday' }, { value: 'sunday', label: 'Sunday' },
-];
-
 export default function SettingsPage() {
   const toast = useToast();
   const { canManage } = useAuth();
@@ -101,9 +92,6 @@ export default function SettingsPage() {
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
       <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);max-width:640px;line-height:1.5')}>
-          Everything here saves to the live system and takes effect immediately — the same values the app uses to decide late, missed and out-of-range. {ro ? 'Your role can view these but not change them.' : 'Agree changes with the registered manager first.'}
-        </div>
         <div style={s('flex:1')} />
         {canManage && <Button variant="primary" icon="check" disabled={saving || !dirty} onClick={saving || !dirty ? undefined : save}>{saving ? 'Saving…' : 'Save changes'}</Button>}
       </div>
@@ -145,19 +133,6 @@ export default function SettingsPage() {
           </Field>
         </Section>
 
-        {/* Timesheets */}
-        <Section title="Timesheets" hint="How verified hours are grouped for pay">
-          <Field label="Pay period">
-            <SelectField value={form.timesheet_period} onChange={set('timesheet_period')} options={PERIODS} disabled={ro} />
-          </Field>
-          <Field label="Week starts on">
-            <SelectField value={form.timesheet_week_starts_on} onChange={set('timesheet_week_starts_on')} options={WEEK_STARTS} disabled={ro} />
-          </Field>
-          <Field label="Rounding" hint="Applied to verified hours before payroll. Zero keeps exact minutes.">
-            <NumberField value={form.timesheet_rounding_minutes} onChange={setNum('timesheet_rounding_minutes')} suffix="min" min="0" disabled={ro} />
-          </Field>
-        </Section>
-
         {/* Organisation */}
         <Section title="Organisation" hint="Your registered details, shown on exports and the CQC audit">
           <Field label="Company name"><input value={form.company_name ?? ''} onChange={set('company_name')} disabled={ro} style={inputStyle(ro)} /></Field>
@@ -182,12 +157,11 @@ export default function SettingsPage() {
         <Section title="Branding & locale" hint="How the console reads and where it operates">
           <Field label="Brand colour" hint="Used for accents across the office app.">
             <div style={s('display:flex;align-items:center;gap:10px')}>
-              <input type="color" value={form.brand_primary_colour || '#2563eb'} onChange={set('brand_primary_colour')} disabled={ro} style={{ ...s('width:44px;height:44px;border-radius:12px;border:1px solid var(--d-border);background:none;cursor:pointer'), opacity: ro ? 0.55 : 1 }} />
+              <input type="color" value={form.brand_primary_colour || '#0a7e8e'} onChange={set('brand_primary_colour')} disabled={ro} style={{ ...s('width:44px;height:44px;border-radius:12px;border:1px solid var(--d-border);background:none;cursor:pointer'), opacity: ro ? 0.55 : 1 }} />
               <input value={form.brand_primary_colour ?? ''} onChange={set('brand_primary_colour')} disabled={ro} style={inputStyle(ro)} />
             </div>
           </Field>
           <Field label="Timezone"><input value={form.timezone ?? ''} onChange={set('timezone')} disabled={ro} placeholder="Europe/London" style={inputStyle(ro)} /></Field>
-          <Field label="Currency"><input value={form.currency_code ?? ''} onChange={set('currency_code')} disabled={ro} placeholder="GBP" style={inputStyle(ro)} /></Field>
         </Section>
       </div>
 

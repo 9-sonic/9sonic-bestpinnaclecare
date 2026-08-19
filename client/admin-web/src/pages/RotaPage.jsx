@@ -31,14 +31,19 @@ const toMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return (
 // Main's soft-card design (light tinted background + coloured text), but with the
 // distinct colours: blue/violet/yellow/red/green — none alike. `bg` is a light
 // wash of the colour over the card; `ink`/`dot` is the full colour.
-const soft = (hex) => `color-mix(in srgb, ${hex} 16%, var(--d-card))`;
+const soft = (col) => `color-mix(in srgb, ${col} 16%, var(--d-card))`;
+// Visit-state colours read from the console's semantic status tokens rather than
+// raw hex, so the rota themes for dark mode and matches the status language used
+// everywhere else (and the PWA). Scheduled/check-in use the brand teal instead
+// of a generic blue; on-shift keeps a distinct magenta so "in progress" stands
+// apart from "scheduled" at a glance.
 const CHIP = {
-  neutral: { bg: soft('#2563eb'), ink: '#2563eb', dot: '#2563eb' }, // scheduled — blue
-  info: { bg: soft('#2563eb'), ink: '#2563eb', dot: '#2563eb' },    // check-in — blue
-  active: { bg: soft('#7c3aed'), ink: '#7c3aed', dot: '#7c3aed' },  // on shift — violet
-  warn: { bg: soft('#a16207'), ink: '#a16207', dot: '#eab308' },    // late — yellow/amber
-  danger: { bg: soft('#dc2626'), ink: '#dc2626', dot: '#dc2626' },  // missed — red
-  success: { bg: soft('#16a34a'), ink: '#15803d', dot: '#16a34a' }, // completed — green
+  neutral: { bg: soft('var(--d-primary)'), ink: 'var(--d-primary-deep)', dot: 'var(--d-primary)' }, // scheduled
+  info: { bg: soft('var(--d-primary)'), ink: 'var(--d-primary-deep)', dot: 'var(--d-primary)' },    // check-in
+  active: { bg: soft('var(--d-magenta)'), ink: 'var(--d-magenta)', dot: 'var(--d-magenta)' },       // on shift
+  warn: { bg: 'var(--d-warn-bg)', ink: 'var(--d-warn-ink)', dot: 'var(--d-warn-dot)' },             // late
+  danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', dot: 'var(--d-danger-dot)' },     // missed
+  success: { bg: 'var(--d-ok-bg)', ink: 'var(--d-ok-ink)', dot: 'var(--d-ok-ink)' },                // completed
 };
 // A cancelled visit reads its state from the visit status, not the assignment
 // (its carer was withdrawn, so there's no active assignment to read from).
@@ -58,7 +63,7 @@ const isEditable = (v) => v.status !== 'cancelled';
 const LEGEND = [
   ['Scheduled', CHIP.neutral.dot], ['On shift', CHIP.active.dot], ['Late', CHIP.warn.dot],
   ['Missed', CHIP.danger.dot], ['Completed', CHIP.success.dot],
-  ['Unfilled', '#ea580c'], ['Cancelled', '#6b7280'],
+  ['Unfilled', 'var(--d-unfilled-ink)'], ['Cancelled', 'var(--d-faint)'],
 ];
 
 /* ---------- right-click quick-action menu ---------- */
@@ -156,8 +161,8 @@ function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
   // Solid block, white text. Unfilled = orange, cancelled = grey + struck, else
   // Main's soft-card style with the distinct colours: unfilled = soft orange,
   // cancelled = faded grey + struck, else the status chip.
-  const bg = cancelled ? 'var(--d-panel)' : short ? 'color-mix(in srgb, #ea580c 16%, var(--d-card))' : c.bg;
-  const ink = cancelled ? 'var(--d-faint)' : short ? '#c2410c' : c.ink;
+  const bg = cancelled ? 'var(--d-panel)' : short ? 'var(--d-unfilled-bg)' : c.bg;
+  const ink = cancelled ? 'var(--d-faint)' : short ? 'var(--d-unfilled-ink)' : c.ink;
   const border = '1px solid transparent';
   return (
     <div style={s('position:relative')}>
@@ -267,7 +272,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
           <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{fullName(visit.service_user)}</div>
           <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:2px;display:flex;align-items:center;gap:5px')}><Icon name="pin" size={13} />{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
         </div>
-        <div style={s('height:44px;background:var(--d-field);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px;margin-top:14px')}>
+        <div style={s('height:44px;background:var(--d-field);border:1.5px solid var(--d-border);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px;margin-top:14px')}>
           <Icon name="search" size={16} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search employees by name or reference" autoFocus style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
         </div>
@@ -499,7 +504,7 @@ export default function RotaPage() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('carer');
+  const [view, setView] = useState('client');
   const [layout, setLayout] = useState('grid'); // 'grid' | 'list' — how the week is drawn, independent of the carer/client grouping above
   const [assigning, setAssigning] = useState(null);
   const [creating, setCreating] = useState(null);
@@ -692,16 +697,10 @@ export default function RotaPage() {
         </div>
       )}
 
-      {/* Week bar + view + status + legend */}
+      {/* Row 1 — view controls on the left (what am I looking at), week
+          navigation on the right (which week). */}
       <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-          <div data-tour="rota-week" style={s('display:flex;align-items:center;gap:8px')}>
-            <div className="hv" onClick={() => move(-1)} style={circleBtn}><Icon name="chevronLeft" size={17} /></div>
-            <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>{range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-            <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
-          </div>
-          <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
-          <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
           <span data-tour="rota-view"><SegTabs tabs={viewTabs} active={view} onSelect={setView} /></span>
           <div data-tour="rota-layout" style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
             {[{ key: 'grid', icon: 'calendar', label: 'Grid' }, { key: 'list', icon: 'menu', label: 'List' }].map((o) => (
@@ -711,8 +710,21 @@ export default function RotaPage() {
               </div>
             ))}
           </div>
-          <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
         </div>
+        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
+          <div data-tour="rota-week" style={s('display:flex;align-items:center;gap:8px')}>
+            <div className="hv" onClick={() => move(-1)} style={circleBtn}><Icon name="chevronLeft" size={17} /></div>
+            <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>{range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
+          </div>
+          <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
+          <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
+        </div>
+      </div>
+
+      {/* Row 2 — publish status on the left, colour legend on the right. */}
+      <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
+        <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
         <div style={s('display:flex;flex-wrap:wrap;gap:12px;font-size:11px;font-weight:600;color:var(--d-muted)')}>
           {LEGEND.map(([l, dot]) => (
             <span key={l} style={s('display:inline-flex;align-items:center;gap:5px')}><span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: dot }} />{l}</span>

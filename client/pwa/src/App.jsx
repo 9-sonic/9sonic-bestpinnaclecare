@@ -13,7 +13,6 @@ const ClockHistoryPage = lazyWithRetry(() => import('./pages/ClockHistoryPage.js
 const ShiftsPage = lazyWithRetry(() => import('./pages/ShiftsPage.jsx'));
 const ShiftDetailPage = lazyWithRetry(() => import('./pages/ShiftDetailPage.jsx'));
 const OverviewPage = lazyWithRetry(() => import('./pages/OverviewPage.jsx'));
-const TimesheetPage = lazyWithRetry(() => import('./pages/TimesheetPage.jsx'));
 const NotificationsPage = lazyWithRetry(() => import('./pages/NotificationsPage.jsx'));
 const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage.jsx'));
 const ChatPage = lazyWithRetry(() => import('./pages/ChatPage.jsx'));
@@ -73,7 +72,6 @@ export default function App() {
           <Route path="/shifts/:shiftId" element={<ShiftDetailPage />} />
           <Route path="/clock/history" element={<ClockHistoryPage />} />
           <Route path="/overview" element={<OverviewPage />} />
-          <Route path="/timesheet" element={<TimesheetPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/profile" element={<ProfilePage />} />

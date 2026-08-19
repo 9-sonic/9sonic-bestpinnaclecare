@@ -110,41 +110,45 @@ export default function LiveBoardPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      {/* Greeting */}
-      <div>
-        <div style={s('font-size:26px;font-weight:600;color:var(--d-ink);letter-spacing:-0.5px')}>
-          {greeting}{admin?.first_name ? `, ${admin.first_name}` : ''}
+      {/* Hero header — greeting on the left, live clock + refresh on the right,
+          in one composed row instead of a heading stacked over a thin strip. */}
+      <div style={s('display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap')}>
+        <div style={s('flex:1;min-width:240px')}>
+          <div style={s('font-size:26px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>
+            {greeting}{admin?.first_name ? `, ${admin.first_name}` : ''}
+          </div>
+          <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>Here&rsquo;s what needs you across Best Pinnacle Care right now.</div>
         </div>
-        <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>Here&rsquo;s what needs you across Best Pinnacle Care right now.</div>
+        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
+          <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-card);border:1px solid var(--d-card-line,transparent);box-shadow:var(--d-shadow-card,none);border-radius:14px;padding:9px 15px')}>
+            <span style={{ ...s('width:8px;height:8px;border-radius:50%;flex:none'), background: 'var(--d-ok-ink)' }} />
+            <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Live</span>
+            <span className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span style={s('font-size:12.5px;font-weight:500;color:var(--d-faint)')}>· {all.length} today</span>
+          </div>
+          <span data-tour="liveboard-refresh" style={s('display:inline-flex;align-items:center;gap:9px')}>
+            {updatedAt && <span className="d-num" style={s('font-size:11.5px;font-weight:500;color:var(--d-faint)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
+            <Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
+          </span>
+        </div>
       </div>
 
-      {/* Live status bar */}
-      <div style={s('display:flex;align-items:center;gap:10px;background:var(--d-card);border-radius:16px;padding:11px 16px;flex-wrap:wrap')}>
-        <span style={s('width:8px;height:8px;border-radius:50%;background:var(--d-ok-ink)')} />
-        <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Live</span>
-        <span className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-        <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>· {all.length} shifts scheduled today</span>
-        <div style={s('flex:1')} />
-        {updatedAt && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
-        <span data-tour="liveboard-refresh"><Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button></span>
-      </div>
-
-      {/* Stat cards */}
-      <div data-tour="liveboard-stats" style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px')}>
+      {/* Stat cards — capped so they sit in a tidy row instead of stretching wide */}
+      <div data-tour="liveboard-stats" style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px')}>
         <StatCard label="On shift now" value={counts.in_progress ?? 0} hint="Clocked in, delivering care" tone="success" icon="target" live active={filter === 'active'} onClick={() => setFilter(filter === 'active' ? 'all' : 'active')} />
         <StatCard label="Late" value={counts.late ?? 0} hint="Past the grace period" tone="warning" icon="clock" active={filter === 'late'} onClick={() => setFilter(filter === 'late' ? 'all' : 'late')} />
         <StatCard label="Missed / overdue" value={(counts.missed ?? 0) + (counts.overdue ?? 0)} hint="Escalation running" tone="danger" icon="alert" active={filter === 'missed'} onClick={() => setFilter(filter === 'missed' ? 'all' : 'missed')} />
         <StatCard label="Completed" value={counts.completed ?? 0} hint="Finished today" tone="info" icon="check" active={filter === 'done'} onClick={() => setFilter(filter === 'done' ? 'all' : 'done')} />
       </div>
 
-      <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start')}>
+      <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start')}>
         <div style={s('display:flex;flex-direction:column;gap:16px;min-width:0')}>
 
           {/* Roster */}
           <div style={s('display:flex;flex-direction:column;gap:12px')}>
             <span data-tour="liveboard-tabs"><SegTabs tabs={tabDefs} active={filter} onSelect={setFilter} /></span>
-            <div data-tour="liveboard-roster" style={s('background:var(--d-panel);border-radius:20px;padding:14px')}>
-              <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto')}>
+            <div data-tour="liveboard-roster" style={s('background:var(--d-panel);border-radius:20px;padding:14px;min-height:320px')}>
+              <div style={s('background:var(--d-card);border-radius:18px;padding:12px 14px;overflow:auto;height:100%;box-sizing:border-box')}>
                 {rows.length === 0 ? (
                   <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>No shifts match this view.</div>
                 ) : (

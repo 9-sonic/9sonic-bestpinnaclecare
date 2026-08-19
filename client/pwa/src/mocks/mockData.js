@@ -17,12 +17,6 @@ function at(hour, minute = 0, dayOffset = 0) {
   return d.toISOString();
 }
 
-const isoDay = (dayOffset = 0) => {
-  const d = new Date();
-  d.setDate(d.getDate() + dayOffset);
-  return d.toISOString().slice(0, 10);
-};
-
 // Matches ServiceUserSerializer.
 const serviceUsers = [
   {
@@ -191,15 +185,6 @@ function seed() {
       assignment({ id: 108, visitId: 508, suId: 4, start: at(9, 0, -2), end: at(11, 0, -2), state: 'completed', actualStart: at(9, 0, -2), actualEnd: at(11, 2, -2), worked: 122 }),
     ],
 
-    // Matches TimesheetLineSerializer.
-    timesheet_lines: [
-      { id: 9001, timesheet_period_id: 70, employee_id: 1, visit_assignment_id: 101, work_date: isoDay(0), scheduled_minutes: 60, worked_minutes: 63, break_minutes: 0, flags: [] },
-      { id: 9002, timesheet_period_id: 70, employee_id: 1, visit_assignment_id: 106, work_date: isoDay(-1), scheduled_minutes: 60, worked_minutes: 57, break_minutes: 0, flags: ['short'] },
-      { id: 9003, timesheet_period_id: 70, employee_id: 1, visit_assignment_id: 107, work_date: isoDay(-1), scheduled_minutes: 60, worked_minutes: 65, break_minutes: 0, flags: ['late_start'] },
-      { id: 9004, timesheet_period_id: 70, employee_id: 1, visit_assignment_id: 108, work_date: isoDay(-2), scheduled_minutes: 120, worked_minutes: 122, break_minutes: 0, flags: [] },
-      { id: 9005, timesheet_period_id: 70, employee_id: 1, visit_assignment_id: 109, work_date: isoDay(-3), scheduled_minutes: 180, worked_minutes: 175, break_minutes: 15, flags: [] },
-    ],
-
     // Matches ConversationSerializer.
     conversations: [
       { id: 301, kind: 'direct', title: null, direct_key: 'Admin:2:Employee:1', last_message_at: at(9, 22, -1), unread_count: 2, participants: [ { type: 'Admin', id: 2, role: 'member' }, { type: 'Employee', id: 1, role: 'member' } ] },
@@ -228,14 +213,12 @@ function seed() {
     notifications: [
       { id: 601, notification_type: 'visit_changed', title: 'Visit time changed', body: 'Edith Thornbury now starts at 09:15 tomorrow.', channel: 'in_app', status: 'delivered', alert_id: null, subject_type: 'VisitAssignment', subject_id: 105, seen_at: null, created_at: at(18, 20, -1) },
       { id: 602, notification_type: 'message', title: 'New message from Sarah Mensah', body: 'Edith has asked if you can come 15 minutes earlier.', channel: 'in_app', status: 'delivered', alert_id: null, subject_type: 'Conversation', subject_id: 301, seen_at: null, created_at: at(9, 20, -1) },
-      { id: 603, notification_type: 'timesheet_reminder', title: 'Timesheet reminder', body: 'Check this week before Sunday 6pm.', channel: 'in_app', status: 'delivered', alert_id: null, subject_type: 'TimesheetPeriod', subject_id: 70, seen_at: at(8, 30, -2), created_at: at(8, 0, -2) },
       { id: 604, notification_type: 'training_due', title: 'Training due', body: 'Moving and handling refresher expires in 14 days.', channel: 'in_app', status: 'delivered', alert_id: null, subject_type: null, subject_id: null, seen_at: at(12, 5, -3), created_at: at(12, 0, -3) },
     ],
 
     notification_preferences: [
       { notification_type: 'visit_changed', in_app: true, push: true, email: false },
       { notification_type: 'message', in_app: true, push: true, email: false },
-      { notification_type: 'timesheet_reminder', in_app: true, push: true, email: false },
     ],
 
     // Local only, no API equivalent yet.

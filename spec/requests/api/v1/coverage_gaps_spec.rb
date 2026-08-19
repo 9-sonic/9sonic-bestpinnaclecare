@@ -3,22 +3,6 @@ require "rails_helper"
 RSpec.describe "Endpoint coverage gaps", type: :request do
   let(:su) { create(:service_user, lat: 53.4808, lng: -2.2426) }
 
-  describe "admin timesheet lock" do
-    it "locks a period" do
-      mgr  = create(:admin, role: :manager)
-      auth = { "Authorization" => "Bearer #{jwt_for(mgr, :admin)}" }
-      week = Date.current.beginning_of_week
-      create(:visit_assignment, employee: create(:employee), lifecycle_state: "completed", worked_minutes: 30,
-             visit: create(:visit, service_user: su, scheduled_start: week.to_time + 8.hours, scheduled_end: week.to_time + 9.hours))
-
-      post "/api/v1/admin/timesheet_periods", params: { starts_on: week.iso8601 }, headers: auth, as: :json
-      pid = response.parsed_body["id"]
-      post "/api/v1/admin/timesheet_periods/#{pid}/lock", headers: auth
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["status"]).to eq("locked")
-    end
-  end
-
   describe "admin alerts resolve + assignment withdraw" do
     let(:rm)   { create(:admin, role: :registered_manager) }
     let(:auth) { { "Authorization" => "Bearer #{jwt_for(rm, :admin)}" } }
@@ -39,7 +23,7 @@ RSpec.describe "Endpoint coverage gaps", type: :request do
     end
   end
 
-  describe "staff mileage + timesheet_periods index" do
+  describe "staff mileage" do
     let(:emp)  { create(:employee) }
     let(:auth) { { "Authorization" => "Bearer #{jwt_for(emp, :employee)}" } }
 
@@ -48,15 +32,6 @@ RSpec.describe "Endpoint coverage gaps", type: :request do
       get "/api/v1/staff/mileage", headers: auth
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.first["miles"]).to eq(5.0)
-    end
-
-    it "lists the periods the carer has lines in" do
-      period = TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week)
-      va = create(:visit_assignment, employee: emp, visit: create(:visit, service_user: su))
-      period.timesheet_lines.create!(employee: emp, visit_assignment: va, work_date: Date.current, scheduled_minutes: 45, worked_minutes: 45)
-
-      get "/api/v1/staff/timesheet_periods", headers: auth
-      expect(response.parsed_body.map { |p| p["id"] }).to include(period.id)
     end
   end
 

@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "PWA extras (chat names, notifications, admin care plan)", type: :request do
   let(:rm)         { create(:admin, role: :registered_manager) }
   let(:coord)      { create(:admin, role: :coordinator) }
-  let(:employee)   { create(:employee, hourly_rate_pence: 1200) }
+  let(:employee)   { create(:employee) }
   let(:rm_auth)    { { "Authorization" => "Bearer #{jwt_for(rm, :admin)}" } }
   let(:coord_auth) { { "Authorization" => "Bearer #{jwt_for(coord, :admin)}" } }
   let(:emp_auth)   { { "Authorization" => "Bearer #{jwt_for(employee, :employee)}" } }
@@ -45,13 +45,5 @@ RSpec.describe "PWA extras (chat names, notifications, admin care plan)", type: 
     employee.employee_availabilities.create!(weekday: 1, slot: "morning", available: true)
     get "/api/v1/admin/employees/#{employee.id}/availability", headers: rm_auth
     expect(response.parsed_body.size).to eq(1)
-  end
-
-  it "shows pay to registered manager but hides it from a coordinator" do
-    get "/api/v1/admin/employees/#{employee.id}", headers: rm_auth
-    expect(response.parsed_body).to have_key("hourly_rate_pence")
-
-    get "/api/v1/admin/employees/#{employee.id}", headers: coord_auth
-    expect(response.parsed_body).not_to have_key("hourly_rate_pence")
   end
 end

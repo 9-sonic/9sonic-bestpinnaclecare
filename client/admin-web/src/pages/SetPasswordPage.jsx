@@ -12,7 +12,7 @@ import '../styles/design-shell.css';
 // The route only changes the wording.
 
 const inputStyle = {
-  ...s('height:48px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14.5px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid transparent'),
+  ...s('height:48px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14.5px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid var(--d-border)'),
   fontFamily: 'inherit',
 };
 

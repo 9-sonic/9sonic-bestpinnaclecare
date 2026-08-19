@@ -61,7 +61,7 @@ export default function PreferencesPage() {
   // Keyed by the notification_type the API stores — the same vocabulary
   // NotificationsPage renders and the seed data uses. CHANNEL_DEFAULTS on the
   // server is "on unless a row says otherwise", so an absent row means on.
-  const [notify, setNotify] = useState({ visit_changed: true, message: true, timesheet_reminder: true });
+  const [notify, setNotify] = useState({ visit_changed: true, message: true });
   const [largeText, setLargeText] = useState(
     () => document.documentElement.dataset.textSize === 'large'
   );
@@ -273,19 +273,6 @@ export default function PreferencesPage() {
               on={notify.message}
               onChange={() => handleNotify('message')}
               label="Messages"
-            />
-          }
-        />
-        <Row
-          icon="bell"
-          tint={TINTS.purple}
-          label="Timesheet reminders"
-          hint="A nudge before the weekly deadline"
-          trailing={
-            <Switch
-              on={notify.timesheet_reminder}
-              onChange={() => handleNotify('timesheet_reminder')}
-              label="Reminders"
             />
           }
         />

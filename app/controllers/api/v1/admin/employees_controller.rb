@@ -4,8 +4,7 @@ module Api
       class EmployeesController < BaseController
         include AvatarManagement
 
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) },          only: %i[create avatar remove_avatar]
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator, :finance) }, only: :update
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create avatar remove_avatar update]
 
         def index
           stats = ::Staff::Stats.call
@@ -53,9 +52,6 @@ module Api
           after = employee.attributes.slice(*keys)
           changed = after.keys.select { |k| before[k] != after[k] }
           if changed.any?
-            # employee_params already strips pay fields for a non-pay-editor, so
-            # changed can only include them when the acting admin was authorised
-            # to set them — nothing further to redact here.
             Events::Record.call(
               aggregate: employee, actor: current_admin, event_type: "employee.updated",
               payload: { from: before.slice(*changed), to: after.slice(*changed), changed: changed }
@@ -66,20 +62,14 @@ module Api
 
         private
 
-        # Pay only for finance / registered manager.
         def serialize(e)
-          EmployeeSerializer.call(e, include_private: true, include_pay: current_admin.registered_manager? || current_admin.finance?)
+          EmployeeSerializer.call(e, include_private: true)
         end
 
         def employee_params
-          permitted = params.permit(:email, :first_name, :last_name, :phone, :employee_reference, :active,
-                                    :hourly_rate_pence, :mileage_rate_pence, :contracted_hours_per_week)
-          # Only finance / registered manager may set pay rates.
-          permitted = permitted.except(:hourly_rate_pence, :mileage_rate_pence) unless pay_editor?
-          permitted
+          params.permit(:email, :first_name, :last_name, :phone, :employee_reference, :active,
+                        :contracted_hours_per_week)
         end
-
-        def pay_editor? = current_admin.registered_manager? || current_admin.finance?
       end
     end
   end

@@ -5,26 +5,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { listAudit, exportAuditLog, exportAttendanceAudit, listLoginAttempts, listServiceUsers, listEmployees, listAdmins } from '../api/index.js';
 import { formatDate, formatTime, fullName } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs } from '../ds/console.jsx';
-
-const dateField = (label, value, onChange, max) => (
-  <label style={s('display:flex;flex-direction:column;gap:5px')}>
-    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
-    <input type="date" value={value} max={max} onChange={(e) => onChange(e.target.value)}
-      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 13px'), fontFamily: 'inherit', colorScheme: 'light dark' }} />
-  </label>
-);
-
-const selectField = (label, value, onChange, options) => (
-  <label style={s('display:flex;flex-direction:column;gap:5px;min-width:180px')}>
-    <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{label}</span>
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 11px'), fontFamily: 'inherit' }}>
-      <option value="">Everyone</option>
-      {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-    </select>
-  </label>
-);
+import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs, DateField, SelectField, RangeChips, FilterBar } from '../ds/console.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'Everything', icon: 'menu', test: () => true },
@@ -36,14 +17,14 @@ const FILTERS = [
 
 // Map an Event from /admin/audit onto the table's row shape.
 const ACTION = {
-  'clock.corrected': 'Amended clock', 'timesheet.approved': 'Approved period', 'timesheet.locked': 'Locked period',
+  'clock.corrected': 'Amended clock',
   'assignment.created': 'Assigned carer', 'assignment.withdrawn': 'Withdrew assignment', 'settings.updated': 'Changed setting',
   'service_user.created': 'Added client', 'service_user.updated': 'Edited client',
   'employee.invited': 'Invited carer', 'employee.updated': 'Edited carer',
 };
-const RECORD = { VisitAssignment: 'Visit', TimesheetPeriod: 'Timesheet', Setting: 'Settings', ServiceUser: 'Client', Employee: 'Employee', Visit: 'Visit', Alert: 'Alert' };
+const RECORD = { VisitAssignment: 'Visit', Setting: 'Settings', ServiceUser: 'Client', Employee: 'Employee', Visit: 'Visit', Alert: 'Alert' };
 const TONE = {
-  'clock.corrected': 'warning', 'timesheet.approved': 'success', 'timesheet.locked': 'success',
+  'clock.corrected': 'warning',
   'assignment.created': 'info', 'assignment.withdrawn': 'muted', 'settings.updated': 'info',
   'service_user.created': 'success', 'service_user.updated': 'info',
   'employee.invited': 'success', 'employee.updated': 'info',
@@ -55,8 +36,6 @@ function changeOf(e) {
     case 'assignment.created': return `→ ${p.employee_name ?? 'carer'}`;
     case 'assignment.withdrawn': return 'withdrawn';
     case 'settings.updated': return (p.changed ?? []).join(', ') || 'updated';
-    case 'timesheet.approved':
-    case 'timesheet.locked': return p.starts_on ? `wk ${formatDate(p.starts_on)}` : '—';
     case 'service_user.created': return 'created';
     case 'service_user.updated':
     case 'employee.updated': return Object.keys(p.to ?? {}).join(', ') || 'updated';
@@ -107,30 +86,21 @@ export function VisitAuditExport() {
     }
   };
 
-  const dateField = (label, value, onChange) => (
-    <label style={s('display:flex;flex-direction:column;gap:4px')}>
-      <span style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{label}</span>
-      <input type="date" value={value} max={vaTo} onChange={(e) => onChange(e.target.value)}
-        style={{ ...s('height:38px;border:1px solid var(--d-border);border-radius:10px;background:var(--d-card);color:var(--d-ink);font-size:12.5px;font-weight:500;padding:0 12px'), fontFamily: 'inherit', colorScheme: 'light dark' }} />
-    </label>
-  );
+  const vaSpan = vaTo === iso(new Date())
+    ? Math.round((Date.parse(vaTo) - Date.parse(vaFrom)) / 86400000) + 1
+    : null;
 
   return (
     <Panel>
       <PanelTitle hint="One row per carer × visit — scheduled vs actual taps, metres from the client's home, offline flags, lateness and map links. The CQC attendance export.">Visit attendance audit</PanelTitle>
-      <div style={s('display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-top:4px')}>
-        {dateField('From', vaFrom, setVaFrom)}
-        {dateField('To', vaTo, (val) => setVaTo(val < vaFrom ? vaFrom : val))}
-        <div style={s('display:flex;gap:6px;align-items:center')}>
-          {[{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }].map((r) => (
-            <button key={r.label} onClick={() => setVaRange(r.days)}
-              style={{ ...s('height:32px;padding:0 12px;border:1px solid var(--d-border);border-radius:16px;background:var(--d-card);color:var(--d-ink2);font-size:12px;font-weight:600;cursor:pointer'), fontFamily: 'inherit' }}>{r.label}</button>
-          ))}
-        </div>
-        <div style={s('flex:1')} />
+      <FilterBar style={{ marginTop: 4 }}>
+        <DateField label="From" value={vaFrom} onChange={setVaFrom} max={vaTo} />
+        <DateField label="To" value={vaTo} onChange={(val) => setVaTo(val < vaFrom ? vaFrom : val)} min={vaFrom} />
+        <RangeChips active={vaSpan} onSelect={setVaRange} />
+        <FilterBar.Spacer />
         <Button icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('csv')}>CSV</Button>
         <Button variant="primary" icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('xlsx')}>{vaExporting ? 'Building…' : 'Export XLSX'}</Button>
-      </div>
+      </FilterBar>
     </Panel>
   );
 }
@@ -206,20 +176,27 @@ export default function ChangeLogTab() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
+      {/* The visit-attendance (CQC) export lives here with the audit data it
+          draws from, rather than in a separate Exports tab. */}
+      <VisitAuditExport />
       <div style={s('display:flex;flex-direction:column')}>
-        <SegTabs tabs={FILTERS.map((f) => ({ key: f.id, label: f.label, count: entries.filter(f.test).length }))} active={filter} onSelect={setFilter} />
+        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
+          <span style={s('flex:1;min-width:0')}><SegTabs tabs={FILTERS.map((f) => ({ key: f.id, label: f.label, count: entries.filter(f.test).length }))} active={filter} onSelect={setFilter} /></span>
+          {/* Download the change log the tab is showing. */}
+          <AuditLogExport />
+        </div>
         <div style={s('display:flex;flex-direction:column;gap:14px;margin-top:12px')}>
           <Panel>
-            <div style={s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap')}>
-              {dateField('From', from, setFrom, to || undefined)}
-              {dateField('To', to, (val) => setTo(from && val < from ? from : val))}
-              {selectField('Staff', actorId, setActorId, staffOptions)}
-              {selectField('Client', clientId, setClientId, clientOptions)}
-              <div style={s('flex:1;min-width:200px;height:40px;background:var(--d-field);border-radius:12px;display:flex;align-items:center;gap:9px;padding:0 13px')}>
+            <FilterBar>
+              <DateField label="From" value={from} onChange={setFrom} max={to || undefined} />
+              <DateField label="To" value={to} onChange={(val) => setTo(from && val < from ? from : val)} min={from || undefined} />
+              <SelectField label="Staff" value={actorId} onChange={setActorId} options={staffOptions} allLabel="Everyone" />
+              <SelectField label="Client" value={clientId} onChange={setClientId} options={clientOptions} allLabel="Everyone" />
+              <div style={s('flex:1;min-width:200px;height:40px;background:var(--d-card);border:1.5px solid var(--d-border);border-radius:12px;display:flex;align-items:center;gap:9px;padding:0 13px;align-self:flex-end')}>
                 <Icon name="search" size={15} />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search author, record or reason" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
               </div>
-            </div>
+            </FilterBar>
           </Panel>
 
           {dates.length === 0 ? (
@@ -304,20 +281,13 @@ export function SignInsTab() {
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
       <Panel>
         <PanelTitle hint="Every sign-in try, success or failure — who, when, from what IP and device">Sign-ins</PanelTitle>
-        <div style={s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:4px')}>
-          {dateField('From', from, setFrom, to || undefined)}
-          {dateField('To', to, (val) => setTo(from && val < from ? from : val))}
-          {selectField('Who', resource, setResource, resourceOptions)}
-          <label style={s('display:flex;flex-direction:column;gap:5px;min-width:140px')}>
-            <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Outcome</span>
-            <select value={success} onChange={(e) => setSuccess(e.target.value)}
-              style={{ ...s('height:40px;border:1.5px solid transparent;border-radius:12px;background:var(--d-field);color:var(--d-ink);font-size:12.5px;font-weight:600;padding:0 11px'), fontFamily: 'inherit' }}>
-              <option value="">Any</option>
-              <option value="true">Success</option>
-              <option value="false">Failed</option>
-            </select>
-          </label>
-        </div>
+        <FilterBar style={{ marginTop: 4 }}>
+          <DateField label="From" value={from} onChange={setFrom} max={to || undefined} />
+          <DateField label="To" value={to} onChange={(val) => setTo(from && val < from ? from : val)} min={from || undefined} />
+          <SelectField label="Who" value={resource} onChange={setResource} options={resourceOptions} allLabel="Everyone" />
+          <SelectField label="Outcome" value={success} onChange={setSuccess} minWidth={140} allLabel="Any"
+            options={[{ id: 'true', label: 'Success' }, { id: 'false', label: 'Failed' }]} />
+        </FilterBar>
       </Panel>
 
       {rows === null ? (
