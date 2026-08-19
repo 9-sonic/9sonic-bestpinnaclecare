@@ -188,7 +188,7 @@ export default function ProfilePage() {
         <br />
         Signed in as {user?.email}
         <br />
-        Developed by 9Sonic
+        Developed by 9sonic Ltd.
       </div>
 
       <InfoSheet doc={sheet} onClose={() => setSheet(null)} />
