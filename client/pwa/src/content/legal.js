@@ -5,6 +5,8 @@
 // Best Pinnacle before release: it describes how the system behaves, but the
 // data controller details and retention periods are the client's to confirm.
 
+import { OFFICE_CONTACT } from './contact.js';
+
 export const TERMS = {
   title: 'Terms of use',
   sections: [
@@ -70,7 +72,7 @@ export const PRIVACY = {
 
 export const HELP = {
   title: 'Help and support',
-  contact: { label: 'On call office', value: '0113 496 0000', tel: '01134960000' },
+  contact: OFFICE_CONTACT,
   lead: 'For anything urgent about a person you support, call the office before messaging.',
   leadIcon: 'phone',
   sections: [

@@ -9,6 +9,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import { formatChatTime } from '../utils/format.js';
 import { tapFeedback, errorFeedback } from '../utils/haptics.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { OFFICE_CONTACT } from '../content/contact.js';
 
 // A conversation with the office.
 //
@@ -219,7 +220,7 @@ export default function ChatPage() {
           type="button"
           className="icon-btn"
           aria-label={`Call ${thread?.name ?? 'contact'}`}
-          onClick={() => window.open('tel:01134960000')}
+          onClick={() => window.open(`tel:${OFFICE_CONTACT.tel}`)}
         >
           <Icon name="phone" size={18} />
         </button>

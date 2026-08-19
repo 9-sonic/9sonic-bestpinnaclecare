@@ -4,6 +4,7 @@ import ScreenHeader from '../components/common/ScreenHeader.jsx';
 import Card from '../components/common/Card.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Button from '../components/common/Button.jsx';
+import { OFFICE_CONTACT } from '../content/contact.js';
 
 const FAQS = [
   {
@@ -39,10 +40,10 @@ export default function HelpPage() {
               <Icon name="phone" size={18} />
             </span>
             <div>
-              <p className="help-contact__label">On call office</p>
-              <p className="help-contact__value">0113 496 0000</p>
+              <p className="help-contact__label">{OFFICE_CONTACT.label}</p>
+              <p className="help-contact__value">{OFFICE_CONTACT.value}</p>
             </div>
-            <Button size="sm" onClick={() => window.open('tel:01134960000')}>
+            <Button size="sm" onClick={() => window.open(`tel:${OFFICE_CONTACT.tel}`)}>
               Call
             </Button>
           </div>
@@ -80,9 +81,11 @@ export default function HelpPage() {
           <Icon name="clock" size={16} />
           Request help with clocking in
         </Button>
-        <Button block variant="white" onClick={() => navigate('/messages')}>
-          <Icon name="chat" size={16} />
-          Message my manager
+        {/* Messaging isn't implemented, so this used to be a dead end. Calling
+            is the one channel that actually works right now. */}
+        <Button block variant="white" onClick={() => window.open(`tel:${OFFICE_CONTACT.tel}`)}>
+          <Icon name="phone" size={16} />
+          Call my manager
         </Button>
       </div>
     </div>
