@@ -6466,21 +6466,30 @@ body:has(.drawer-backdrop) .app-content {
    is what actually seals the header into whatever the page shows underneath
    it (var(--color-bg), so this stays correct in dark mode without a second
    rule). Each layer's speed and start offset are different so the four never
-   fall into a visibly mechanical lockstep. */
+   fall into a visibly mechanical lockstep.
+   fill-opacity rather than color-mix() for the translucent three: same result
+   for a single flat fill with no stroke, but fill-opacity has been part of
+   SVG since 1.1 where color-mix() is recent enough that Safari support
+   shouldn't be assumed without checking, and an unsupported value here would
+   have silently fallen back to SVG's default fill (black), not to anything
+   reasonable. */
 .onde__layer--1 {
-  fill: color-mix(in srgb, var(--brand-deep) 55%, transparent);
+  fill: var(--brand-deep);
+  fill-opacity: 0.55;
   animation-delay: -2s;
   animation-duration: 7s;
 }
 
 .onde__layer--2 {
-  fill: color-mix(in srgb, var(--brand-deep) 35%, transparent);
+  fill: var(--brand-deep);
+  fill-opacity: 0.35;
   animation-delay: -3s;
   animation-duration: 10s;
 }
 
 .onde__layer--3 {
-  fill: color-mix(in srgb, var(--brand-deep) 15%, transparent);
+  fill: var(--brand-deep);
+  fill-opacity: 0.15;
   animation-delay: -4s;
   animation-duration: 13s;
 }
