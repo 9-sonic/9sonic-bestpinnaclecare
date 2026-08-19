@@ -74,7 +74,18 @@ export function useHistoryOverlay(open, onClose) {
         unwindRef.current = null;
         if (pushedRef.current) {
           pushedRef.current = false;
-          window.history.back();
+          // Belt and braces alongside release(): if something else already
+          // navigated in the time between this overlay closing and this timeout
+          // running — a caller that closes and routes away in the same handler,
+          // without going through release() first — our entry is no longer on
+          // top of the stack. history.back() at that point would pop whatever
+          // the navigation just pushed instead of our own entry, undoing it, so
+          // "go to profile" from a modal footer would flash to /profile and
+          // immediately bounce back to the screen behind the modal. Only unwind
+          // when we can see our own marker still sitting on top.
+          if (window.history.state?.bpcOverlay) {
+            window.history.back();
+          }
         }
       }, 0);
     };
