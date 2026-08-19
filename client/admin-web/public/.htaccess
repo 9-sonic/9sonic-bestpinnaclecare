@@ -14,3 +14,29 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Caching.
+#
+# The bug this fixes: index.html was served with no Cache-Control, so browsers
+# cached it heuristically. Vite fingerprints its JS/CSS (index-<hash>.js) and a
+# deploy deletes the old files, so a stale cached index.html points at chunk
+# hashes that no longer exist. When the app lazy-loads a route, that dynamic
+# import 404s and the page falls back to a full reload — which looked like the
+# sidebar "reloading" on every tab switch after a deploy.
+#
+# Fix: index.html and the service worker must always be revalidated so a new
+# deploy is picked up immediately; the fingerprinted assets never change for a
+# given hash, so they can be cached hard.
+<IfModule mod_headers.c>
+  # Fingerprinted assets are immutable — a new build has a new hash. Listed FIRST
+  # so the shell rule below wins for files that also end in .js (sw.js): with
+  # overlapping FilesMatch, the later block takes precedence in Apache.
+  <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Never trust a cached shell or worker — always revalidate. Last, so it
+  # overrides the asset rule above for sw.js and keeps it updatable.
+  <FilesMatch "^(index\.html|sw\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>

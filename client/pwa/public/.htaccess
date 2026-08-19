@@ -15,3 +15,24 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Caching.
+#
+# index.html and sw.js must never be served stale from the browser's HTTP cache,
+# or a returning carer can be pinned to an old shell / an old worker and never
+# see a new deploy. (The app is otherwise well-defended: Workbox precaches by
+# content hash and lazyWithRetry recovers a missing chunk — this just closes the
+# HTTP-cache gap in front of them.) Fingerprinted assets are immutable per hash.
+<IfModule mod_headers.c>
+  # Fingerprinted assets are immutable per hash — cache hard. Listed FIRST so the
+  # no-cache rules below win for the shell files that also end in .js (sw.js),
+  # since with overlapping FilesMatch the later block takes precedence.
+  <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp|ico|wav)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Never HTTP-cache the shell or the worker — these must always revalidate so a
+  # deploy is seen. This block is last, so it overrides the asset rule for sw.js.
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
