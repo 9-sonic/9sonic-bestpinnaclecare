@@ -6439,6 +6439,52 @@ body:has(.drawer-backdrop) .app-content {
   height: 0;
 }
 
+/* The crop line drifts through a small loop of keyframe shapes instead of
+   sitting still, so it reads as water rather than a static cutout. Animating
+   the `d` property (not SVG SMIL, which has patchy `d`-interpolation support
+   across engines) — this both works more consistently in the browsers this
+   app ships to and, wherever it isn't supported, is simply ignored rather
+   than broken: the path stays at its first value, which is exactly today's
+   static wave. prefers-reduced-motion is already handled globally (see the
+   @media (prefers-reduced-motion: reduce) block near the top of this file,
+   which forces animation-iteration-count: 1 and a near-zero duration on
+   every animation on the page), so nothing extra was needed here for that.
+   The very first and last point of every keyframe below is identical to the
+   base path in WaveHeader.jsx — where the curve meets the header's left and
+   right edges never moves, only the shape between those two points does, so
+   there is nothing to seam or glitch against the rectangle around it. */
+.wave__clip-path--signin {
+  animation: wave-drift-signin 11s ease-in-out infinite;
+}
+
+.wave__clip-path--profile {
+  animation: wave-drift-profile 13s ease-in-out infinite;
+}
+
+@keyframes wave-drift-signin {
+  0%, 100% {
+    d: path('M0,0 L1,0 L1,0.6001 C1,0.6001 0.9812,0.7154 0.8995,0.8182 C0.7945,0.9504 0.6059,1.0678 0.4346,0.9541 C0.3338,0.8872 0.2603,0.8347 0.1976,0.8257 C0.0597,0.806 0,0.9088 0,0.9088 Z');
+  }
+  33% {
+    d: path('M0,0 L1,0 L1,0.6001 C1,0.6001 0.978,0.73 0.885,0.835 C0.77,0.97 0.58,1.09 0.42,0.97 C0.32,0.9 0.245,0.82 0.185,0.815 C0.055,0.79 0,0.9088 0,0.9088 Z');
+  }
+  66% {
+    d: path('M0,0 L1,0 L1,0.6001 C1,0.6001 0.985,0.7 0.91,0.8 C0.815,0.925 0.63,1.045 0.45,0.935 C0.345,0.87 0.275,0.85 0.21,0.84 C0.065,0.825 0,0.9088 0,0.9088 Z');
+  }
+}
+
+@keyframes wave-drift-profile {
+  0%, 100% {
+    d: path('M0,0 L1,0 L1,0.7636 L0.97,0.8045 L0.8952,0.8773 L0.79,0.9364 L0.6522,0.9818 C0.6522,0.9818 0.5609,1.0098 0.4466,0.9955 C0.3315,0.981 0.2028,0.9353 0.1101,0.8773 C0.1004,0.8712 0.0767,0.8528 0.0611,0.8364 C0.0321,0.8058 0.0005,0.7752 0,0.7591 Z');
+  }
+  33% {
+    d: path('M0,0 L1,0 L1,0.7636 L0.965,0.795 L0.885,0.865 L0.78,0.925 L0.64,0.97 C0.64,0.97 0.545,1.025 0.435,1.01 C0.32,0.995 0.195,0.925 0.105,0.865 C0.095,0.86 0.072,0.84 0.058,0.825 C0.03,0.795 0.0005,0.7752 0,0.7591 Z');
+  }
+  66% {
+    d: path('M0,0 L1,0 L1,0.7636 L0.975,0.815 L0.905,0.89 L0.8,0.948 L0.665,0.992 C0.665,0.992 0.575,0.995 0.46,0.98 C0.345,0.965 0.21,0.945 0.115,0.888 C0.105,0.882 0.081,0.865 0.064,0.848 C0.034,0.815 0.0005,0.7752 0,0.7591 Z');
+  }
+}
+
 .wave__content {
   position: relative;
   z-index: 1;

@@ -25,6 +25,19 @@ import { useId } from 'react';
 // The two screens do not share a curve: sign in drops steeply from the right
 // and troughs near the middle, while profile is shallower and troughs further
 // right, leaving room for the avatar to straddle it.
+//
+// Each curve drifts between a small loop of keyframe shapes (global.css,
+// .wave__clip-path--signin / --profile) rather than sitting as one fixed path,
+// so the crop line reads as water rather than a static cutout. That is a CSS
+// @keyframes animation of the `d` property, not a library and not SVG SMIL:
+// SMIL's `d` interpolation is patchy across engines, where animating `d` via
+// CSS both works more consistently in the browsers this app actually ships to
+// and, on anything old enough not to support it, simply does nothing —
+// unsupported CSS properties are ignored, not broken, so it falls back to
+// today's static wave rather than a visible glitch. It also inherits
+// prefers-reduced-motion for free from the app's existing global rule
+// (global.css line ~121), which forces every animation on the page to a
+// single, near-instant frame; nothing extra was needed here for that.
 const WAVE_PATHS = {
   signin: `M0,0 L1,0 L1,0.6001
     C1,0.6001 0.9812,0.7154 0.8995,0.8182
@@ -49,7 +62,10 @@ export default function WaveHeader({ height = 210, photo = false, curve = 'signi
           <svg className="wave__clip" aria-hidden="true">
             <defs>
               <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-                <path d={WAVE_PATHS[curve] ?? WAVE_PATHS.signin} />
+                <path
+                  className={`wave__clip-path wave__clip-path--${curve}`}
+                  d={WAVE_PATHS[curve] ?? WAVE_PATHS.signin}
+                />
               </clipPath>
             </defs>
           </svg>
