@@ -187,6 +187,8 @@ export default function ProfilePage() {
         Best Pinnacle Care, version {__APP_VERSION__}
         <br />
         Signed in as {user?.email}
+        <br />
+        Developed by 9Sonic
       </div>
 
       <InfoSheet doc={sheet} onClose={() => setSheet(null)} />
