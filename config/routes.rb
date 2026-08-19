@@ -83,6 +83,7 @@ Rails.application.routes.draw do
             get     :availability
             post    :avatar          # office sets a carer's avatar (multipart)
             delete  :avatar, action: :remove_avatar
+            post    :resend_invite   # re-send a pending carer invite
           end
           # Carer 360 — everything the office may view about one carer.
           get "profile",         to: "carer_profile#profile"
@@ -91,7 +92,9 @@ Rails.application.routes.draw do
           get "clock_events",    to: "carer_profile#clock_events"
           get "requests",        to: "carer_profile#requests"
         end
-        resources :admins,    only: %i[index show create update]
+        resources :admins,    only: %i[index show create update] do
+          member { post :resend_invite } # re-send a pending office-user invite
+        end
 
         # Provider config, dashboard, rota copy
         resource :settings, only: %i[show update], controller: "settings"

@@ -13,7 +13,9 @@ class EmployeeSerializer
       employee_reference:        employee.employee_reference,
       contracted_hours_per_week: employee.contracted_hours_per_week&.to_f,
       active:                    employee.active,
-      mfa_enabled:               employee.mfa_enabled
+      mfa_enabled:               employee.mfa_enabled,
+      # Invited but not yet accepted — drives the "Resend invite" action.
+      invite_pending:            employee.invited_at.present? && employee.accepted_invite_at.nil?
     }
     if include_private
       payload[:emergency_contact_name]  = employee.emergency_contact_name

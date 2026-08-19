@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { listEmployees, inviteEmployee } from '../api/index.js';
+import { listEmployees, inviteEmployee, resendEmployeeInvite } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
@@ -90,6 +90,14 @@ function EmployeesTab() {
   }
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const [resending, setResending] = useState(null); // carer id being resent
+  async function resend(e) {
+    setResending(e.id);
+    try { await resendEmployeeInvite(e.id); toast.success(`Invite re-sent to ${e.email}`); await load(); }
+    catch (err) { toast.error(err.message || 'Could not resend the invite'); }
+    finally { setResending(null); }
+  }
+
   if (loading) return <Spinner fullscreen />;
 
   const active = rows.filter((e) => e.active);
@@ -143,9 +151,12 @@ function EmployeesTab() {
                       <Td><Tag tone={e.capture_method === 'gps' ? 'primary' : e.capture_method === 'pin' ? 'info' : 'muted'}>{METHOD[e.capture_method] ?? '—'}</Tag></Td>
                       <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{e.hours_this_week != null ? `${e.hours_this_week}h` : '—'}</b></Td>
                       <Td><Meter value={e.punctuality} /></Td>
-                      <Td><Tag tone={e.active ? 'success' : 'muted'}>{e.active ? 'Active' : 'Inactive'}</Tag></Td>
+                      <Td><Tag tone={!e.active ? 'muted' : e.invite_pending ? 'warning' : 'success'}>{!e.active ? 'Inactive' : e.invite_pending ? 'Invite pending' : 'Active'}</Tag></Td>
                       <Td align="right">
-                        <Button size="sm" icon="user" onClick={() => navigate(`/employees/${e.id}`)}>View</Button>
+                        <span style={s('display:inline-flex;gap:8px;justify-content:flex-end')}>
+                          {e.active && e.invite_pending && <Button size="sm" icon="send" disabled={resending === e.id} onClick={() => resend(e)}>{resending === e.id ? 'Sending…' : 'Resend'}</Button>}
+                          <Button size="sm" icon="user" onClick={() => navigate(`/employees/${e.id}`)}>View</Button>
+                        </span>
                       </Td>
                     </Row>
                   ))}

@@ -55,6 +55,7 @@ export const listAdmins = () => api.get('/admin/admins', { per_page: FULL_PAGE }
 export const pageAdmins = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/admins', { page, per_page });
 export const inviteAdmin = (attrs) => api.post('/admin/admins', attrs);
 export const updateAdmin = (id, payload) => api.patch(`/admin/admins/${id}`, payload);
+export const resendAdminInvite = (id) => api.post(`/admin/admins/${id}/resend_invite`);
 
 /* ------------------------------ Monitoring -------------------------------- */
 
@@ -133,6 +134,7 @@ export const uploadEmployeeAvatar = (id, file) => { const fd = new FormData(); f
 export const removeEmployeeAvatar = (id) => api.delete(`/admin/employees/${id}/avatar`);
 export const getEmployee = (id) => api.get(`/admin/employees/${id}`);
 export const inviteEmployee = (payload) => api.post('/admin/employees', payload);
+export const resendEmployeeInvite = (id) => api.post(`/admin/employees/${id}/resend_invite`);
 export const updateEmployee = (id, payload) => api.patch(`/admin/employees/${id}`, payload);
 
 export const listServiceUsers = () => api.get('/admin/service_users', { per_page: FULL_PAGE }).then(unwrap);
