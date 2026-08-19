@@ -53,11 +53,18 @@ export default function WaveHeader({ height = 210, photo = false, children }) {
                 d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352Z"
               />
             </defs>
+            {/* href alone is enough for Chrome and Firefox, but Safari has
+                lagged on plain (non-namespaced) href resolving on <use> — MDN
+                flags this directly and recommends setting both. Without
+                xlinkHref too, a <use> whose reference doesn't resolve renders
+                nothing at all: no shape, not a wrong colour, nothing. That
+                matches "the wave doesn't show up on iOS" exactly, so both
+                attributes are set rather than relying on href alone. */}
             <g className="onde__parallax">
-              <use href={`#${waveId}`} x="48" y="0" className="onde__layer onde__layer--1" />
-              <use href={`#${waveId}`} x="48" y="3" className="onde__layer onde__layer--2" />
-              <use href={`#${waveId}`} x="48" y="5" className="onde__layer onde__layer--3" />
-              <use href={`#${waveId}`} x="48" y="7" className="onde__layer onde__layer--4" />
+              <use href={`#${waveId}`} xlinkHref={`#${waveId}`} x="48" y="0" className="onde__layer onde__layer--1" />
+              <use href={`#${waveId}`} xlinkHref={`#${waveId}`} x="48" y="3" className="onde__layer onde__layer--2" />
+              <use href={`#${waveId}`} xlinkHref={`#${waveId}`} x="48" y="5" className="onde__layer onde__layer--3" />
+              <use href={`#${waveId}`} xlinkHref={`#${waveId}`} x="48" y="7" className="onde__layer onde__layer--4" />
             </g>
           </svg>
         </>
