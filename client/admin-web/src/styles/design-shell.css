@@ -218,6 +218,16 @@ body {
   --d-panel: #101922;
   --d-sage: #14444c;
 
+  /* Text tokens must be restored to dark-appropriate values here. The skin's
+     LIGHT block sets --d-ink2 to #0d3d4a (the dark-teal avatar monogram), and
+     because [data-skin='pwa'] has no theme qualifier that value also applied in
+     dark mode — so the sidebar icons and other --d-ink2 text rendered near-black
+     on the dark card and were nearly invisible. Pin the dark ramp explicitly. */
+  --d-ink: #e7eff6;
+  --d-ink2: #b7c6d4;
+  --d-muted: #8ea0b2;
+  --d-faint: #6a7c8d;
+
   --d-grad-primary: linear-gradient(115deg, #0e7c8c 0%, #084e5b 100%);
   --d-pill: #12879a;
   --d-pill-hover: #0d6d7d;

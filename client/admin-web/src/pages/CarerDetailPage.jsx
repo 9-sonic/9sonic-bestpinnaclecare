@@ -10,7 +10,7 @@ import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.j
 import {
   getEmployee, updateEmployee, uploadEmployeeAvatar, removeEmployeeAvatar,
   getEmployeeAvailability, getCarerProfile, listCarerNotes, listCarerVisits,
-  listCarerClockEvents, listCarerRequests,
+  listCarerClockEvents, listCarerRequests, resendEmployeeInvite,
 } from '../api/index.js';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -43,6 +43,7 @@ export default function CarerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
   const [tabData, setTabData] = useState({});
+  const [resending, setResending] = useState(false);
   const [tabLoading, setTabLoading] = useState(false);
 
   const [editing, setEditing] = useState(false);
@@ -93,6 +94,12 @@ export default function CarerDetailPage() {
     try { await updateEmployee(carer.id, { active: !carer.active }); toast.success(carer.active ? 'Deactivated' : 'Reactivated'); await load(); }
     catch (e) { toast.error(e.message || 'Could not update'); }
   }
+  async function resend() {
+    setResending(true);
+    try { await resendEmployeeInvite(carer.id); toast.success(`Invite re-sent to ${carer.email}`); await load(); }
+    catch (e) { toast.error(e.message || 'Could not resend the invite'); }
+    finally { setResending(false); }
+  }
   async function onAvatar(e) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
@@ -127,7 +134,7 @@ export default function CarerDetailPage() {
           <div style={s('flex:1;min-width:0')}>
             <div style={s('display:flex;align-items:center;gap:11px;flex-wrap:wrap')}>
               <div style={s('font-size:27px;font-weight:700;letter-spacing:-0.5px;color:var(--d-ink)')}>{fullName(carer)}</div>
-              <Tag tone={carer.active ? 'success' : 'muted'}>{carer.active ? 'Active' : 'Inactive'}</Tag>
+              <Tag tone={!carer.active ? 'muted' : carer.invite_pending ? 'warning' : 'success'}>{!carer.active ? 'Inactive' : carer.invite_pending ? 'Invite pending' : 'Active'}</Tag>
               {carer.mfa_enabled && <Tag tone="info">MFA on</Tag>}
             </div>
             <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:500;color:var(--d-muted);margin-top:5px')}>
@@ -138,6 +145,7 @@ export default function CarerDetailPage() {
           </div>
           {canManage && (
             <div style={s('display:flex;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end')}>
+              {carer.active && carer.invite_pending && <Button size="sm" icon="send" disabled={resending} onClick={resend}>{resending ? 'Sending…' : 'Resend invite'}</Button>}
               <Button size="sm" icon="edit" onClick={openEdit}>Edit</Button>
               <Button size="sm" variant={carer.active ? 'danger' : 'ghost'} onClick={toggleActive}>{carer.active ? 'Deactivate' : 'Reactivate'}</Button>
               {carer.avatar_url && <Button size="sm" onClick={removeAvatar}>Remove photo</Button>}

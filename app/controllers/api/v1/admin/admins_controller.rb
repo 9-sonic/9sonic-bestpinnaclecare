@@ -19,6 +19,16 @@ module Api
           render json: AdminSerializer.call(admin), status: :created
         end
 
+        # POST /api/v1/admin/admins/:id/resend_invite — re-send a pending office
+        # user's invite with a fresh set-password link.
+        def resend_invite
+          admin = ::Admin.find(params[:id])
+          Authentication::ResendInvite.call(resource: admin, scope: "admin")
+          render json: AdminSerializer.call(admin)
+        rescue Authentication::ResendInvite::NotPending => e
+          render json: { error: e.message }, status: :unprocessable_content
+        end
+
         def update
           admin = ::Admin.find(params[:id])
           if (err = lockout_error(admin, admin_params))

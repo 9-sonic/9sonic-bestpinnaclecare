@@ -4,7 +4,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
-import { listAdmins, inviteAdmin, updateAdmin } from '../api/index.js';
+import { listAdmins, inviteAdmin, updateAdmin, resendAdminInvite } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager, fieldStyle, SearchBox } from '../ds/console.jsx';
 
@@ -100,6 +100,14 @@ export default function TeamPage() {
     catch (err) { toast.error(err.message || 'Could not update'); }
   }
 
+  const [resending, setResending] = useState(null); // id being resent
+  async function resend(a) {
+    setResending(a.id);
+    try { await resendAdminInvite(a.id); toast.success(`Invite re-sent to ${a.email}`); await load(); }
+    catch (err) { toast.error(err.message || 'Could not resend the invite'); }
+    finally { setResending(null); }
+  }
+
   if (loading) return <Spinner fullscreen />;
 
   const activeAdmins = rows.filter((a) => a.active);
@@ -151,6 +159,7 @@ export default function TeamPage() {
                     {isOwner && (
                       <Td align="right">
                         <span style={s('display:inline-flex;gap:8px;justify-content:flex-end')}>
+                          {a.active && !a.accepted_invite_at && <Button size="sm" icon="send" disabled={resending === a.id} onClick={() => resend(a)}>{resending === a.id ? 'Sending…' : 'Resend invite'}</Button>}
                           <Button size="sm" icon="edit" onClick={() => openEdit(a)}>Edit</Button>
                           {a.id !== admin?.id && <Button size="sm" onClick={() => toggleActive(a)}>{a.active ? 'Deactivate' : 'Reactivate'}</Button>}
                         </span>

@@ -4,7 +4,7 @@ module Api
       class EmployeesController < BaseController
         include AvatarManagement
 
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create avatar remove_avatar update]
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create avatar remove_avatar update resend_invite]
 
         def index
           stats = ::Staff::Stats.call
@@ -42,6 +42,20 @@ module Api
             payload: { email: employee.email }
           )
           render json: serialize(employee), status: :created
+        end
+
+        # POST /api/v1/admin/employees/:id/resend_invite — re-send a pending
+        # carer invite with a fresh set-password link.
+        def resend_invite
+          employee = Employee.find(params[:id])
+          Authentication::ResendInvite.call(resource: employee, scope: "staff")
+          Events::Record.call(
+            aggregate: employee, actor: current_admin, event_type: "employee.invite_resent",
+            payload: { email: employee.email }
+          )
+          render json: serialize(employee)
+        rescue Authentication::ResendInvite::NotPending => e
+          render json: { error: e.message }, status: :unprocessable_content
         end
 
         def update
