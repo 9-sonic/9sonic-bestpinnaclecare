@@ -217,6 +217,11 @@ body {
 }
 
 .page-actions {
+  display: flex;
+  flex-direction: column;
+  /* Stacked block buttons have no margin of their own, so with nothing here
+     they sat edge to edge with no visible gap between them. */
+  gap: var(--space-3);
   padding: var(--space-4) 0 var(--space-2);
 }
 
