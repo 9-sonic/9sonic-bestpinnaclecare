@@ -2817,7 +2817,14 @@ body {
   height: 100%;
   max-width: var(--app-max-width);
   margin: 0 auto;
-  background: var(--color-bg);
+  background: var(--chat-bg);
+  /* Containing block for the wallpaper below. It has to live here rather
+     than on .chat__body: that element scrolls (overflow-y: auto), and an
+     absolutely positioned box inside a scrolling ancestor scrolls with its
+     content, inset:0 is measured against the padding box, not the visible
+     viewport. .chat itself never scrolls, only its children do, so a
+     pattern anchored here stays put while the thread moves past it. */
+  position: relative;
 }
 
 .chat__header {
@@ -3746,6 +3753,21 @@ body {
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--space-6) 0;
+}
+
+.avatar-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+.avatar-preview__name {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .modal__text,
@@ -9209,12 +9231,14 @@ body:has(.drawer-backdrop) .app-content {
    ovals on a tablet.
    =========================================================================== */
 
+/* No position/background of its own: it is transparent so .chat's wallpaper
+   shows through, and it is not the containing block for the pattern below
+   because it is the element that scrolls. */
 .chat__body {
-  position: relative;
-  background-color: var(--chat-bg);
+  background: transparent;
 }
 
-.chat__body::before {
+.chat::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -9223,11 +9247,14 @@ body:has(.drawer-backdrop) .app-content {
   background-repeat: repeat;
   opacity: var(--chat-pattern-opacity);
   pointer-events: none;
-  /* Behind the messages, above the flat colour. */
+  /* Behind the header, body and composer, all of which paint over it in
+     normal DOM order; header and composer are opaque anyway, and .chat__body
+     is transparent so this shows through in the gaps between bubbles. */
   z-index: 0;
 }
 
-/* Everything in the thread sits above the wallpaper. */
+/* Bubbles are opaque already; this only matters for the day-divider pill and
+   anything else in the thread that is not. */
 .chat__body > * {
   position: relative;
   z-index: 1;
@@ -9245,14 +9272,14 @@ body:has(.drawer-backdrop) .app-content {
   --chat-pattern-opacity: 0.07;
 }
 
-:root[data-theme='dark'] .chat__body::before {
+:root[data-theme='dark'] .chat::before {
   filter: invert(1);
 }
 
 /* Someone who has asked for more contrast does not want a patterned
    background behind their messages. */
 @media (prefers-contrast: more) {
-  .chat__body::before { display: none; }
+  .chat::before { display: none; }
 }
 
 /* The composer and header sit on a solid colour so the pattern never runs
