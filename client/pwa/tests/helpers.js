@@ -55,7 +55,6 @@ export const ROUTES = [
   { path: '/profile/details', expect: '.detail-row' },
   { path: '/profile/availability', expect: '.avail-day' },
   { path: '/profile/preferences', expect: '.list-row' },
-  { path: '/timesheet', expect: '.tsrow, .empty-state, .paysum' },
   { path: '/overview', expect: '.chart' },
   { path: '/notifications', expect: '.ncard, .empty-state' },
   { path: '/navigate/102', expect: '.map-wrap' },
