@@ -12,7 +12,7 @@ const REFRESH_MS = 60000;
 const ICON = {
   visit_late: 'clock', no_clock_out: 'clock', unassigned_visit: 'user',
   visit_missed: 'alert', geofence_fail: 'pin', clock_in_failed: 'offline',
-  timesheet_dispute: 'wallet', message: 'chat',
+  message: 'chat',
 };
 
 export default function NotificationsBell() {

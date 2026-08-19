@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -18,7 +18,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
 
   # Custom types defined in this database.
   # Note that some types may not work with other database engines. Be careful if changing database.
-  create_enum "admin_role", ["registered_manager", "manager", "coordinator", "finance", "auditor"]
+  create_enum "admin_role", ["registered_manager", "manager", "coordinator", "auditor"]
   create_enum "alert_state", ["open", "acknowledged", "resolved"]
   create_enum "availability_slot", ["morning", "afternoon", "evening", "night"]
   create_enum "clock_kind", ["clock_in", "clock_out", "break_start", "break_end"]
@@ -256,7 +256,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.text "encrypted_password", default: "", null: false
     t.integer "failed_attempts", default: 0, null: false
     t.text "first_name", null: false
-    t.integer "hourly_rate_pence"
     t.timestamptz "invited_at"
     t.text "last_name", null: false
     t.timestamptz "last_sign_in_at"
@@ -265,7 +264,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.timestamptz "mfa_confirmed_at"
     t.boolean "mfa_enabled", default: false, null: false
     t.text "mfa_secret"
-    t.integer "mileage_rate_pence"
     t.text "phone"
     t.timestamptz "reset_password_sent_at"
     t.string "reset_password_token"
@@ -277,8 +275,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.index ["email"], name: "index_employees_on_email", unique: true
     t.index ["reset_password_token"], name: "index_employees_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_employees_on_unlock_token", unique: true
-    t.check_constraint "hourly_rate_pence IS NULL OR hourly_rate_pence >= 0", name: "employees_hourly_rate_non_negative"
-    t.check_constraint "mileage_rate_pence IS NULL OR mileage_rate_pence >= 0", name: "employees_mileage_rate_non_negative"
   end
 
   create_table "events", force: :cascade do |t|
@@ -451,7 +447,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.text "company_name", null: false
     t.text "cqc_location_id"
     t.text "cqc_provider_id"
-    t.text "currency_code", default: "GBP", null: false
     t.integer "early_leave_tolerance_minutes", default: 10, null: false
     t.text "email"
     t.jsonb "extra", default: {}, null: false
@@ -465,9 +460,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.text "phone"
     t.jsonb "policy", default: {}, null: false
     t.text "postcode"
-    t.text "timesheet_period", default: "weekly", null: false
-    t.integer "timesheet_rounding_minutes", default: 0, null: false
-    t.integer "timesheet_week_starts_on", default: 1, null: false
     t.text "timezone", default: "Europe/London", null: false
     t.text "trading_name"
     t.timestamptz "updated_at", default: -> { "now()" }, null: false
@@ -616,43 +608,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
-  create_table "timesheet_disputes", force: :cascade do |t|
-    t.timestamptz "created_at", default: -> { "now()" }, null: false
-    t.bigint "raised_by_employee_id", null: false
-    t.text "reason", null: false
-    t.text "resolution_note"
-    t.bigint "resolved_by_admin_id"
-    t.text "state", default: "open", null: false
-    t.bigint "timesheet_line_id", null: false
-  end
-
-  create_table "timesheet_lines", force: :cascade do |t|
-    t.timestamptz "approved_at"
-    t.bigint "approved_by_admin_id"
-    t.integer "break_minutes", default: 0, null: false
-    t.bigint "employee_id", null: false
-    t.text "flags", default: [], null: false, array: true
-    t.integer "scheduled_minutes", null: false
-    t.bigint "timesheet_period_id", null: false
-    t.bigint "visit_assignment_id", null: false
-    t.date "work_date", null: false
-    t.integer "worked_minutes", null: false
-    t.index ["approved_by_admin_id"], name: "index_timesheet_lines_on_approved_by_admin_id"
-    t.index ["employee_id", "work_date"], name: "idx_timesheet_lines_employee"
-    t.index ["timesheet_period_id", "visit_assignment_id"], name: "idx_on_timesheet_period_id_visit_assignment_id_57b4ac0514", unique: true
-  end
-
-  create_table "timesheet_periods", force: :cascade do |t|
-    t.timestamptz "approved_at"
-    t.bigint "approved_by_admin_id"
-    t.date "ends_on", null: false
-    t.timestamptz "locked_at"
-    t.date "starts_on", null: false
-    t.string "status", default: "open", null: false
-    t.index ["starts_on"], name: "index_timesheet_periods_on_starts_on", unique: true
-    t.check_constraint "ends_on >= starts_on", name: "timesheet_periods_range"
-  end
-
   create_table "visit_assignments", force: :cascade do |t|
     t.timestamptz "actual_end"
     t.timestamptz "actual_start"
@@ -759,14 +714,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_150000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
-  add_foreign_key "timesheet_disputes", "admins", column: "resolved_by_admin_id"
-  add_foreign_key "timesheet_disputes", "employees", column: "raised_by_employee_id"
-  add_foreign_key "timesheet_disputes", "timesheet_lines"
-  add_foreign_key "timesheet_lines", "admins", column: "approved_by_admin_id"
-  add_foreign_key "timesheet_lines", "employees"
-  add_foreign_key "timesheet_lines", "timesheet_periods"
-  add_foreign_key "timesheet_lines", "visit_assignments"
-  add_foreign_key "timesheet_periods", "admins", column: "approved_by_admin_id"
   add_foreign_key "visit_assignments", "admins", column: "assigned_by_admin_id"
   add_foreign_key "visit_assignments", "employees"
   add_foreign_key "visit_assignments", "visits"

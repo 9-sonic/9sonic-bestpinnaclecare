@@ -242,11 +242,6 @@ export const TOUR_PAGES = [
         content:
           'The Guide is your reference: what every shift state means, how escalation works when a clock-in is missed, and how the record is kept honest.',
       },
-      {
-        anchor: 'guide-tour-button',
-        content:
-          "That's the whole console. You can replay this tour any time from this button. Thanks for taking the tour!",
-      },
     ],
   },
 ];

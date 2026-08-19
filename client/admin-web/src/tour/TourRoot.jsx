@@ -26,7 +26,16 @@ const tourStyles = {
     fontSize: 15,
     lineHeight: 1.55,
     fontWeight: 500,
-    maxWidth: 360,
+    // Never exceed the viewport: the library positions the popover against its
+    // anchor but does not clamp it, so a 360px box next to a right-edge or
+    // bottom-edge anchor used to spill off-screen. Cap width to the viewport
+    // (with a gutter) and cap height with internal scroll so long descriptions
+    // stay on-screen too.
+    width: 'max-content',
+    maxWidth: 'min(340px, calc(100vw - 32px))',
+    maxHeight: 'calc(100vh - 32px)',
+    overflowY: 'auto',
+    boxSizing: 'border-box',
   }),
   maskArea: (base) => ({ ...base, rx: 16 }),
   maskWrapper: (base) => ({ ...base, color: 'rgba(15,23,30,0.55)' }),
@@ -69,6 +78,10 @@ export default function TourRoot({ children }) {
       showDots
       showCloseButton
       disableInteraction
+      // Keep the popover on-screen: a larger in-view threshold makes the library
+      // treat an anchor near an edge as needing the popover flipped/centred to
+      // stay visible, instead of drawing it off the side of the screen.
+      inViewThreshold={{ x: 180, y: 120 }}
       padding={{ mask: 6, popover: [12, 12] }}
       scrollSmooth
       prevButton={({ currentStep, setCurrentStep }) =>

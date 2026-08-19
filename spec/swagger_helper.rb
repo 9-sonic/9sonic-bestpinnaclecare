@@ -67,7 +67,7 @@ RSpec.configure do |config|
               last_name:   { type: :string, example: 'Manager' },
               full_name:   { type: :string, example: 'Reg Manager' },
               avatar_url:  { type: :string, nullable: true, description: 'Absolute URL of the uploaded avatar, or null.' },
-              role:        { type: :string, enum: %w[registered_manager manager coordinator finance auditor] },
+              role:        { type: :string, enum: %w[registered_manager manager coordinator auditor] },
               active:      { type: :boolean, example: true },
               mfa_enabled: { type: :boolean, example: true },
               invited_at:         { type: :string, format: 'date-time', nullable: true },
@@ -76,7 +76,7 @@ RSpec.configure do |config|
           },
           Employee: {
             type: :object,
-            description: 'Private fields (emergency contact) appear only with include_private (self/office); pay fields only with include_pay (self/finance).',
+            description: 'Private fields (emergency contact) appear only with include_private (self/office).',
             properties: {
               id:                        { type: :integer, example: 1 },
               email:                     { type: :string, format: :email, example: 'carer@bestpinnacle.test' },
@@ -91,9 +91,7 @@ RSpec.configure do |config|
               active:                    { type: :boolean, example: true },
               mfa_enabled:               { type: :boolean, example: false },
               emergency_contact_name:    { type: :string, nullable: true, description: 'Only with include_private.' },
-              emergency_contact_phone:   { type: :string, nullable: true, description: 'Only with include_private.' },
-              hourly_rate_pence:         { type: :integer, nullable: true, description: 'Only with include_pay.' },
-              mileage_rate_pence:        { type: :integer, nullable: true, description: 'Only with include_pay.' }
+              emergency_contact_phone:   { type: :string, nullable: true, description: 'Only with include_private.' }
             }
           },
           ServiceUser: {

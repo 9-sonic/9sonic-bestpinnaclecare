@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 
@@ -14,9 +15,16 @@ const TONE = {
   muted: { bg: 'var(--d-panel)', ink: 'var(--d-muted)' },
 };
 
-export function Panel({ children, hero, padded = true, style }) {
+export function Panel({ children, hero, gradient, padded = true, style }) {
+  // A plain panel lifts on --d-shadow-card (none by default, soft under the PWA
+  // skin). `gradient` opts a hero panel into the brand gradient with white ink,
+  // which is the PWA hero-card treatment; `hero` alone stays the pale teal fill.
+  const bg = gradient ? 'var(--d-grad-primary)' : hero ? 'var(--d-primary-soft)' : 'var(--d-card)';
+  // Plain cards carry the hairline so they keep an edge in dark mode where the
+  // shadow does nothing; hero/gradient panels have their own fill and don't need it.
+  const border = gradient || hero ? undefined : '1px solid var(--d-card-line, transparent)';
   return (
-    <div style={{ ...s(`border-radius:24px;${padded ? 'padding:20px 22px;' : ''}display:flex;flex-direction:column`), background: hero ? 'var(--d-primary-soft)' : 'var(--d-card)', ...style }}>
+    <div style={{ ...s(`border-radius:24px;${padded ? 'padding:20px 22px;' : ''}display:flex;flex-direction:column`), background: bg, color: gradient ? 'var(--d-pill-ink)' : undefined, border, boxShadow: gradient ? 'var(--d-shadow-cta)' : hero ? undefined : 'var(--d-shadow-card)', ...style }}>
       {children}
     </div>
   );
@@ -58,7 +66,10 @@ export function SeverityPill({ severity }) {
 
 export function Button({ variant = 'ghost', icon, children, onClick, disabled, size = 'md' }) {
   const V = {
-    primary: { bg: 'var(--d-pill)', ink: 'var(--d-pill-ink)', hbg: 'var(--d-pill-hover)', bd: 'transparent' },
+    // Primary paints --d-grad-primary (a flat colour on the current skin, the
+    // brand gradient under the PWA skin) and carries --d-shadow-cta (none by
+    // default). Hover still swaps to the flat --d-pill-hover via .hv.
+    primary: { bg: 'var(--d-grad-primary)', ink: 'var(--d-pill-ink)', hbg: 'var(--d-pill-hover)', bd: 'transparent', shadow: 'var(--d-shadow-cta)' },
     ghost: { bg: 'var(--d-card)', ink: 'var(--d-ink)', hbg: 'var(--d-card-hover)', bd: 'var(--d-border)' },
     danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', hbg: 'var(--d-danger-bg2)', bd: 'transparent' },
     subtle: { bg: 'var(--d-panel)', ink: 'var(--d-ink2)', hbg: 'var(--d-sage)', bd: 'transparent' },
@@ -66,7 +77,7 @@ export function Button({ variant = 'ghost', icon, children, onClick, disabled, s
   const h = size === 'sm' ? 34 : 40;
   return (
     <div onClick={disabled ? undefined : onClick} className="hv"
-      style={{ ...s(`height:${h}px;border-radius:${h / 2}px;display:inline-flex;align-items:center;gap:7px;padding:0 ${size === 'sm' ? 13 : 16}px;font-size:${size === 'sm' ? 12.5 : 13.5}px;font-weight:700;cursor:pointer;box-sizing:border-box;white-space:nowrap`), background: V.bg, color: V.ink, border: `1px solid ${V.bd}`, '--hbg': V.hbg, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      style={{ ...s(`height:${h}px;border-radius:${h / 2}px;display:inline-flex;align-items:center;gap:7px;padding:0 ${size === 'sm' ? 13 : 16}px;font-size:${size === 'sm' ? 12.5 : 13.5}px;font-weight:700;cursor:pointer;box-sizing:border-box;white-space:nowrap`), background: V.bg, color: V.ink, border: `1px solid ${V.bd}`, boxShadow: V.shadow, '--hbg': V.hbg, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {icon && <Icon name={icon} size={size === 'sm' ? 14 : 16} />} {children}
     </div>
   );
@@ -76,7 +87,7 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, live, act
   const c = TONE[tone] || TONE.primary;
   return (
     <div onClick={onClick} className={onClick ? 'hv' : ''}
-      style={{ ...s('border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box'), background: 'var(--d-card)', border: active ? '1.5px solid var(--d-primary)' : '1.5px solid transparent', cursor: onClick ? 'pointer' : 'default', '--hbg': 'var(--d-card-hover)' }}>
+      style={{ ...s('border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box'), background: 'var(--d-card)', border: active ? '1.5px solid var(--d-primary)' : '1.5px solid var(--d-card-line, transparent)', boxShadow: active ? undefined : 'var(--d-shadow-card)', cursor: onClick ? 'pointer' : 'default', '--hbg': 'var(--d-card-hover)' }}>
       <div style={s('display:flex;align-items:center;gap:10px')}>
         <div style={{ ...s('width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none'), background: c.bg, color: c.ink }}>
           <Icon name={icon} size={18} />
@@ -92,8 +103,10 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, live, act
   );
 }
 
-// Normal tabs — a compact segmented control for in-page filters. (The folder
-// Tabs in ds/Tabs.jsx are reserved for a page's primary board view.)
+// Segmented control — the one tab style across the console, matching the PWA.
+// Used both for in-page filters and for a page's primary board view. (The old
+// trapezium folder Tabs were a console-only metaphor the PWA has no equivalent
+// for, so they were removed for a uniform look.)
 export function SegTabs({ tabs, active, onSelect }) {
   return (
     <div style={s('display:inline-flex;align-items:center;gap:3px;background:var(--d-card);border-radius:15px;padding:4px;flex-wrap:wrap;max-width:100%')}>
@@ -253,6 +266,250 @@ export function Pager({ page, perPage, total, onPage }) {
       <button type="button" style={btn(page <= 1)} onClick={() => onPage(page - 1)}><Icon name="chevronLeft" size={15} /> Prev</button>
       <span className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{page} / {pages}</span>
       <button type="button" style={btn(page >= pages)} onClick={() => onPage(page + 1)}>Next <Icon name="chevronRight" size={15} /></button>
+    </div>
+  );
+}
+
+/* ------------------------------ Filter controls ---------------------------- */
+// One shared date/range/select set. Every page used to hand-roll these inline,
+// which is why the Timesheets, Change log and Visit-audit filter bars all looked
+// slightly different and some were invisible in light mode. Extracted here so a
+// filter bar is identical everywhere and there is one place to get the styling
+// right. Compose them inside <FilterBar>…</FilterBar>.
+
+const FIELD_LABEL = 'font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em';
+const FIELD_BOX = 'height:40px;border:1.5px solid var(--d-border);border-radius:12px;background:var(--d-card);color:var(--d-ink);font-size:12.5px;font-weight:600';
+
+/* -------------------------------- Date picker ------------------------------ */
+// A branded date field: shows UK DD/MM/YYYY, opens a popover calendar built from
+// the console tokens (so it matches the PWA end to end, unlike the native input's
+// OS popup), and honours min/max. The value contract is unchanged — it takes and
+// returns an ISO 'YYYY-MM-DD' string, so every page and export keeps working.
+
+const DP_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DP_DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+const dpParse = (iso) => {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  return (y && m && d) ? new Date(y, m - 1, d) : null;
+};
+const dpIso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+const dpUK = (iso) => { const d = dpParse(iso); return d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : ''; };
+// Compare by calendar day, ignoring time.
+const dpDayNum = (dt) => dt.getFullYear() * 10000 + dt.getMonth() * 100 + dt.getDate();
+
+export function DatePicker({ value, onChange, min, max, width = 160 }) {
+  const [open, setOpen] = useState(false);
+  // The month the calendar is showing; seeded from the value (or today).
+  const [view, setView] = useState(() => dpParse(value) || new Date());
+  const wrapRef = useRef(null);
+
+  useEffect(() => { if (open) setView(dpParse(value) || new Date()); }, [open, value]);
+
+  // Close on outside click / Escape while open.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const selected = dpParse(value);
+  const minN = min ? dpDayNum(dpParse(min)) : -Infinity;
+  const maxN = max ? dpDayNum(dpParse(max)) : Infinity;
+  const disabledDay = (dt) => { const n = dpDayNum(dt); return n < minN || n > maxN; };
+
+  // Build the 6-week grid for the viewed month, Monday-first.
+  const first = new Date(view.getFullYear(), view.getMonth(), 1);
+  const startOffset = (first.getDay() + 6) % 7; // 0=Mon
+  const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - startOffset);
+  const days = Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
+  const todayN = dpDayNum(new Date());
+
+  const step = (delta) => setView(new Date(view.getFullYear(), view.getMonth() + delta, 1));
+  const pick = (dt) => { if (!disabledDay(dt)) { onChange(dpIso(dt)); setOpen(false); } };
+
+  return (
+    <div ref={wrapRef} style={s('position:relative;flex:none')}>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        style={{ ...s(`${FIELD_BOX};display:flex;align-items:center;gap:9px;padding:0 13px;cursor:pointer;text-align:left`), width, fontFamily: 'inherit' }}>
+        <span style={{ ...s('flex:1;min-width:0'), color: value ? 'var(--d-ink)' : 'var(--d-faint)' }}>{value ? dpUK(value) : 'dd/mm/yyyy'}</span>
+        <Icon name="calendar" size={16} />
+      </button>
+      {open && (
+        <div style={{ ...s('position:absolute;z-index:60;top:calc(100% + 6px);left:0;border-radius:16px;padding:12px;width:248px'), background: 'var(--d-card)', border: '1px solid var(--d-border)', boxShadow: 'var(--d-shadow-lg, 0 12px 28px rgba(0,0,0,0.18))' }}>
+          <div style={s('display:flex;align-items:center;justify-content:space-between;margin-bottom:10px')}>
+            <button type="button" onClick={() => step(-1)} className="hv" style={{ ...s('width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-card);color:var(--d-ink2)'), '--hbg': 'var(--d-card-hover)' }}><Icon name="chevronLeft" size={16} /></button>
+            <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{DP_MONTHS[view.getMonth()]} {view.getFullYear()}</div>
+            <button type="button" onClick={() => step(1)} className="hv" style={{ ...s('width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-card);color:var(--d-ink2)'), '--hbg': 'var(--d-card-hover)' }}><Icon name="chevronRight" size={16} /></button>
+          </div>
+          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px')}>
+            {DP_DOW.map((d) => <div key={d} style={s('height:24px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase')}>{d}</div>)}
+          </div>
+          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:2px')}>
+            {days.map((dt) => {
+              const inMonth = dt.getMonth() === view.getMonth();
+              const n = dpDayNum(dt);
+              const isSel = selected && n === dpDayNum(selected);
+              const isToday = n === todayN;
+              const dis = disabledDay(dt);
+              return (
+                <button key={n} type="button" disabled={dis} onClick={() => pick(dt)} className={isSel || dis ? '' : 'hv'}
+                  style={{ ...s('height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent'),
+                    background: isSel ? 'var(--d-pill)' : 'transparent',
+                    color: isSel ? 'var(--d-pill-ink)' : dis ? 'var(--d-faint)' : inMonth ? 'var(--d-ink)' : 'var(--d-faint)',
+                    borderColor: isToday && !isSel ? 'var(--d-border-strong, var(--d-border))' : 'transparent',
+                    opacity: dis ? 0.4 : 1, cursor: dis ? 'not-allowed' : 'pointer', '--hbg': 'var(--d-card-hover)' }}>
+                  {dt.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DateField({ label, value, onChange, max, min }) {
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:5px;flex:none')}>
+      {label && <span style={s(FIELD_LABEL)}>{label}</span>}
+      <DatePicker value={value} onChange={onChange} min={min} max={max} />
+    </div>
+  );
+}
+
+// Branded select: a token-styled trigger + a popover options list, replacing the
+// native <select> whose open menu is the OS's (unthemed white in dark mode, off
+// brand). Same API as before — options are {id|value, label}; pass allLabel to
+// prepend an "all/any" row (omit it for a required choice like a setting).
+export function SelectField({ label, value, onChange, options, allLabel, minWidth = 160, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const optVal = (o) => (o.id !== undefined ? o.id : o.value);
+  const items = allLabel != null ? [{ __all: true, label: allLabel }, ...options] : options;
+  const current = options.find((o) => optVal(o) === value);
+  const shown = current ? current.label : (allLabel ?? 'Select…');
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const choose = (o) => { onChange(o.__all ? '' : optVal(o)); setOpen(false); };
+
+  return (
+    <div style={{ ...s('display:flex;flex-direction:column;gap:5px;flex:none'), width: minWidth }}>
+      {label && <span style={s(FIELD_LABEL)}>{label}</span>}
+      <div ref={wrapRef} style={s('position:relative')}>
+        <button type="button" disabled={disabled} onClick={() => setOpen((v) => !v)}
+          style={{ ...s(`${FIELD_BOX};display:flex;align-items:center;gap:8px;padding:0 11px;cursor:pointer;text-align:left;width:100%`), fontFamily: 'inherit', opacity: disabled ? 0.55 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+          <span style={s('flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{shown}</span>
+          <span style={{ display: 'inline-flex', transition: 'transform 0.15s ease', transform: open ? 'rotate(180deg)' : 'none', color: 'var(--d-muted)' }}><Icon name="chevronDown" size={16} /></span>
+        </button>
+        {open && !disabled && (
+          <div style={{ ...s('position:absolute;z-index:60;top:calc(100% + 6px);left:0;width:100%;min-width:180px;border-radius:12px;padding:5px;max-height:280px;overflow-y:auto'), background: 'var(--d-card)', border: '1px solid var(--d-border)', boxShadow: 'var(--d-shadow-lg, 0 12px 28px rgba(0,0,0,0.18))' }}>
+            {items.map((o) => {
+              const v = o.__all ? '' : optVal(o);
+              const sel = v === value;
+              return (
+                <button key={o.__all ? '__all' : v} type="button" onClick={() => choose(o)} className={sel ? '' : 'hv'}
+                  style={{ ...s('display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-radius:9px;padding:9px 10px;font-size:12.5px;font-weight:600;cursor:pointer'), fontFamily: 'inherit', background: sel ? 'var(--d-pill)' : 'transparent', color: sel ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': 'var(--d-card-hover)' }}>
+                  <span style={s('flex:1;min-width:0')}>{o.label}</span>
+                  {sel && <Icon name="check" size={14} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Quick-range chips (7d / 30d / 90d by default). `active` is the currently
+// selected day-count, so the chosen chip reads as selected; onSelect(days) fires.
+export function RangeChips({ ranges = [{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }], active, onSelect }) {
+  return (
+    <div style={s('display:flex;gap:6px;align-items:center;height:40px')}>
+      {ranges.map((r) => {
+        const on = active === r.days;
+        return (
+          <button key={r.label} type="button" onClick={() => onSelect(r.days)} className={on ? '' : 'hv'}
+            style={{ ...s('height:32px;padding:0 12px;border-radius:16px;font-size:11.5px;font-weight:700;cursor:pointer'), fontFamily: 'inherit', background: on ? 'var(--d-pill)' : 'var(--d-card)', color: on ? 'var(--d-pill-ink)' : 'var(--d-ink2)', border: `1px solid ${on ? 'transparent' : 'var(--d-border)'}`, '--hbg': 'var(--d-card-hover)' }}>
+            {r.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Row wrapper: aligns fields on their bottom edge, wraps on narrow screens, and
+// pushes anything after a <FilterBar.Spacer/> (e.g. export buttons) to the right.
+// NOTE: style is MERGED into the flex base, never spread over it — passing
+// style={{marginTop}} used to clobber display:flex and stack every field.
+export function FilterBar({ children, style, ...rest }) {
+  return <div style={{ ...s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap'), ...style }} {...rest}>{children}</div>;
+}
+FilterBar.Spacer = function Spacer() { return <div style={s('flex:1')} />; };
+
+/* ------------------------------- Form fields ------------------------------- */
+// The console's one text-field look, replacing the per-page inline styles that
+// each declared their own `background:var(--d-field);border:transparent`. That
+// convention went invisible on the PWA skin's brighter surfaces, so the field
+// now has a real border against the card. Two ways to use it:
+//   • <Input/> / <Select/> / <Textarea/> / <SearchBox/> for straight cases;
+//   • fieldStyle({...}) when a page needs to spread the style into its own markup
+//     (custom width, inside a grid), so every field still shares one definition.
+//
+// size 'md' (default) is the form size; 'sm' the compact filter/inline size.
+export function fieldStyle({ size = 'md', error = false, disabled = false, area = false } = {}) {
+  const h = size === 'sm' ? 40 : 46;
+  const r = size === 'sm' ? 12 : 14;
+  return {
+    ...s(`${area ? '' : `height:${h}px;`}border-radius:${r}px;background:var(--d-field);color:var(--d-ink);font-size:${size === 'sm' ? 12.5 : 14}px;font-weight:600;padding:${area ? '11px 14px' : `0 14px`};outline:none;box-sizing:border-box;width:100%${area ? ';resize:vertical;line-height:1.5' : ''}`),
+    border: `1.5px solid ${error ? 'var(--d-danger-ink)' : 'var(--d-border)'}`,
+    fontFamily: 'inherit',
+    opacity: disabled ? 0.55 : 1,
+  };
+}
+
+export function Input({ size, error, disabled, style, ...rest }) {
+  return <input disabled={disabled} style={{ ...fieldStyle({ size, error, disabled }), ...style }} {...rest} />;
+}
+
+export function Textarea({ size, error, disabled, style, rows = 3, ...rest }) {
+  return <textarea rows={rows} disabled={disabled} style={{ ...fieldStyle({ size, error, disabled, area: true }), ...style }} {...rest} />;
+}
+
+// Native select carrying the same box. Pass either children <option>s or an
+// `options` array of {value,label} (a leading `placeholder` becomes value="").
+export function Select({ size, error, disabled, style, options, placeholder, children, ...rest }) {
+  return (
+    <select disabled={disabled} style={{ ...fieldStyle({ size, error, disabled }), cursor: disabled ? 'not-allowed' : 'pointer', ...style }} {...rest}>
+      {placeholder != null && <option value="">{placeholder}</option>}
+      {options ? options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>) : children}
+    </select>
+  );
+}
+
+// Search box: a magnifier + borderless input inside the shared field box. The
+// pill radius is what tells it apart from a plain text field at a glance.
+export function SearchBox({ value, onChange, placeholder = 'Search…', pill = true, style }) {
+  return (
+    <div style={{ ...fieldStyle({}), display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', borderRadius: pill ? 999 : 14, ...style }}>
+      <Icon name="search" size={17} />
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
     </div>
   );
 }

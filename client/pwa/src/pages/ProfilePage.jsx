@@ -133,7 +133,6 @@ export default function ProfilePage() {
 
       <p className="list-group__label">Work</p>
       <Card className="stack-card" padded={false}>
-        <Row icon="wallet" tint={TINTS.green} label="Timesheet" onClick={() => navigate('/timesheet')} />
         <Row icon="trend" tint={TINTS.purple} label="Weekly overview" onClick={() => navigate('/overview')} />
         <Row icon="bell" tint={TINTS.blue} label="Notifications" onClick={() => navigate('/notifications')} />
         <Row icon="send" tint={TINTS.teal} label="My requests" onClick={() => navigate('/profile/requests')} />

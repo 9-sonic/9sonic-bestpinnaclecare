@@ -265,7 +265,7 @@ export default function MessagesPage() {
           <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv" title="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
         </div>
         <div style={s('padding:0 12px 10px')}>
-          <div style={s('height:38px;background:var(--d-field);border-radius:19px;display:flex;align-items:center;gap:8px;padding:0 13px')}>
+          <div style={s('height:38px;background:var(--d-field);border:1.5px solid var(--d-border);border-radius:19px;display:flex;align-items:center;gap:8px;padding:0 13px')}>
             <Icon name="search" size={15} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search conversations" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
           </div>
@@ -372,7 +372,7 @@ export default function MessagesPage() {
                 </div>
               )}
               <div style={s('display:flex;align-items:center;gap:10px')}>
-                <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={broadcast ? 'Write a broadcast…' : `Message ${active.kind === 'direct' ? convoTitle(active, admin?.id) : `#${convoTitle(active, admin?.id).replace(/^#/, '')}`}`} style={{ ...s('flex:1;height:44px;border-radius:22px;background:var(--d-field);padding:0 18px;border:1.5px solid transparent;outline:none;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+                <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={broadcast ? 'Write a broadcast…' : `Message ${active.kind === 'direct' ? convoTitle(active, admin?.id) : `#${convoTitle(active, admin?.id).replace(/^#/, '')}`}`} style={{ ...s('flex:1;height:44px;border-radius:22px;background:var(--d-field);padding:0 18px;border:1.5px solid var(--d-border);outline:none;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
                 <div onClick={send} className="hv" title="Send" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'), '--hbg': 'var(--d-pill-hover)', opacity: sending || (!draft.trim() && files.length === 0) ? 0.5 : 1 }}><Icon name="send" size={18} /></div>
               </div>
             </div>
@@ -481,7 +481,7 @@ export default function MessagesPage() {
             {composer !== 'direct' && (
               <label style={s('display:flex;flex-direction:column;gap:6px')}>
                 <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
-                <div style={s('height:44px;border-radius:14px;background:var(--d-field);display:flex;align-items:center;padding:0 15px')}>
+                <div style={s('height:44px;border-radius:14px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;padding:0 15px')}>
                   {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
                   <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
                 </div>
@@ -490,7 +490,7 @@ export default function MessagesPage() {
             {composer !== 'direct' && (
               <label style={s('display:flex;flex-direction:column;gap:6px')}>
                 <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
-                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:0;outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:1.5px solid var(--d-border);outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
               </label>
             )}
             {composer === 'channel' && (

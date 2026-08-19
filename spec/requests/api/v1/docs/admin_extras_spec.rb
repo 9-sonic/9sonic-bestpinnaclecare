@@ -25,7 +25,7 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
       parameter name: :body, in: :body, schema: {
         type: :object, properties: {
           email: { type: :string }, first_name: { type: :string }, last_name: { type: :string },
-          role: { type: :string, enum: %w[registered_manager manager coordinator finance auditor] }, phone: { type: :string }
+          role: { type: :string, enum: %w[registered_manager manager coordinator auditor] }, phone: { type: :string }
         }, required: %w[email first_name last_name role]
       }
       response(201, "invited") do
@@ -63,11 +63,10 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
 
     patch("Update a carer") do
       tags "Office — People"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      description "Pay rates (hourly_rate_pence, mileage_rate_pence) are ignored unless the caller is finance or registered manager."
       parameter name: :body, in: :body, schema: {
         type: :object, properties: {
           first_name: { type: :string }, last_name: { type: :string }, phone: { type: :string }, role: { type: :string },
-          active: { type: :boolean }, contracted_hours_per_week: { type: :number }, hourly_rate_pence: { type: :integer }, mileage_rate_pence: { type: :integer }
+          active: { type: :boolean }, contracted_hours_per_week: { type: :number }
         }
       }
       let(:id) { employee.id }
@@ -147,88 +146,6 @@ RSpec.describe "Office (admin) — undocumented routes", type: :request do
       let(:id) { Alert.create!(alert_type: "no_clock_out", subject: assignment).id }
       let(:body) { { resolution_note: "Carer confirmed clock-out time by phone." } }
       response(200, "resolved") { run_test! }
-    end
-  end
-
-  # ---- Timesheets: disputes, exports, period lifecycle ----
-  path "/api/v1/admin/timesheet_disputes" do
-    get("Open timesheet disputes (newest first)") do
-      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
-      response(200, "disputes") { run_test! }
-    end
-  end
-
-  path "/api/v1/admin/timesheet_disputes/{id}/resolve" do
-    parameter name: :id, in: :path, type: :integer
-    post("Resolve a timesheet dispute") do
-      tags "Office — Timesheets"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      parameter name: :body, in: :body, required: false, schema: { type: :object, properties: { resolution_note: { type: :string } } }
-      let(:period) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week) }
-      let(:line) { TimesheetLine.create!(employee: employee, visit_assignment: assignment, timesheet_period: period, scheduled_minutes: 60, worked_minutes: 55, work_date: Date.current) }
-      let(:id) { TimesheetDispute.create!(timesheet_line: line, raised_by: employee, reason: "Clocked out early", state: "open").id }
-      let(:body) { { resolution_note: "Adjusted to actual clock-out." } }
-      response(200, "resolved") { run_test! }
-    end
-  end
-
-  path "/api/v1/admin/timesheet_exports/{id}" do
-    parameter name: :id, in: :path, type: :integer
-    get("Export a period (CSV or XLSX)") do
-      tags "Office — Timesheets"; produces "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; security [ bearerAuth: [] ]
-      description "type=csv (default) or type=xlsx. Streams a file for payroll."
-      parameter name: :type, in: :query, required: false, schema: { type: :string, enum: %w[csv xlsx] }
-      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
-      let(:type) { "csv" }
-      response(200, "file") { run_test! }
-    end
-  end
-
-  path "/api/v1/admin/timesheet_periods/{id}" do
-    parameter name: :id, in: :path, type: :integer
-    get("Show a period with its lines") do
-      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
-      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
-      response(200, "period + lines") { run_test! }
-    end
-  end
-
-  path "/api/v1/admin/timesheet_periods/{id}/approve" do
-    parameter name: :id, in: :path, type: :integer
-    post("Approve a period (blocked by unconfirmed lines)") do
-      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
-      description "422 { error: 'unconfirmed_lines' } if any line is auto-closed or its visit is still pending review."
-      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
-      response(200, "approved") { run_test! }
-    end
-  end
-
-  path "/api/v1/admin/timesheet_periods/{id}/approve_carer" do
-    parameter name: :id, in: :path, type: :integer
-    post("Approve one carer's lines within a period") do
-      tags "Office — Timesheets"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      description "Per-carer sign-off, additive to the period-wide approve — the period stays open. Guards: 422 { error: 'unconfirmed_lines' } if a line is auto-closed / its visit is pending review; 'period_locked' if the period is locked; 'no_lines' if the carer has no lines here."
-      parameter name: :body, in: :body, schema: {
-        type: :object, properties: { employee_id: { type: :integer } }, required: %w[employee_id]
-      }
-      let(:period) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week) }
-      let(:id) { period.id }
-      let(:body) do
-        period.timesheet_lines.create!(employee: employee, visit_assignment: assignment, work_date: Date.current, scheduled_minutes: 60, worked_minutes: 60)
-        { employee_id: employee.id }
-      end
-      response(200, "carer lines approved") do
-        schema type: :object, properties: { employee_id: { type: :integer }, approved_count: { type: :integer } }
-        run_test!
-      end
-    end
-  end
-
-  path "/api/v1/admin/timesheet_periods/{id}/lock" do
-    parameter name: :id, in: :path, type: :integer
-    post("Lock a period (final; payroll exported)") do
-      tags "Office — Timesheets"; produces "application/json"; security [ bearerAuth: [] ]
-      let(:id) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week).id }
-      response(200, "locked") { run_test! }
     end
   end
 

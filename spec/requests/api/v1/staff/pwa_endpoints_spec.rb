@@ -1,14 +1,14 @@
 require "rails_helper"
 
 RSpec.describe "Staff PWA endpoints", type: :request do
-  let(:employee) { create(:employee, contracted_hours_per_week: 37.5, hourly_rate_pence: 1250) }
+  let(:employee) { create(:employee, contracted_hours_per_week: 37.5) }
   let(:auth)     { { "Authorization" => "Bearer #{jwt_for(employee, :employee)}" } }
   let(:su)       { create(:service_user, lat: 53.4808, lng: -2.2426) }
 
   describe "profile (me)" do
-    it "shows private fields + pay and edits the profile" do
+    it "shows private fields and edits the profile" do
       get "/api/v1/staff/me", headers: auth
-      expect(response.parsed_body).to include("contracted_hours_per_week" => 37.5, "hourly_rate_pence" => 1250)
+      expect(response.parsed_body).to include("contracted_hours_per_week" => 37.5)
       expect(response.parsed_body).to have_key("emergency_contact_name")
 
       patch "/api/v1/staff/me", params: { first_name: "Renamed", emergency_contact_phone: "07700 900123" }, headers: auth, as: :json
@@ -108,7 +108,7 @@ RSpec.describe "Staff PWA endpoints", type: :request do
     end
   end
 
-  describe "summary + timesheet periods" do
+  describe "summary" do
     it "returns headline totals" do
       get "/api/v1/staff/summary", headers: auth
       expect(response).to have_http_status(:ok)
@@ -116,19 +116,28 @@ RSpec.describe "Staff PWA endpoints", type: :request do
       expect(response.parsed_body["by_weekday"]["visits"].size).to eq(7)
     end
 
-    it "derives contracted_minutes from the real scheduled shift time this week, not the static HR field" do
+    it "sums worked hours from the visit assignments (real clock record), not from timesheet lines" do
+      today = Date.current.beginning_of_week + 1.day
+      v = create(:visit, service_user: su, scheduled_start: today.to_time + 9.hours, scheduled_end: today.to_time + 12.hours)
+      create(:visit_assignment, visit: v, employee: employee, lifecycle_state: "completed", worked_minutes: 174)
+
+      get "/api/v1/staff/summary", headers: auth
+      # 174m worked, read straight off the assignment — no timesheet_line exists yet.
+      expect(response.parsed_body["hours_worked_minutes"]).to eq(174)
+    end
+
+    it "derives scheduled_minutes from the real scheduled shift time this week" do
       today = Date.current.beginning_of_week + 1.day
       v = create(:visit, service_user: su, scheduled_start: today.to_time + 9.hours, scheduled_end: today.to_time + 12.hours) # 3h
       create(:visit_assignment, visit: v, employee: employee)
 
       get "/api/v1/staff/summary", headers: auth
-      # 3h scheduled -> 180 minutes, regardless of the 37.5h static contracted_hours_per_week on the record.
-      expect(response.parsed_body["contracted_minutes"]).to eq(180)
+      expect(response.parsed_body["scheduled_minutes"]).to eq(180)
     end
 
-    it "returns nil contracted_minutes when nothing is on the rota this week (frontend falls back to a default)" do
+    it "returns nil scheduled_minutes when nothing is on the rota this week (frontend falls back to a default)" do
       get "/api/v1/staff/summary", headers: auth
-      expect(response.parsed_body["contracted_minutes"]).to be_nil
+      expect(response.parsed_body["scheduled_minutes"]).to be_nil
     end
   end
 end

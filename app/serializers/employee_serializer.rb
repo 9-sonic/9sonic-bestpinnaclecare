@@ -1,6 +1,6 @@
 class EmployeeSerializer
-  # include_private: emergency contact (office + self). include_pay: rates (self + finance).
-  def self.call(employee, include_private: false, include_pay: false)
+  # include_private: emergency contact (office + self).
+  def self.call(employee, include_private: false)
     payload = {
       id:                        employee.id,
       email:                     employee.email,
@@ -18,10 +18,6 @@ class EmployeeSerializer
     if include_private
       payload[:emergency_contact_name]  = employee.emergency_contact_name
       payload[:emergency_contact_phone] = employee.emergency_contact_phone
-    end
-    if include_pay
-      payload[:hourly_rate_pence]  = employee.hourly_rate_pence
-      payload[:mileage_rate_pence] = employee.mileage_rate_pence
     end
     payload
   end

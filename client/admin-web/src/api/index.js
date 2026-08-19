@@ -165,7 +165,6 @@ export const getCarerProfile = (id) => api.get(`/admin/employees/${id}/profile`)
 export const listCarerNotes = (id, params = {}) => api.get(`/admin/employees/${id}/notes`, params);
 export const listCarerVisits = (id, params = {}) => api.get(`/admin/employees/${id}/visits`, params);
 export const listCarerClockEvents = (id, params = {}) => api.get(`/admin/employees/${id}/clock_events`, params);
-export const listCarerTimesheetLines = (id, params = {}) => api.get(`/admin/employees/${id}/timesheet_lines`, params);
 export const listCarerRequests = (id, params = {}) => api.get(`/admin/employees/${id}/requests`, params);
 
 /* ----------------------------- Notifications ------------------------------ */
@@ -218,31 +217,6 @@ export const addConversationParticipants = (conversationId, participantIds) =>
   api.post(`/conversations/${conversationId}/participants`, { participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
 // Full-text search over message bodies in my conversations -> { query, results: [{ conversation_id, snippet, ... }] }
 export const searchConversations = (q) => api.get(`/conversations/search?q=${encodeURIComponent(q ?? '')}`);
-
-/* ------------------------------ Timesheets -------------------------------- */
-
-export const listTimesheetPeriods = () => api.get('/admin/timesheet_periods', { per_page: FULL_PAGE }).then(unwrap);
-export const pageTimesheetPeriods = ({ page = 1, per_page = 25 } = {}) => api.get('/admin/timesheet_periods', { page, per_page });
-export const getTimesheetPeriod = (id) => api.get(`/admin/timesheet_periods/${id}`);
-export const approvePeriod = (id) => api.post(`/admin/timesheet_periods/${id}/approve`);
-export const approveCarerLines = (periodId, employeeId) =>
-  api.post(`/admin/timesheet_periods/${periodId}/approve_carer`, { employee_id: employeeId });
-export const lockPeriod = (id) => api.post(`/admin/timesheet_periods/${id}/lock`);
-export const listDisputes = () => api.get('/admin/timesheet_disputes');
-
-// Streams the payroll export file (CSV or XLSX) and triggers a download.
-export async function exportTimesheetPeriod(id, type = 'csv') {
-  const res = await fetch(`${env.apiBaseUrl}/admin/timesheet_exports/${id}?type=${type}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error('Could not generate the export');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `timesheet-${id}.${type === 'xlsx' ? 'xlsx' : 'csv'}`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-}
 
 // Streams the report pack file (CSV or XLSX) and triggers a download.
 export async function exportReportPack(from, to, type = 'csv') {
@@ -315,9 +289,6 @@ export async function exportRota(from, to, type = 'csv') {
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
-
-export const resolveDispute = (id, note) =>
-  api.post(`/admin/timesheet_disputes/${id}/resolve`, { resolution_note: note });
 
 /* ------------------------------- Settings --------------------------------- */
 

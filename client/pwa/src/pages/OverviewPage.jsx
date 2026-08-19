@@ -87,16 +87,6 @@ export default function OverviewPage() {
         title="Overview"
         back
         onBack={() => navigate('/home')}
-        action={
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Timesheet"
-            onClick={() => navigate('/timesheet')}
-          >
-            <Icon name="wallet" size={19} />
-          </button>
-        }
       />
 
       <p className="ov-sub">Weekly view</p>
@@ -184,8 +174,8 @@ export default function OverviewPage() {
                 >
                   {/* The figure for the selected day, sitting on top of its
                       own bar so it tracks the bar's height. Reading a value
-                      off a bar by eye is guesswork, and this is a timesheet:
-                      the number matters more than the shape. */}
+                      off a bar by eye is guesswork — the number matters more
+                      than the shape. */}
                   {i === activeDay && (
                     <span className="chart__tip">
                       {v}
@@ -207,7 +197,7 @@ export default function OverviewPage() {
         <button
           type="button"
           className="section-head__link"
-          onClick={() => navigate('/timesheet')}
+          onClick={() => navigate('/clock/history')}
         >
           See all
         </button>

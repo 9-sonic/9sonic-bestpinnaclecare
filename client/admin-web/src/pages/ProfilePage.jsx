@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { uploadMyAvatar, removeMyAvatar, updateMyProfile } from '../api/index.js';
-import { Panel, PanelTitle, Button, Tag } from '../ds/console.jsx';
+import { Panel, PanelTitle, Button, Tag, fieldStyle as dsFieldStyle } from '../ds/console.jsx';
 import { s } from '../lib/ui.jsx';
 import { enablePush, disablePush, pushPermission, isSubscribed } from '../lib/push.js';
 
@@ -14,14 +14,10 @@ const ROLE_LABEL = {
   registered_manager: 'Registered manager',
   manager: 'Manager',
   coordinator: 'Coordinator',
-  finance: 'Finance',
   auditor: 'Auditor',
 };
 
-const fieldStyle = {
-  ...s('height:46px;border-radius:14px;background:var(--d-field);padding:0 15px;font-size:14px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid transparent'),
-  fontFamily: 'inherit',
-};
+const fieldStyle = dsFieldStyle();
 
 function Field({ label, children }) {
   return (

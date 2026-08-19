@@ -2,7 +2,7 @@ require "swagger_helper"
 
 # Carer PWA routes that existed in the controllers but were missing from the
 # spec — the second-pass gap list. Each example runs the real endpoint.
-RSpec.describe "Carer PWA — visits, timesheet, tasks, devices, passkeys", type: :request do
+RSpec.describe "Carer PWA — visits, tasks, devices, passkeys", type: :request do
   let(:employee) { create(:employee) }
   let(:Authorization) { "Bearer #{jwt_for(employee, :employee)}" }
   let(:service_user) { create(:service_user, lat: 53.4808, lng: -2.2426, geofence_radius_m: 150) }
@@ -23,49 +23,6 @@ RSpec.describe "Carer PWA — visits, timesheet, tasks, devices, passkeys", type
     end
   end
 
-  path "/api/v1/staff/timesheet" do
-    get("The carer's own timesheet lines") do
-      tags "Carer"; produces "application/json"; security [ bearerAuth: [] ]
-      description "Attendance lines, newest first. Optional period=<timesheet_period_id> filters to one period."
-      parameter name: :period, in: :query, required: false, schema: { type: :integer }
-      let(:period) { nil }
-      response(200, "lines") { schema type: :array, items: { type: :object }; run_test! }
-    end
-  end
-
-  path "/api/v1/staff/timesheet_periods" do
-    get("Periods the carer has lines in") do
-      tags "Carer"; produces "application/json"; security [ bearerAuth: [] ]
-      description "So the app can show which week it is viewing and whether it is approved/locked."
-      response(200, "periods") do
-        schema type: :array, items: { type: :object, properties: {
-          id: { type: :integer }, starts_on: { type: :string, format: :date }, ends_on: { type: :string, format: :date },
-          status: { type: :string, enum: %w[open approved locked] }
-        } }
-        run_test!
-      end
-    end
-  end
-
-  path "/api/v1/staff/disputes" do
-    post("Raise a dispute on a timesheet line") do
-      tags "Carer"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      parameter name: :body, in: :body, schema: {
-        type: :object, properties: { timesheet_line_id: { type: :integer }, reason: { type: :string } },
-        required: %w[timesheet_line_id reason]
-      }
-      let(:period) { TimesheetPeriod.create!(starts_on: Date.current.beginning_of_week, ends_on: Date.current.end_of_week) }
-      let(:line) do
-        TimesheetLine.create!(employee: employee, visit_assignment: assignment, timesheet_period: period,
-                              scheduled_minutes: 60, worked_minutes: 55, work_date: Date.current)
-      end
-      response(201, "dispute raised") do
-        schema type: :object, properties: { id: { type: :integer }, state: { type: :string }, reason: { type: :string } }
-        let(:body) { { timesheet_line_id: line.id, reason: "Clock-out was 25 minutes early." } }
-        run_test!
-      end
-    end
-  end
 
   path "/api/v1/staff/visit_assignments/{id}/tasks" do
     parameter name: :id, in: :path, type: :integer
@@ -112,7 +69,7 @@ RSpec.describe "Carer PWA — visits, timesheet, tasks, devices, passkeys", type
     parameter name: :visit_assignment_id, in: :path, type: :integer
     post("Start or end a break (via the clock pipeline)") do
       tags "Carer"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      description "Reuses the clock-event pipeline (idempotent, geofenced, audited) so a real break lands on the timesheet, not the scheduled one. Does not change the visit lifecycle. Idempotent on client_event_id."
+      description "Reuses the clock-event pipeline (idempotent, geofenced, audited) so a real break is deducted from worked time, not the scheduled one. Does not change the visit lifecycle. Idempotent on client_event_id."
       parameter name: :body, in: :body, schema: {
         type: :object, properties: {
           phase: { type: :string, enum: %w[start end] }, client_event_id: { type: :string, format: :uuid },

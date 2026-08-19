@@ -35,9 +35,9 @@ RSpec.describe "Admin self-lockout guard", type: :request do
   end
 
   it "forbids a non-manager admin from managing admins at all" do
-    finance = create(:admin, role: :finance)
+    auditor = create(:admin, role: :auditor)
     patch "/api/v1/admin/admins/#{rm.id}", params: { first_name: "X" },
-          headers: { "Authorization" => "Bearer #{jwt_for(finance, :admin)}" }, as: :json
+          headers: { "Authorization" => "Bearer #{jwt_for(auditor, :admin)}" }, as: :json
     expect(response).to have_http_status(:forbidden)
   end
 end

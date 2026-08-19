@@ -42,16 +42,4 @@ RSpec.describe "Break deduction from worked minutes", type: :model do
     expect(va.reload.break_minutes).to eq(0)
     expect(va.worked_minutes).to eq(8 * 60)            # nothing deducted
   end
-
-  it "flows the net figure and the break total onto the timesheet line" do
-    t0 = 8.hours.ago
-    event("clock_in",    t0)
-    event("break_start", t0 + 3.hours); event("break_end", t0 + 3.hours + 30.minutes)
-    event("clock_out",   t0 + 8.hours)
-
-    period = Timesheets::BuildPeriod.call(starts_on: va.visit.scheduled_start.to_date.beginning_of_week)
-    line = period.timesheet_lines.find_by(visit_assignment_id: va.id)
-    expect(line.break_minutes).to eq(30)
-    expect(line.worked_minutes).to eq(450)
-  end
 end

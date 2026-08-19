@@ -106,7 +106,7 @@ RSpec.describe "Carer PWA + auth", type: :request do
       parameter name: :to,   in: :query, required: false, schema: { type: :string, format: :date }
       response(200, "summary") do
         schema type: :object, properties: {
-          hours_worked_minutes: { type: :integer }, contracted_minutes: { type: :integer, nullable: true },
+          hours_worked_minutes: { type: :integer }, scheduled_minutes: { type: :integer, nullable: true },
           visits_count: { type: :integer }, clients_count: { type: :integer }, miles: { type: :number },
           by_weekday: { type: :object }
         }

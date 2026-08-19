@@ -91,10 +91,6 @@ export const HELP = {
       body: 'Open Profile, then Availability. Tap the times you can work and save. Your manager sees the update straight away.',
     },
     {
-      heading: 'When is my timesheet due?',
-      body: 'Check it by Sunday 6pm. Open the Timesheet screen, look through the entries, and raise a query on anything that looks wrong.',
-    },
-    {
       heading: 'Something in the app is broken',
       body: 'Tell your manager what you were doing and what you saw. If you can, note the version shown at the bottom of the Profile screen, it helps whoever fixes it.',
     },

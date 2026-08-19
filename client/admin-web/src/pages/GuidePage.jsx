@@ -3,9 +3,8 @@ import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { getSettings } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, Button } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag } from '../ds/console.jsx';
 import { LIFECYCLE_LABELS, LIFECYCLE_TONE } from '../api/format.js';
-import { usePageTour } from '../tour/TourRoot.jsx';
 
 // The Guide — how clocking, escalation and the record work. This is reference
 // material, not a live tool: it was scattered across the Lifecycle, Reports and
@@ -18,7 +17,7 @@ const DESC = {
   check_in_window: 'Start time reached, within the grace period.',
   grace_period: 'Grace period running before a visit is marked late.',
   in_progress: 'Carer clocked in and currently delivering care.',
-  completed: 'Shift finished, verified and released to payroll.',
+  completed: 'Shift finished and verified.',
   late: 'Clock in landed after the grace period.',
   overdue: 'Past the scheduled end with no clock out.',
   pending_review: 'Sitting with a manager in the exceptions queue.',
@@ -36,7 +35,6 @@ const COMPLIANCE = [
 export default function GuidePage() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { start } = usePageTour();
 
   useEffect(() => {
     let active = true;
@@ -73,20 +71,11 @@ export default function GuidePage() {
     { t: 'Offline reconciliation', d: `A clock-in taken offline keeps its original time. When it syncs it corrects the visit even if it had been flagged missed — the honest tap always wins.` },
     { t: 'Missed clock-out', d: `An open record is auto-closed to pending review ${autoClose} minutes past the scheduled end, and flagged overdue after ${overdue} minutes.` },
     { t: 'Geofence check', d: `Carers clock in at the client's address, within ${radius}m — ${geoText}.` },
-    { t: 'Break handling', d: 'Breaks pause paid time and are deducted automatically from timesheet totals.' },
+    { t: 'Break handling', d: 'Breaks pause the worked-time clock and are deducted automatically from the recorded hours.' },
   ];
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      {/* Take the tour — a guided, show-and-tell walkthrough of every page. */}
-      <div data-tour="guide-tour-button" style={s('display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--d-primary-soft);border-radius:18px;padding:16px 20px')}>
-        <div style={s('flex:1;min-width:200px')}>
-          <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>New here? Take the guided tour</div>
-          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);margin-top:2px;line-height:1.5')}>A quick, step-by-step walk through every page and what each button does. You can replay it any time.</div>
-        </div>
-        <Button variant="primary" icon="target" onClick={start}>Take the tour</Button>
-      </div>
-
       {/* Shift states */}
       <span data-tour="guide-states"><Panel>
         <PanelTitle hint="The happy path every completed visit follows">Shift states</PanelTitle>

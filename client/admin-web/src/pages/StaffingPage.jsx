@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { s } from '../lib/ui.jsx';
-import Tabs, { panelRadius } from '../ds/Tabs.jsx';
+import { SegTabs } from '../ds/console.jsx';
 import CoverPage from './CoverPage.jsx';
 import RequestsPage from './RequestsPage.jsx';
 
@@ -30,9 +30,9 @@ export default function StaffingPage() {
   };
 
   return (
-    <div style={s('display:flex;flex-direction:column')}>
-      <span data-tour="staffing-tabs"><Tabs tabs={AREA_TABS} active={tab} onSelect={select} /></span>
-      <div style={{ ...s('background:var(--d-panel);padding:16px'), borderRadius: panelRadius(AREA_TABS, tab) }}>
+    <div style={s('display:flex;flex-direction:column;gap:12px')}>
+      <span data-tour="staffing-tabs"><SegTabs tabs={AREA_TABS} active={tab} onSelect={select} /></span>
+      <div style={s('background:var(--d-panel);padding:16px;border-radius:20px')}>
         {tab === 'requests' ? <RequestsPage /> : <CoverPage />}
       </div>
     </div>

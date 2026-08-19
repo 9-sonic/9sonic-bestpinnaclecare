@@ -47,11 +47,6 @@ module Api
           paginate(clock_scope(employee)) { |ce| clock_json(ce) }
         end
 
-        # GET /admin/employees/:employee_id/timesheet_lines
-        def timesheet_lines
-          paginate(employee.timesheet_lines.order(work_date: :desc)) { |l| TimesheetLineSerializer.call(l) }
-        end
-
         # GET /admin/employees/:employee_id/requests  — all their requests.
         def requests
           paginate(employee.carer_requests.order(created_at: :desc)) { |r| CarerRequestSerializer.call(r) }

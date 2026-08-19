@@ -9,26 +9,28 @@ module Api
 
           vas = current_employee.visit_assignments.assigned.joins(:visit)
                                 .where(visits: { scheduled_start: from.beginning_of_day..to.end_of_day })
-          lines = current_employee.timesheet_lines.where(work_date: from..to)
 
           by_visits = Array.new(7, 0)
           by_hours  = Array.new(7, 0)
           scheduled_minutes = 0
+          worked_minutes = 0
           vas.includes(:visit).each do |va|
-            by_visits[weekday(va.visit.scheduled_start.to_date)] += 1
+            day = weekday(va.visit.scheduled_start.to_date)
+            by_visits[day] += 1
             scheduled_minutes += ((va.visit.scheduled_end - va.visit.scheduled_start) / 60.0).round
+            # worked_minutes lives on the assignment, set at clock-out — the
+            # real clock record.
+            worked = va.worked_minutes.to_i
+            worked_minutes += worked
+            by_hours[day] += worked
           end
-          lines.each { |l| by_hours[weekday(l.work_date)] += l.worked_minutes }
 
           render json: {
-            hours_worked_minutes: lines.sum(:worked_minutes),
-            # The real aggregate of this carer's rostered shift time for the
-            # requested week — not a manually-typed HR figure, which drifts out
-            # of date and was landing as 0 whenever nobody had entered one. nil
-            # only when nothing is on the rota for them in this window at all,
-            # so the frontend's "no data" fallback (40h) is reserved for a
-            # carer with no assignments here rather than treated as normal.
-            contracted_minutes:   vas.exists? ? scheduled_minutes : nil,
+            hours_worked_minutes: worked_minutes,
+            # The aggregate of this carer's scheduled shift time for the week —
+            # the "target" the worked hours are measured against on the Home
+            # ring. nil only when nothing is on their rota this window at all.
+            scheduled_minutes:    vas.exists? ? scheduled_minutes : nil,
             visits_count:         vas.count,
             clients_count:        vas.distinct.count("visits.service_user_id"),
             miles:                current_employee.mileage_claims.where(travel_date: from..to).sum(:miles).to_f,

@@ -64,20 +64,5 @@ RSpec.describe "Client and staff record edits are audited", type: :request do
       expect(event.payload["from"]).to eq("phone" => "0161 000 0000")
       expect(event.payload["to"]).to eq("phone" => "0161 111 1111")
     end
-
-    it "a coordinator's update never includes pay fields in changed, so they never appear in the audit payload" do
-      coordinator = create(:admin, role: :coordinator)
-      coord_auth = { "Authorization" => "Bearer #{jwt_for(coordinator, :admin)}" }
-      employee = create(:employee, phone: "0161 000 0000", hourly_rate_pence: 1000)
-
-      patch "/api/v1/admin/employees/#{employee.id}",
-            params: { phone: "0161 222 2222", hourly_rate_pence: 9999 }, headers: coord_auth, as: :json
-      expect(response).to have_http_status(:ok)
-      expect(employee.reload.hourly_rate_pence).to eq(1000) # ignored, not authorised
-
-      event = Event.find_by(event_type: "employee.updated", aggregate: employee)
-      expect(event.payload["changed"]).to eq([ "phone" ])
-      expect(event.payload["from"]).not_to have_key("hourly_rate_pence")
-    end
   end
 end

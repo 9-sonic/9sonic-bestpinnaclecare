@@ -5,8 +5,8 @@ module Api
       # clock event (append-only) with a mandatory reason, optionally correcting
       # an existing event via corrects_id.
       class ClockCorrectionsController < BaseController
-        # Corrections rewrite the attendance record that drives pay — restricted
-        # to the roles that own scheduling/attendance.
+        # Corrections rewrite the attendance record — restricted to the roles
+        # that own scheduling/attendance.
         before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: :create
 
         def create
@@ -33,20 +33,9 @@ module Api
             }.compact
           )
 
-          # Keep pay in sync: rebuild the timesheet line so the correction reaches
-          # payroll. A locked period is left untouched but flagged for re-approval.
-          timesheet_status = Timesheets::RebuildForVisit.call(va.reload)
-          if timesheet_status == :locked
-            Events::Record.call(
-              aggregate: va, actor: current_admin, event_type: "timesheet.needs_reapproval",
-              payload: { reason: "clock corrected on a locked period" }
-            )
-          end
-
           render json: {
-            clock_event:      ClockEventSerializer.call(res.clock_event),
-            lifecycle_state:  res.lifecycle_state,
-            timesheet_status: timesheet_status
+            clock_event:     ClockEventSerializer.call(res.clock_event),
+            lifecycle_state: res.lifecycle_state
           }, status: :created
         end
 

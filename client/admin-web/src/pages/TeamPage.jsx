@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -7,16 +6,15 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
 import { listAdmins, inviteAdmin, updateAdmin } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
+import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager, fieldStyle, SearchBox } from '../ds/console.jsx';
 
 // Office users (the admins table). Inviting / editing is the registered
 // manager's job — the API enforces that too; here we just hide the controls.
-const ROLES = ['registered_manager', 'manager', 'coordinator', 'finance', 'auditor'];
+const ROLES = ['registered_manager', 'manager', 'coordinator', 'auditor'];
 const ROLE_LABELS = {
   registered_manager: 'Registered manager',
   manager: 'Manager',
   coordinator: 'Coordinator',
-  finance: 'Finance',
   auditor: 'Auditor',
 };
 const EMPTY = { email: '', first_name: '', last_name: '', role: 'coordinator' };
@@ -31,7 +29,7 @@ function Field({ label, error, hint, children }) {
     </label>
   );
 }
-const input = (error, disabled) => ({ ...s('height:46px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%'), fontFamily: 'inherit', border: `1.5px solid ${error ? 'var(--d-danger-ink)' : 'transparent'}`, opacity: disabled ? 0.6 : 1 });
+const input = (error, disabled) => fieldStyle({ error, disabled });
 
 // active + accepted -> Active; active + not accepted -> Invite pending; else Inactive.
 function statusOf(a) {
@@ -118,9 +116,8 @@ export default function TeamPage() {
       </div>
 
       <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('height:46px;flex:1;min-width:220px;background:var(--d-field);border-radius:23px;display:flex;align-items:center;gap:10px;padding:0 18px')}>
-          <Icon name="search" size={17} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email or role" style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+        <div style={s('flex:1;min-width:220px')}>
+          <SearchBox value={query} onChange={setQuery} placeholder="Search name, email or role" />
         </div>
         <div style={s('flex:1')} />
         {isOwner
