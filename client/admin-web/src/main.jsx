@@ -12,6 +12,18 @@ import './styles/variables.css';
 import './styles/admin.css';
 import './styles/design-shell.css';
 
+// Recover from a stale-chunk error after a deploy. Pages are lazy-loaded, so if
+// a tab is open across a deploy (its fingerprinted chunk was just deleted from
+// the server) the next navigation's dynamic import 404s. Vite fires
+// `vite:preloadError`; reload ONCE to fetch the fresh index + chunks. A session
+// flag stops a reload loop if the failure is something other than a stale chunk.
+window.addEventListener('vite:preloadError', () => {
+  if (sessionStorage.getItem('bpc.chunkReloaded')) return;
+  sessionStorage.setItem('bpc.chunkReloaded', '1');
+  window.location.reload();
+});
+window.addEventListener('load', () => sessionStorage.removeItem('bpc.chunkReloaded'));
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
