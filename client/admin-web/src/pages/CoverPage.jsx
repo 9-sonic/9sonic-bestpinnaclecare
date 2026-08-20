@@ -173,7 +173,8 @@ export default function CoverPage() {
                           <Avatar initials={(o.employee_name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('')} size="sm" />
                           <div style={s('flex:1;min-width:0')}>
                             <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{o.employee_name}</div>
-                            <div className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Sent {formatDate(o.offered_at)}</div>
+                            <div className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Sent {formatDate(o.offered_at)}{o.responded_at ? ` · replied ${formatDate(o.responded_at)}` : ''}</div>
+                            {o.note && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-ink2);font-style:italic;margin-top:3px;line-height:1.45')}>“{o.note}”</div>}
                           </div>
                           {o.state === 'pending' ? (
                             <div style={s('display:flex;gap:6px')}>

@@ -152,7 +152,11 @@ export const deleteCarePlanItem = (serviceUserId, id) => api.delete(`/admin/serv
 export const listServiceUserNotes = (serviceUserId, filters = {}) =>
   api.get(`/admin/service_users/${serviceUserId}/notes`, filters);
 
-// One visit's delivery record: schedule + care plan + per-assignment tasks/notes.
+// This client's visits (who attended, when). filters: from, to, employee_id, page.
+export const listServiceUserVisits = (serviceUserId, filters = {}) =>
+  api.get(`/admin/service_users/${serviceUserId}/visits`, filters);
+
+// One visit's full record: schedule + care plan + per-assignment tasks/notes/clock.
 export const getVisit = (id) => api.get(`/admin/visits/${id}`);
 
 // Paginated { items, page, per_page, total }. Pass { page, per_page, service_user_id }.
@@ -168,6 +172,7 @@ export const listCarerNotes = (id, params = {}) => api.get(`/admin/employees/${i
 export const listCarerVisits = (id, params = {}) => api.get(`/admin/employees/${id}/visits`, params);
 export const listCarerClockEvents = (id, params = {}) => api.get(`/admin/employees/${id}/clock_events`, params);
 export const listCarerRequests = (id, params = {}) => api.get(`/admin/employees/${id}/requests`, params);
+export const listCarerMileage = (id, params = {}) => api.get(`/admin/employees/${id}/mileage`, params);
 
 /* ----------------------------- Notifications ------------------------------ */
 

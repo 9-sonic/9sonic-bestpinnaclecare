@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listServiceUsers, createServiceUser } from '../api/index.js';
+import { listServiceUsers, createServiceUser, createCarePlanItem } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
@@ -18,16 +18,54 @@ const EMPTY = {
 };
 const inits = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
-function Field({ label, hint, children, full }) {
+function Field({ label, hint, children, full, bold }) {
   return (
     <label style={{ ...s('display:flex;flex-direction:column;gap:7px'), gridColumn: full ? '1 / -1' : undefined }}>
-      <span style={s('font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
+      <span style={s(`font-size:12.5px;font-weight:${bold ? 700 : 600};color:var(--d-ink2)`)}>{label}</span>
       {children}
       {hint && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>{hint}</span>}
     </label>
   );
 }
 const inputStyle = fieldStyle();
+
+// Build up the new client's care-plan tasks inside the Add-a-person modal. The
+// tasks are held locally and saved (POSTed to the new client's id) after the
+// client itself is created — care items are a nested resource that needs the id.
+function CarePlanBuilder({ plan, setPlan }) {
+  const [label, setLabel] = useState('');
+  const [detail, setDetail] = useState('');
+  const add = () => {
+    if (!label.trim()) return;
+    setPlan((p) => [...p, { label: label.trim(), detail: detail.trim(), category: 'general' }]);
+    setLabel(''); setDetail('');
+  };
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:10px')}>
+      {plan.length > 0 && (
+        <div style={s('display:flex;flex-direction:column;gap:6px')}>
+          {plan.map((p, i) => (
+            <div key={i} style={s('background:var(--d-panel);border-radius:11px;padding:9px 12px;display:flex;align-items:flex-start;gap:10px')}>
+              <div style={s('flex:1;min-width:0')}>
+                <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{p.label}</div>
+                {p.detail && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-ink2);margin-top:2px;line-height:1.45')}>{p.detail}</div>}
+              </div>
+              <button type="button" onClick={() => setPlan((rows) => rows.filter((_, j) => j !== i))} className="tip" data-tip="Remove"
+                style={{ ...s('background:transparent;border:0;cursor:pointer;color:var(--d-muted);padding:2px'), fontFamily: 'inherit' }}><Icon name="close" size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={s('display:flex;flex-direction:column;gap:8px')}>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder="Care task (e.g. Prompt morning medication)" style={inputStyle} />
+        <input value={detail} onChange={(e) => setDetail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder="Detail (optional)" style={inputStyle} />
+        <div><Button icon="plus" onClick={add}>Add task</Button></div>
+      </div>
+    </div>
+  );
+}
 
 export default function ServiceUsersPage() {
   const toast = useToast();
@@ -38,6 +76,7 @@ export default function ServiceUsersPage() {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [plan, setPlan] = useState([]);   // care-plan tasks built up in the modal, saved after the client is created
   const [saving, setSaving] = useState(false);
 
   async function load() { setRows(await listServiceUsers()); }
@@ -57,15 +96,24 @@ export default function ServiceUsersPage() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   // Add only — editing a client lives on their detail page (/clients/:id).
-  function openCreate() { setForm(EMPTY); setCreating(true); }
+  function openCreate() { setForm(EMPTY); setPlan([]); setCreating(true); }
   function closeModal() { setCreating(false); }
   async function save() {
     setSaving(true);
     try {
       const payload = { ...form, lat: form.lat === '' ? null : Number(form.lat), lng: form.lng === '' ? null : Number(form.lng) };
-      await createServiceUser(payload);
-      toast.success('Person added');
-      await load(); closeModal(); setForm(EMPTY);
+      // Create the client first, then attach each care-plan task to the new
+      // client's id (care items are a nested resource — they need the id, which
+      // only exists once the client is created).
+      const su = await createServiceUser(payload);
+      const tasks = plan.filter((p) => p.label.trim());
+      if (tasks.length && su?.id) {
+        await Promise.all(tasks.map((p) => createCarePlanItem(su.id, {
+          label: p.label.trim(), detail: p.detail.trim() || null, category: p.category || 'general',
+        })));
+      }
+      toast.success(tasks.length ? `Person added with ${tasks.length} care task${tasks.length === 1 ? '' : 's'}` : 'Person added');
+      await load(); closeModal(); setForm(EMPTY); setPlan([]);
     } catch (err) { toast.error(err.message || 'Could not save'); } finally { setSaving(false); }
   }
 
@@ -175,7 +223,7 @@ export default function ServiceUsersPage() {
           maxWidth={560}
           footer={(
             <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
-              <span data-tour="clients-modal-cancel"><Button onClick={closeModal}>Cancel</Button></span>
+              <span data-tour="clients-modal-cancel"><Button variant="ghost" onClick={closeModal}>Cancel</Button></span>
               <Button variant="primary" icon="check" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Add person'}</Button>
             </div>
           )}
@@ -197,9 +245,14 @@ export default function ServiceUsersPage() {
               <Field label="Latitude (optional)"><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="Auto from address" /></Field>
               <Field label="Longitude (optional)"><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="Auto from address" /></Field>
             </div>
-            <Field label="Access notes for carers">
+            <Field label="Carer's notes" bold>
               <textarea rows={3} value={form.access_notes} onChange={set('access_notes')} placeholder="Key safe code, parking, who is usually in." style={{ ...inputStyle, height: 'auto', padding: '12px 16px', resize: 'vertical', lineHeight: 1.5 }} />
             </Field>
+
+            <div style={s('height:1px;background:var(--d-panel2);margin:2px 0')} />
+            <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>Care plan</div>
+            <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>What carers must do on each visit. Optional now — you can add or change these any time on the person&apos;s page.</div>
+            <CarePlanBuilder plan={plan} setPlan={setPlan} />
           </div>
         </Modal>
       )}

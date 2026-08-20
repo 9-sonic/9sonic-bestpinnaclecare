@@ -6,14 +6,38 @@ import { s } from '../lib/ui.jsx';
 import { fullName, addressOf } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
-import { getServiceUser, updateServiceUser, listCarePlanItems, createCarePlanItem, deleteCarePlanItem, listServiceUserNotes } from '../api/index.js';
+import { Panel, Tag, Avatar, Button, SegTabs, FilterBar, SearchBox, SelectField, DateField, Pager, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { getServiceUser, updateServiceUser, listServiceUserNotes, listServiceUserVisits, listCarePackages } from '../api/index.js';
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'careplan', label: 'Care plan' },
+  { key: 'schedule', label: 'Schedule' },
+  { key: 'visits', label: 'Visits' },
   { key: 'notes', label: 'Visit notes' },
 ];
+
+const VISIT_TONE = {
+  completed: 'success', in_progress: 'info', scheduled: 'muted', check_in_window: 'info',
+  grace_period: 'warning', late: 'warning', missed: 'danger', overdue: 'danger',
+  pending_review: 'warning', cancelled: 'muted',
+};
+const VISITS_PER_PAGE = 25;
+
+// Recurrence is stored free-text: 'daily'/empty = every day, else a space/comma
+// list of these short day codes (see Visits::GenerateFromCarePackages). Render it
+// as human day names in week order.
+const DAY_CODES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const DAY_FULL = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+function recurrenceLabel(rec) {
+  const r = (rec ?? '').toString().toLowerCase().trim();
+  if (!r || r === 'daily') return 'Every day';
+  const days = r.split(/[,\s]+/).filter(Boolean);
+  const ordered = DAY_CODES.filter((d) => days.includes(d));
+  if (ordered.length === 7) return 'Every day';
+  if (ordered.length === 5 && ['mon', 'tue', 'wed', 'thu', 'fri'].every((d) => ordered.includes(d))) return 'Weekdays';
+  return ordered.map((d) => DAY_FULL[d]).join(', ') || r;
+}
+const fmtDate = (iso) => { if (!iso) return null; try { return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); } catch { return iso; } };
+
 const EMPTY = {
   first_name: '', last_name: '', reference: '', phone: '',
   address_line1: '', address_line2: '', city: '', postcode: '',
@@ -33,12 +57,14 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState('schedule');
 
-  const [carePlan, setCarePlan] = useState(null);
+  const [schedule, setSchedule] = useState(null);
   const [notes, setNotes] = useState(null);
   const [noteQuery, setNoteQuery] = useState('');
   const [noteCarer, setNoteCarer] = useState('');
+  const [noteFrom, setNoteFrom] = useState('');
+  const [noteTo, setNoteTo] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
 
   const [editing, setEditing] = useState(false);
@@ -51,9 +77,11 @@ export default function ClientDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (tab !== 'careplan' || carePlan) return;
-    listCarePlanItems(id).then(setCarePlan).catch(() => setCarePlan([]));
-  }, [tab, id, carePlan]);
+    if (tab !== 'schedule' || schedule) return;
+    listCarePackages({ service_user_id: id })
+      .then((r) => setSchedule(r.items ?? []))
+      .catch(() => setSchedule([]));
+  }, [tab, id, schedule]);
 
   useEffect(() => {
     if (tab !== 'notes') return undefined;
@@ -62,12 +90,14 @@ export default function ClientDetailPage() {
     const filters = {};
     if (noteQuery.trim()) filters.q = noteQuery.trim();
     if (noteCarer) filters.employee_id = noteCarer;
+    if (noteFrom) filters.from = noteFrom;
+    if (noteTo) filters.to = noteTo;
     listServiceUserNotes(id, filters)
       .then((r) => active && setNotes(r.notes ?? []))
       .catch(() => active && setNotes([]))
       .finally(() => active && setNotesLoading(false));
     return () => { active = false; };
-  }, [tab, id, noteQuery, noteCarer]);
+  }, [tab, id, noteQuery, noteCarer, noteFrom, noteTo]);
 
   const noteCarers = useMemo(() => {
     const m = new Map();
@@ -91,19 +121,6 @@ export default function ClientDetailPage() {
     catch (e) { toast.error(e.message || 'Could not update'); }
   }
 
-  async function addCarePlanItem(label, detail, category) {
-    if (!label.trim()) { toast.error('Give the care task a short label.'); return false; }
-    try {
-      await createCarePlanItem(client.id, { label: label.trim(), detail: detail.trim() || null, category: category || 'general' });
-      setCarePlan(await listCarePlanItems(client.id));
-      toast.success('Care plan item added');
-      return true;
-    } catch (e) { toast.error(e.message || 'Could not add the item'); return false; }
-  }
-  async function removeCarePlanItem(itemId) {
-    try { await deleteCarePlanItem(client.id, itemId); setCarePlan(await listCarePlanItems(client.id)); toast.info('Item removed'); }
-    catch (e) { toast.error(e.message || 'Could not remove the item'); }
-  }
 
   const inits = `${client.first_name?.[0] ?? ''}${client.last_name?.[0] ?? ''}`.toUpperCase();
 
@@ -160,7 +177,7 @@ export default function ClientDetailPage() {
             <L label="Access notes for carers"><textarea rows={2} style={{ ...inp, height: 'auto', padding: '10px 13px' }} value={form.access_notes} onChange={setField('access_notes')} /></L>
             <div style={s('display:flex;gap:8px')}>
               <Button variant="primary" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Save'}</Button>
-              <Button onClick={() => setEditing(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
           </div>
         )}
@@ -168,73 +185,206 @@ export default function ClientDetailPage() {
 
       <SegTabs tabs={TABS.map((t) => ({ key: t.key, label: t.label }))} active={tab} onSelect={setTab} />
 
-      {tab === 'overview' && (
-        <Panel style={{ padding: '18px 20px' }}>
-          <div style={s('display:flex;flex-direction:column;gap:16px')}>
-            <div>
-              <PanelTitle>Clocking rule</PanelTitle>
-              <div style={s('background:var(--d-panel);border-radius:14px;padding:14px 16px;margin-top:6px;display:flex;align-items:center;gap:12px')}>
-                <div style={s('width:36px;height:36px;border-radius:11px;background:var(--d-ok-bg);color:var(--d-ok-ink);display:flex;align-items:center;justify-content:center;flex:none')}><Icon name="shield" size={18} /></div>
-                <div style={s('min-width:0')}>
-                  <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{client.lat == null ? 'No coordinates set' : 'On site only — within 150 m'}</div>
-                  <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:3px')}>{client.lat == null ? 'Add coordinates so the fence can be enforced.' : "A carer can only clock in at this client's address; a tap outside 150 m is refused."}</div>
-                </div>
-              </div>
-            </div>
-            {client.access_notes && (
-              <div>
-                <PanelTitle>Access notes</PanelTitle>
-                <div style={s('background:var(--d-note-bg);border-radius:14px;padding:14px 16px;font-size:13px;font-weight:500;color:var(--d-note-ink);line-height:1.55;margin-top:6px')}>{client.access_notes}</div>
-              </div>
-            )}
-          </div>
-        </Panel>
-      )}
+      {tab === 'schedule' && <ScheduleTab slots={schedule} />}
 
-      {tab === 'careplan' && (
-        <Panel style={{ padding: '18px 20px' }}>
-          {canManage && <CarePlanAdd onAdd={addCarePlanItem} />}
-          {carePlan == null ? <Muted>Loading…</Muted>
-            : carePlan.length === 0 ? <Muted>No care plan items yet.{canManage ? ' Add the first task above.' : ''}</Muted>
-            : carePlan.map((c) => (
-              <div key={c.id} style={s('background:var(--d-panel);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px')}>
-                <div style={s('flex:1;min-width:0')}>
-                  <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{c.label}</div>
-                  {c.detail && <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.5;margin-top:3px')}>{c.detail}</div>}
-                </div>
-                {canManage && <button type="button" onClick={() => removeCarePlanItem(c.id)} title="Remove" style={{ ...s('background:transparent;border:0;cursor:pointer;color:var(--d-muted);padding:2px'), fontFamily: 'inherit' }}><Icon name="close" size={15} /></button>}
-              </div>
-            ))}
-        </Panel>
-      )}
+      {tab === 'visits' && <ClientVisitsTab clientId={id} onOpen={(vid) => navigate(`/visits/${vid}`)} />}
 
       {tab === 'notes' && (
-        <Panel style={{ padding: '16px 20px' }}>
-          <div style={s('display:flex;gap:10px;margin-bottom:14px')}>
-            <div style={s('flex:1;display:flex;align-items:center;gap:8px;background:var(--d-panel);border-radius:12px;padding:0 12px')}>
-              <Icon name="search" size={15} />
-              <input value={noteQuery} onChange={(e) => setNoteQuery(e.target.value)} placeholder="Search notes"
-                style={s('flex:1;border:none;background:transparent;outline:none;padding:10px 0;font-size:13px;font-weight:500;color:var(--d-ink);font-family:inherit')} />
+        <NotesTab
+          notes={notes} loading={notesLoading}
+          query={noteQuery} setQuery={setNoteQuery}
+          carer={noteCarer} setCarer={setNoteCarer} carers={noteCarers}
+          from={noteFrom} setFrom={setNoteFrom} to={noteTo} setTo={setNoteTo}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ Schedule tab ------------------------------ */
+// The client's recurring contracted calls (care package slots). The nightly
+// generator expands each of these into dated visits — so this is the source of
+// truth for "who should visit this client, when, how often". Read-only here;
+// editing lives with rota/scheduling, not the client record.
+function ScheduleTab({ slots }) {
+  if (slots == null) return <Panel><Muted>Loading…</Muted></Panel>;
+  if (slots.length === 0) return <Panel><Muted>No recurring calls set up for this client yet.</Muted></Panel>;
+  // Active first, then by start time (the API already orders by start_time).
+  const ordered = [...slots].sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1));
+  return (
+    <Panel style={{ padding: '16px 18px' }}>
+      <div style={s('display:flex;flex-direction:column;gap:8px')}>
+        {ordered.map((sl) => (
+          <div key={sl.id} style={{ ...s('background:var(--d-panel);border-radius:12px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px'), opacity: sl.active ? 1 : 0.55 }}>
+            <div style={{ ...s('width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none'), background: 'var(--d-info-bg)', color: 'var(--d-info-ink)' }}><Icon name="clock" size={17} /></div>
+            <div style={s('flex:1;min-width:0')}>
+              <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap')}>
+                <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{sl.name || 'Call'}</span>
+                <span style={s('font-size:13px;font-weight:600;color:var(--d-ink2)')}>{sl.start_time}–{sl.end_time}</span>
+                {!sl.active && <Tag tone="muted">Inactive</Tag>}
+              </div>
+              <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;font-weight:600;color:var(--d-muted);margin-top:5px')}>
+                <span>{recurrenceLabel(sl.recurrence)}</span>
+                <span>· {sl.staff_required} carer{sl.staff_required === 1 ? '' : 's'}</span>
+                {sl.break_minutes > 0 && <span>· {sl.break_minutes} min break</span>}
+                {(sl.effective_from || sl.effective_to) && (
+                  <span>· {fmtDate(sl.effective_from) ?? 'start'}{sl.effective_to ? ` – ${fmtDate(sl.effective_to)}` : ' onwards'}</span>
+                )}
+              </div>
             </div>
-            <select value={noteCarer} onChange={(e) => setNoteCarer(e.target.value)}
-              style={s('background:var(--d-panel);border:none;border-radius:12px;padding:0 12px;font-size:13px;font-weight:600;color:var(--d-ink);font-family:inherit;cursor:pointer')}>
-              <option value="">All carers</option>
-              {noteCarers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
           </div>
-          {notesLoading ? <Muted>Loading…</Muted>
-            : (notes ?? []).length === 0 ? <Muted>No notes match.</Muted>
-            : notes.map((n) => (
-              <div key={n.id} style={s('background:var(--d-panel);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px')}>
-                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink);line-height:1.55')}>{n.body}</div>
-                <div style={s('display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;color:var(--d-muted)')}>
-                  <Icon name="user" size={12} /><span>{n.employee_name ?? n.author_name ?? 'Unknown'}</span><span>·</span>
-                  <span>{fmtNoteDate(n.visit_scheduled_start ?? n.created_at)}</span>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+/* ------------------------------ Visits tab -------------------------------- */
+// This client's visits — who attended, when — server-filtered by carer + date so
+// any visit from any point in history is reachable ("which carer attended last
+// March"). Each row opens the visit as a full record.
+function ClientVisitsTab({ clientId, onOpen }) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [carer, setCarer] = useState('');
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [carers, setCarers] = useState([]);   // carer options, learned from results
+  const [loading, setLoading] = useState(true);
+
+  const onFrom = (v) => setFrom(v);
+  const onTo = (v) => setTo(v);
+
+  useEffect(() => { setPage(1); }, [from, to, carer]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const params = { page, per_page: VISITS_PER_PAGE };
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (carer) params.employee_id = carer;
+    listServiceUserVisits(clientId, params)
+      .then((r) => {
+        if (!active) return;
+        setRows(r.items ?? []);
+        setTotal(r.total ?? 0);
+        setCarers((prev) => {
+          const m = new Map(prev.map((c) => [c.id, c.label]));
+          (r.items ?? []).forEach((v) => (v.carers ?? []).forEach((c) => { if (c.employee_id && c.employee_name) m.set(c.employee_id, c.employee_name); }));
+          return [...m.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => String(a.label).localeCompare(b.label));
+        });
+      })
+      .catch(() => { if (active) { setRows([]); setTotal(0); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [clientId, page, from, to, carer]);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:14px')}>
+      <Panel style={{ padding: '14px 16px' }}>
+        <FilterBar>
+          <DateField label="From" value={from} onChange={onFrom} max={to || today} />
+          <DateField label="To" value={to} onChange={onTo} min={from} max={today} />
+          <SelectField label="Carer" value={carer} onChange={setCarer} options={carers} allLabel="All carers" minWidth={170} />
+        </FilterBar>
+      </Panel>
+      <Panel style={{ padding: '6px 6px 4px' }}>
+        {loading ? <Muted>Loading…</Muted>
+          : rows.length === 0 ? <Muted>No visits match these filters.</Muted>
+          : (
+            <TableWrap minWidth={720}>
+              <thead><tr><Th>Date</Th><Th>Scheduled</Th><Th>Carer(s) attended</Th><Th>Actual</Th><Th>Status</Th><Th> </Th></tr></thead>
+              <tbody>
+                {rows.map((v) => {
+                  const c0 = v.carers?.[0];
+                  const st = v.status === 'cancelled' ? 'cancelled' : (c0?.lifecycle_state ?? 'scheduled');
+                  const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null);
+                  const actual = c0?.actual_start
+                    ? `${hhmm(c0.actual_start)}–${c0.actual_end ? hhmm(c0.actual_end) : 'open'}${c0.worked_minutes != null ? ` · ${Math.round(c0.worked_minutes / 60 * 10) / 10}h` : ''}`
+                    : '—';
+                  return (
+                    <Row key={v.id} onClick={() => onOpen(v.id)}>
+                      <Td mono nowrap>{fmtDate(v.scheduled_start)}</Td>
+                      <Td mono nowrap>{hhmm(v.scheduled_start) ?? '—'}–{hhmm(v.scheduled_end) ?? '—'}</Td>
+                      <Td nowrap>
+                        {(v.carers ?? []).length === 0 ? <span style={s('color:var(--d-faint)')}>Unassigned</span>
+                          : (v.carers.map((c) => c.employee_name).filter(Boolean).join(', ') || 'Unassigned')}
+                      </Td>
+                      <Td mono nowrap style={{ color: c0?.actual_start ? 'var(--d-ink2)' : 'var(--d-faint)' }}>{actual}</Td>
+                      <Td nowrap><Tag tone={VISIT_TONE[st] ?? 'muted'}>{st.replace(/_/g, ' ')}</Tag></Td>
+                      <Td><Icon name="chevronRight" size={16} style={{ color: 'var(--d-faint)' }} /></Td>
+                    </Row>
+                  );
+                })}
+              </tbody>
+            </TableWrap>
+          )}
+      </Panel>
+      {total > VISITS_PER_PAGE && <Pager page={page} perPage={VISITS_PER_PAGE} total={total} onPage={setPage} />}
+    </div>
+  );
+}
+
+/* ------------------------------- Notes tab -------------------------------- */
+// A date-grouped timeline (Today / Yesterday / date) with search + carer filter,
+// so a manager scans "what happened when" instead of reading a flat dump.
+function noteDay(iso) {
+  const d = new Date(iso);
+  const today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1);
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  if (same(d, today)) return 'Today';
+  if (same(d, y)) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+function NotesTab({ notes, loading, query, setQuery, carer, setCarer, carers, from, setFrom, to, setTo }) {
+  const groups = useMemo(() => {
+    const g = new Map();
+    (notes ?? []).forEach((n) => {
+      const k = noteDay(n.visit_scheduled_start ?? n.created_at);
+      if (!g.has(k)) g.set(k, []);
+      g.get(k).push(n);
+    });
+    return [...g.entries()];
+  }, [notes]);
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:14px')}>
+      <Panel style={{ padding: '14px 16px' }}>
+        <FilterBar>
+          <DateField label="From" value={from} onChange={setFrom} max={to || today} />
+          <DateField label="To" value={to} onChange={setTo} min={from} max={today} />
+          <SelectField label="Carer" value={carer} onChange={setCarer} options={carers.map((c) => ({ id: c.id, label: c.name }))} allLabel="All carers" minWidth={160} />
+          <div style={s('flex:1;min-width:200px')}><SearchBox value={query} onChange={setQuery} placeholder="Search notes" /></div>
+        </FilterBar>
+      </Panel>
+      {loading ? <Panel><Muted>Loading…</Muted></Panel>
+        : (notes ?? []).length === 0 ? <Panel><Muted>No notes match.</Muted></Panel>
+        : groups.map(([day, rows]) => (
+          <div key={day} style={s('display:flex;flex-direction:column;gap:8px')}>
+            <div style={s('display:flex;align-items:center;gap:10px;padding:0 2px')}>
+              <span style={s('font-size:11.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>{day}</span>
+              <span style={s('flex:1;height:1px;background:var(--d-border)')} />
+              <span style={s('font-size:11px;font-weight:600;color:var(--d-faint)')}>{rows.length} note{rows.length === 1 ? '' : 's'}</span>
+            </div>
+            {rows.map((n) => (
+              <div key={n.id} style={{ ...s('background:var(--d-card);border-radius:14px;padding:13px 15px;display:flex;gap:11px'), border: '1px solid var(--d-card-line, var(--d-border))', boxShadow: 'var(--d-shadow-card, none)' }}>
+                <Avatar initials={(n.employee_name ?? n.author_name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('')} size="sm" />
+                <div style={s('flex:1;min-width:0')}>
+                  <div style={s('font-size:13px;font-weight:500;color:var(--d-ink);line-height:1.55')}>{n.body}</div>
+                  <div style={s('display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--d-muted);margin-top:6px')}>
+                    <span style={s('font-weight:700;color:var(--d-ink2)')}>{n.employee_name ?? n.author_name ?? 'Unknown'}</span><span>·</span>
+                    <span>{fmtNoteDate(n.visit_scheduled_start ?? n.created_at)}</span>
+                  </div>
                 </div>
               </div>
             ))}
-        </Panel>
-      )}
+          </div>
+        ))}
     </div>
   );
 }
@@ -244,23 +394,3 @@ function L({ label, children }) {
   return <label style={s('display:flex;flex-direction:column;gap:6px')}><span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>{label}</span>{children}</label>;
 }
 function Muted({ children }) { return <div style={s('padding:30px 8px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>{children}</div>; }
-
-// Inline add-a-care-plan-item form used during onboarding and later editing.
-function CarePlanAdd({ onAdd }) {
-  const [label, setLabel] = useState('');
-  const [detail, setDetail] = useState('');
-  const [busy, setBusy] = useState(false);
-  async function submit() {
-    setBusy(true);
-    const ok = await onAdd(label, detail, 'general');
-    if (ok) { setLabel(''); setDetail(''); }
-    setBusy(false);
-  }
-  return (
-    <div style={s('background:var(--d-panel);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:8px')}>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Care task (e.g. Prompt morning medication)" style={inp} />
-      <textarea value={detail} onChange={(e) => setDetail(e.target.value)} rows={2} placeholder="Detail (optional)" style={{ ...inp, height: 'auto', padding: '10px 13px' }} />
-      <div><Button variant="primary" icon="plus" onClick={busy ? undefined : submit}>{busy ? 'Adding…' : 'Add care task'}</Button></div>
-    </div>
-  );
-}

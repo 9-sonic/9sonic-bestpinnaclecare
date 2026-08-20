@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../common/Icon.jsx';
+import Spinner from '../common/Spinner.jsx';
 import NotificationsBell from '../common/NotificationsBell.jsx';
 import TourLauncher from '../common/TourLauncher.jsx';
 import CommandPalette from '../common/CommandPalette.jsx';
@@ -116,20 +117,23 @@ export default function AdminLayout() {
   // the top bar instead of one inside each page. backTo is the parent list; null
   // on top-level pages, where no Back is shown.
   const BACK_TO = [
-    [/^\/employees\/[^/]+$/, '/employees', 'Employees'],
-    [/^\/clients\/[^/]+$/, '/clients', 'Clients'],
-    [/^\/service-users\/[^/]+$/, '/clients', 'Clients'],
+    [/^\/employees\/[^/]+$/, '/employees', 'Employee details'],
+    [/^\/clients\/[^/]+$/, '/clients', 'Client details'],
+    [/^\/service-users\/[^/]+$/, '/clients', 'Client details'],
+    [/^\/visits\/[^/]+$/, '/rota', 'Visit details'],
     [/^\/profile$/, '/', 'Profile'],
   ];
   const backMatch = BACK_TO.find(([re]) => re.test(pathname));
   const backTo = backMatch?.[1] ?? null;
-  const title = TITLE[pathname] ?? backMatch?.[2] ?? 'Best Pinnacle Care';
+  const activeNavLabel = NAV.find((n) => n && isOn(n.to, n.end))?.label;
+  const title = TITLE[pathname] ?? backMatch?.[2] ?? activeNavLabel ?? 'Overview';
   const initials = `${admin?.first_name?.[0] ?? ''}${admin?.last_name?.[0] ?? ''}`.toUpperCase();
 
   const railBtn = (active) => ({
     ...s('width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'),
-    background: active ? 'var(--d-pill)' : 'var(--d-card)',
+    background: active ? 'var(--d-grad-primary)' : 'var(--d-card)',
     color: active ? 'var(--d-pill-ink)' : 'var(--d-ink2)',
+    boxShadow: active ? '0 2px 8px rgba(10, 126, 142, 0.25)' : 'none',
     '--hbg': 'var(--d-card-hover)',
   });
 
@@ -146,13 +150,14 @@ export default function AdminLayout() {
         fontFamily: "'Plus Jakarta Sans', 'Figtree', system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* Rail */}
-      <div style={s('width:84px;flex:none;background:var(--d-panel);border-right:1px solid var(--d-border);display:flex;flex-direction:column;align-items:center;padding:18px 0 24px')}>
-        <div style={s('width:54px;height:54px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;border:1px solid var(--d-border)')}>
-          <img src="/logo.png" alt="Best Pinnacle Care" style={s('width:38px;height:38px;object-fit:contain')} />
+      {/* Rail — a full-height rounded capsule matching the dashboard top bar
+          surface (--d-panel + 24px radius), spanning the whole page. */}
+      <div style={s('width:72px;flex:none;height:calc(100vh - 40px);margin:20px 0;background:var(--d-panel);border-radius:24px;display:flex;flex-direction:column;align-items:center;padding:18px 0 24px')}>
+        <div style={s('width:44px;height:44px;border-radius:50%;background:var(--d-card);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;border:1px solid var(--d-border)')}>
+          <img src="/logo.png" alt="Best Pinnacle Care" style={s('width:30px;height:30px;object-fit:contain')} />
         </div>
 
-        <div style={s('height:26px;flex:none')} />
+        <div style={s('height:18px;flex:none')} />
 
         <div className="rail-nav" style={s('flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:8px;padding:2px 0')}>
           {NAV.map((item, i) => {
@@ -199,7 +204,10 @@ export default function AdminLayout() {
             and sign out on the right. */}
         <div style={s('height:70px;flex:none;background:var(--d-panel);border-radius:24px;display:flex;align-items:center;padding:0 14px 0 18px;gap:12px')}>
           {backTo && (
-            <div onClick={() => navigate(backTo)} title="Back" className="hv"
+            // Go back where the user actually came from (a visit is reachable from
+            // rota, a client or a carer). Fall back to the section path only if
+            // there's no history to pop.
+            <div onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(backTo))} title="Back" className="hv"
               style={{ ...s('height:40px;border-radius:20px;background:var(--d-card);display:flex;align-items:center;gap:7px;padding:0 15px 0 12px;cursor:pointer;color:var(--d-ink2);font-size:13px;font-weight:700;flex:none'), '--hbg': 'var(--d-card-hover)' }}>
               <Icon name="chevronLeft" size={16} /> Back
             </div>
@@ -208,7 +216,7 @@ export default function AdminLayout() {
 
           {/* ⌘K search — centred, roomier, with a clear input affordance. */}
           <div onClick={() => setPaletteOpen(true)} className="topbar-search" title="Search (⌘K)"
-            style={{ ...s('height:46px;border-radius:23px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;gap:11px;padding:0 8px 0 18px;cursor:text;width:min(480px,44vw)') }}>
+            style={{ ...s('height:42px;border-radius:21px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:0 7px 0 15px;cursor:text;width:min(340px,30vw)') }}>
             <Icon name="search" size={18} />
             <span style={s('flex:1;font-size:13.5px;font-weight:500;color:var(--d-muted)')}>Search carers, clients, pages…</span>
             <kbd style={s('font-size:11px;font-weight:700;color:var(--d-ink2);background:var(--d-card);border:1px solid var(--d-border);border-radius:8px;padding:3px 8px')}>⌘K</kbd>
@@ -251,9 +259,14 @@ export default function AdminLayout() {
             decided yet, above the page content. Self-hides otherwise. */}
         <PushOptInBanner />
 
-        {/* Page content — the office pages render here, unchanged */}
+        {/* Page content. Its own Suspense so switching to a not-yet-loaded page
+            chunk shows a quiet spinner in the CONTENT area only — the rail and
+            top bar stay put — instead of the whole shell blanking to a
+            full-screen spinner (the "loading screen flash" on tab switch). */}
         <div style={s('flex:1;min-height:0')}>
-          <Outlet />
+          <Suspense fallback={<div style={s('display:flex;align-items:center;justify-content:center;padding:80px 0')}><Spinner /></div>}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
 

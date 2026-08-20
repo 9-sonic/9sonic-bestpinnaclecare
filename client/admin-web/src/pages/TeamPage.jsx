@@ -181,7 +181,7 @@ export default function TeamPage() {
           maxWidth={520}
           footer={(
             <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
-              <Button onClick={closeModal}>Cancel</Button>
+              <Button variant="ghost" onClick={closeModal}>Cancel</Button>
               <Button variant="primary" icon="check" onClick={saving ? undefined : handleSave}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Send invitation'}</Button>
             </div>
           )}

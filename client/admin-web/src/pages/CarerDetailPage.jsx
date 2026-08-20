@@ -1,27 +1,46 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
-import { fullName } from '../api/format.js';
+import { fullName, formatTime, minutesToHours } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
+import {
+  Panel, Tag, Avatar, Button, SegTabs, FilterBar, SearchBox, SelectField,
+  DateField, Pager, TableWrap, Th, Td, Row,
+} from '../ds/console.jsx';
 import {
   getEmployee, updateEmployee, uploadEmployeeAvatar, removeEmployeeAvatar,
-  getEmployeeAvailability, getCarerProfile, listCarerNotes, listCarerVisits,
-  listCarerClockEvents, listCarerRequests, resendEmployeeInvite,
+  getCarerProfile, listCarerNotes, listCarerVisits,
+  listCarerClockEvents, listCarerRequests, listCarerMileage, resendEmployeeInvite,
 } from '../api/index.js';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'notes', label: 'Notes' },
-  { key: 'visits', label: 'Visits' },
-  { key: 'clock', label: 'Clock history' },
-  { key: 'requests', label: 'Requests' },
-  { key: 'availability', label: 'Availability' },
-];
+
+// The five record streams, unified into one filterable table. Each knows: how to
+// fetch it, its date column (for the range filter), whether it can be scoped to a
+// client, whether it has free text, and how to turn a row into the shared table
+// shape { date, title, sub, meta, right, tone }.
+const VISIT_TONE = {
+  completed: 'success', in_progress: 'info', scheduled: 'muted',
+  check_in_window: 'info', grace_period: 'warning', late: 'warning',
+  missed: 'danger', overdue: 'danger', pending_review: 'warning', cancelled: 'muted',
+};
+// How the tap reached us. offline_sync = queued on the phone with no signal and
+// sent later; manual_admin = a manager entered it. 'live' needs no label.
+const ORIGIN_LABEL = { offline_sync: 'Offline — synced later', manual_admin: 'Entered by office' };
+
+const metresLabel = (m) => (m < 1000 ? `${m} m away` : `${(m / 1000).toFixed(1)} km away`);
+const syncGapMin = (occurred, recorded) => {
+  const o = new Date(occurred).getTime(); const r = new Date(recorded).getTime();
+  return (!o || !r || r <= o) ? 0 : Math.round((r - o) / 60000);
+};
+const syncGapLabel = (occurred, recorded) => {
+  const min = syncGapMin(occurred, recorded);
+  if (min < 60) return `${min} min`;
+  if (min < 1440) return `${Math.round(min / 60)} h`;
+  return `${Math.round(min / 1440)} d`;
+};
 
 const fmt = (iso, withTime = true) => {
   if (!iso) return '—';
@@ -32,6 +51,96 @@ const fmt = (iso, withTime = true) => {
   } catch { return iso; }
 };
 
+// Each stream declares its OWN columns so the table reads correctly for that
+// record — a visit table has a Client column, a clock table has Location, etc.
+// cols: header labels; toRow returns cells[] aligned to them + right (status) +
+// visitId (drill-in) + when (the date cell string).
+const ACTIVITY_TYPES = {
+  visits: {
+    label: 'Visits', icon: 'calendar', fetch: listCarerVisits, hasClient: true, hasText: false,
+    cols: ['Date', 'Client', 'Actual', 'Status'],
+    dateOf: (v) => v.visit?.scheduled_start,
+    toRow: (v) => ({
+      visitId: v.visit_id,
+      when: fmt(v.visit?.scheduled_start, false),
+      cells: [
+        v.visit?.service_user?.full_name || `Visit ${v.visit_id}`,
+        [
+          (v.actual_start || v.actual_end)
+            ? `${v.actual_start ? formatTime(v.actual_start) : '—'}–${v.actual_end ? formatTime(v.actual_end) : (v.actual_start ? 'open' : '—')}`
+            : 'Not started',
+          v.worked_minutes != null ? `${minutesToHours(v.worked_minutes)} worked` : null,
+          ...((v.flags ?? []).map((f) => f.replace(/_/g, ' '))),
+        ].filter(Boolean).join(' · '),
+      ],
+      right: <Tag tone={VISIT_TONE[v.lifecycle_state] ?? 'muted'}>{(v.lifecycle_state ?? '').replace(/_/g, ' ')}</Tag>,
+    }),
+  },
+  notes: {
+    label: 'Notes', icon: 'note', fetch: listCarerNotes, hasClient: true, hasText: true,
+    cols: ['Date', 'Client', 'Note', ''],
+    dateOf: (n) => n.visit_scheduled_start ?? n.created_at,
+    toRow: (n) => ({
+      visitId: n.visit_id,
+      when: fmt(n.visit_scheduled_start ?? n.created_at, false),
+      cells: [n.service_user || '—', n.body],
+      right: null,
+    }),
+  },
+  clock: {
+    label: 'Clock', icon: 'clock', fetch: listCarerClockEvents, hasClient: true, hasText: false,
+    cols: ['Time', 'Client', 'Location', 'Result'],
+    dateOf: (c) => c.occurred_at,
+    toRow: (c) => ({
+      visitId: c.visit_id,
+      when: fmt(c.occurred_at, true),
+      cells: [
+        `${(c.kind ?? '').replace(/_/g, ' ')}${c.service_user ? ` · ${c.service_user}` : ''}`,
+        [
+          c.distance_from_site_m != null ? metresLabel(c.distance_from_site_m) : null,
+          ORIGIN_LABEL[c.origin] || null,
+          (c.method && c.method !== 'gps') ? c.method.replace(/_/g, ' ') : null,
+          (c.recorded_at && syncGapMin(c.occurred_at, c.recorded_at) >= 2) ? `synced ${syncGapLabel(c.occurred_at, c.recorded_at)} later` : null,
+        ].filter(Boolean).join(' · ') || '—',
+      ],
+      right: c.geofence_result ? <Tag tone={c.geofence_result === 'pass' ? 'success' : c.geofence_result === 'fail' ? 'danger' : 'muted'}>{c.geofence_result.replace(/_/g, ' ')}</Tag> : null,
+    }),
+  },
+  requests: {
+    label: 'Requests', icon: 'chat', fetch: listCarerRequests, hasClient: false, hasText: true,
+    cols: ['Date', 'Type', 'Detail', 'State'],
+    dateOf: (r) => r.created_at,
+    toRow: (r) => ({
+      when: fmt(r.created_at, false),
+      cells: [
+        (r.kind ?? '').replace(/_/g, ' '),
+        [r.summary, r.decision_note ? `“${r.decision_note}”` : (r.detail || null)].filter(Boolean).join(' — '),
+      ],
+      right: <Tag tone={r.state === 'pending' ? 'warning' : r.state === 'approved' ? 'success' : 'muted'}>{r.state}</Tag>,
+    }),
+  },
+  mileage: {
+    label: 'Mileage', icon: 'pin', fetch: listCarerMileage, hasClient: true, hasText: false,
+    cols: ['Date', 'Journey', 'Client', 'Miles'],
+    dateOf: (m) => m.travel_date,
+    toRow: (m) => ({
+      when: fmt(m.travel_date, false),
+      cells: [
+        (m.from_label || m.to_label) ? `${m.from_label ?? '—'} → ${m.to_label ?? '—'}` : 'Travel',
+        m.service_user || '—',
+      ],
+      right: (
+        <span style={s('display:flex;flex-direction:column;align-items:flex-end;gap:4px')}>
+          <span className="d-num" style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{Number(m.miles).toFixed(1)} mi</span>
+          {m.state && <Tag tone={m.state === 'approved' ? 'success' : m.state === 'rejected' ? 'danger' : 'muted'}>{m.state}</Tag>}
+        </span>
+      ),
+    }),
+  },
+};
+
+const PER_PAGE = 25;
+
 export default function CarerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -41,10 +150,7 @@ export default function CarerDetailPage() {
   const [carer, setCarer] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('overview');
-  const [tabData, setTabData] = useState({});
   const [resending, setResending] = useState(false);
-  const [tabLoading, setTabLoading] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
@@ -58,23 +164,6 @@ export default function CarerDetailPage() {
     } finally { setLoading(false); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
-
-  // Lazily load each tab's list the first time it's opened.
-  useEffect(() => {
-    if (['overview'].includes(tab) || tabData[tab]) return undefined;
-    let active = true;
-    setTabLoading(true);
-    const loader = {
-      notes: listCarerNotes, visits: listCarerVisits,
-      clock: listCarerClockEvents, requests: listCarerRequests,
-      availability: (i) => getEmployeeAvailability(i).then((rows) => ({ items: rows })),
-    }[tab];
-    loader(id)
-      .then((r) => { if (active) setTabData((d) => ({ ...d, [tab]: r.items ?? [] })); })
-      .catch(() => { if (active) setTabData((d) => ({ ...d, [tab]: [] })); })
-      .finally(() => { if (active) setTabLoading(false); });
-    return () => { active = false; };
-  }, [tab, id, tabData]);
 
   if (loading) return <Spinner fullscreen />;
   if (!carer) return <div style={s('padding:40px;font-size:14px;color:var(--d-muted)')}>That employee could not be found. <Button size="sm" onClick={() => navigate('/employees')}>Back to employees</Button></div>;
@@ -111,7 +200,6 @@ export default function CarerDetailPage() {
     catch (e) { toast.error(e.message || 'Could not remove'); }
   }
 
-  const rows = tabData[tab] ?? [];
   const inits = `${carer.first_name?.[0] ?? ''}${carer.last_name?.[0] ?? ''}`.toUpperCase();
 
   return (
@@ -124,7 +212,7 @@ export default function CarerDetailPage() {
             {canManage && (
               <>
                 <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatar} />
-                <div onClick={() => avatarInput.current?.click()} title="Change photo" className="hv"
+                <div onClick={() => avatarInput.current?.click()} className="hv tip" data-tip="Change photo"
                   style={{ ...s('position:absolute;bottom:0;right:0;width:30px;height:30px;border-radius:50%;background:var(--d-card);border:1.5px solid var(--d-border);display:flex;align-items:center;justify-content:center;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>
                   <Icon name="edit" size={14} />
                 </div>
@@ -148,15 +236,13 @@ export default function CarerDetailPage() {
               {carer.active && carer.invite_pending && <Button size="sm" icon="send" disabled={resending} onClick={resend}>{resending ? 'Sending…' : 'Resend invite'}</Button>}
               <Button size="sm" icon="edit" onClick={openEdit}>Edit</Button>
               <Button size="sm" variant={carer.active ? 'danger' : 'ghost'} onClick={toggleActive}>{carer.active ? 'Deactivate' : 'Reactivate'}</Button>
-              {carer.avatar_url && <Button size="sm" onClick={removeAvatar}>Remove photo</Button>}
+              {carer.avatar_url && <Button variant="ghost" size="sm" onClick={removeAvatar}>Remove photo</Button>}
             </div>
           )}
         </div>
 
         {/* Stat strip */}
         <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:20px')}>
-          {/* Stats live on the profile payload (Staff::Stats merge), not on the
-              bare #show employee — read them from there. */}
           {(() => { const st = profile?.employee ?? carer; return [
             ['Hours this week', st.hours_this_week != null ? `${st.hours_this_week}h` : '—'],
             ['Punctuality', st.punctuality != null ? `${st.punctuality}%` : '—'],
@@ -183,56 +269,127 @@ export default function CarerDetailPage() {
         )}
       </Panel>
 
-      {/* Tabs */}
-      <SegTabs tabs={TABS.map((t) => ({ key: t.key, label: t.label }))} active={tab} onSelect={setTab} />
+      {/* The five record streams are the main tabs (Visits/Notes/Clock/Requests/
+          Mileage) — CarerActivity owns its own type SegTabs + filters + table. */}
+      <CarerActivity carerId={id} />
+    </div>
+  );
+}
 
-      <Panel style={{ padding: '18px 20px' }}>
-        {tab === 'overview' ? (
-          !profile ? <Muted>No summary available.</Muted> : (
-            <div style={s('display:flex;flex-direction:column;gap:16px')}>
-              <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px')}>
-                {[['Visits', profile.counts?.visits], ['Upcoming', profile.counts?.upcoming], ['Notes', profile.counts?.notes], ['Open requests', profile.counts?.open_requests]].map(([l, v]) => (
-                  <div key={l} style={s('background:var(--d-panel);border-radius:12px;padding:14px;text-align:center')}>
-                    <div className="d-num" style={s('font-size:20px;font-weight:700;color:var(--d-ink)')}>{v ?? 0}</div>
-                    <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:2px')}>{l}</div>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <PanelTitle>Recent notes</PanelTitle>
-                {(profile.recent_notes ?? []).length === 0 ? <Muted>No notes yet.</Muted>
-                  : profile.recent_notes.map((n) => <NoteCard key={n.id} n={n} />)}
-              </div>
-            </div>
-          )
-        ) : tabLoading ? <Muted>Loading…</Muted>
-          : rows.length === 0 ? <Muted>Nothing here yet.</Muted>
-          : tab === 'notes' ? rows.map((n) => <NoteCard key={n.id} n={n} />)
-          : tab === 'visits' ? rows.map((v) => <Line key={v.id} title={v.visit?.service_user?.full_name || `Visit ${v.visit_id}`} sub={`${fmt(v.visit?.scheduled_start)} · ${v.lifecycle_state?.replace(/_/g, ' ')}`} />)
-          : tab === 'clock' ? rows.map((c) => <Line key={c.id} title={`${c.kind?.replace(/_/g, ' ')} · ${fmt(c.occurred_at)}`} sub={`${c.service_user ?? ''}${c.geofence_result ? ` · ${c.geofence_result.replace(/_/g, ' ')}` : ''}`} />)
-          : tab === 'requests' ? rows.map((r) => (
-              <div key={r.id} style={s('background:var(--d-panel);border-radius:12px;padding:12px 14px;margin-bottom:8px')}>
-                <div style={s('display:flex;align-items:center;justify-content:space-between;gap:8px')}>
-                  <span style={s('font-size:13px;font-weight:700;color:var(--d-ink);text-transform:capitalize')}>{r.kind}</span>
-                  <Tag tone={r.state === 'pending' ? 'warning' : r.state === 'approved' ? 'success' : 'muted'}>{r.state}</Tag>
-                </div>
-                <div style={s('font-size:12.5px;font-weight:500;color:var(--d-ink2);margin-top:4px')}>{r.summary}</div>
-              </div>
-            ))
-          : tab === 'availability' ? [0, 1, 2, 3, 4, 5, 6].map((wd) => {
-              const slots = rows.filter((a) => a.weekday === wd && a.available);
-              return (
-                <div key={wd} style={s('display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:12px;background:var(--d-panel);margin-bottom:8px')}>
-                  <div style={s('width:96px;flex:none;font-size:13px;font-weight:700;color:var(--d-ink)')}>{DAYS[wd]}</div>
-                  <div style={s('flex:1;display:flex;gap:6px;flex-wrap:wrap')}>
-                    {slots.length === 0 ? <span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>Not available</span>
-                      : slots.map((a) => <Tag key={a.id ?? a.slot} tone="success">{String(a.slot).replace(/_/g, ' ')}</Tag>)}
-                  </div>
-                </div>
-              );
-            })
-          : null}
+/* --------------------------- Activity table ------------------------------- */
+// One table across all five record streams. All filtering happens SERVER-SIDE
+// (date range, client, text) so any record from any point in history is
+// reachable — not just the first page. Previously this was five separate card
+// lists that each loaded one page and dead-ended, so "a visit from last year"
+// was unreachable.
+function CarerActivity({ carerId }) {
+  const navigate = useNavigate();
+  const [type, setType] = useState('visits');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [client, setClient] = useState('');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [clients, setClients] = useState([]);  // client filter options, learned from results
+  const [loading, setLoading] = useState(true);
+
+  const def = ACTIVITY_TYPES[type];
+
+  const onFrom = (v) => setFrom(v);
+  const onTo = (v) => setTo(v);
+
+  // Reset the page whenever a non-page filter changes, so you never land on an
+  // empty page after narrowing.
+  useEffect(() => { setPage(1); }, [type, from, to, client, q]);
+
+  // Debounce the text box so we don't fire a request per keystroke.
+  const [qDebounced, setQDebounced] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQDebounced(q), 300); return () => clearTimeout(t); }, [q]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const params = { page, per_page: PER_PAGE };
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (def.hasClient && client) params.service_user_id = client;
+    if (def.hasText && qDebounced.trim()) params.q = qDebounced.trim();
+    def.fetch(carerId, params)
+      .then((r) => {
+        if (!active) return;
+        setRows(r.items ?? []);
+        setTotal(r.total ?? 0);
+        // Learn client options from whatever rows we see (no dedicated endpoint).
+        if (def.hasClient) {
+          setClients((prev) => {
+            const m = new Map(prev.map((c) => [c.id, c.label]));
+            (r.items ?? []).forEach((row) => {
+              const name = row.service_user || row.visit?.service_user?.full_name;
+              const cid = row.visit?.service_user?.id ?? name;
+              if (name && cid != null) m.set(cid, name);
+            });
+            return [...m.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => String(a.label).localeCompare(b.label));
+          });
+        }
+      })
+      .catch(() => { if (active) { setRows([]); setTotal(0); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [carerId, type, page, from, to, client, qDebounced, def]);
+
+  const tableRows = useMemo(() => rows.map((r) => ({ id: r.id, ...def.toRow(r) })), [rows, def]);
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:14px')}>
+      <SegTabs
+        tabs={Object.entries(ACTIVITY_TYPES).map(([k, v]) => ({ key: k, label: v.label, icon: v.icon }))}
+        active={type} onSelect={setType}
+      />
+      <Panel style={{ padding: '14px 16px' }}>
+        <FilterBar>
+          <DateField label="From" value={from} onChange={onFrom} max={to || today} />
+          <DateField label="To" value={to} onChange={onTo} min={from} max={today} />
+          {def.hasClient && <SelectField label="Client" value={client} onChange={setClient} options={clients} allLabel="All clients" minWidth={170} />}
+          {def.hasText && <div style={s('flex:1;min-width:180px')}><SearchBox value={q} onChange={setQ} placeholder={`Search ${def.label.toLowerCase()}`} /></div>}
+        </FilterBar>
       </Panel>
+
+      <Panel style={{ padding: '6px 6px 4px' }}>
+        {loading ? <Muted>Loading…</Muted>
+          : tableRows.length === 0 ? <Muted>No {def.label.toLowerCase()} match these filters.</Muted>
+          : (
+            <TableWrap minWidth={680}>
+              <thead><tr>
+                {def.cols.map((c, i) => <Th key={c || i}>{c}</Th>)}
+                <Th> </Th>
+              </tr></thead>
+              <tbody>
+                {tableRows.map((r) => {
+                  const open = r.visitId ? () => navigate(`/visits/${r.visitId}`) : undefined;
+                  return (
+                    // A record tied to a visit opens that visit's full record; the
+                    // chevron makes the row read as a doorway, not a dead line.
+                    <Row key={r.id} onClick={open}>
+                      <Td mono nowrap>{r.when}</Td>
+                      {r.cells.map((cell, i) => (
+                        <Td key={i} nowrap={i === 0}>
+                          <span style={s(`font-size:13px;color:var(--d-ink);${i === 0 ? 'font-weight:700;text-transform:capitalize' : 'font-weight:500;color:var(--d-ink2)'}`)}>{cell}</span>
+                        </Td>
+                      ))}
+                      <Td>{r.right ?? null}</Td>
+                      <Td align="right">{open && <Icon name="chevronRight" size={16} style={{ color: 'var(--d-faint)' }} />}</Td>
+                    </Row>
+                  );
+                })}
+              </tbody>
+            </TableWrap>
+          )}
+      </Panel>
+      {total > PER_PAGE && <Pager page={page} perPage={PER_PAGE} total={total} onPage={setPage} />}
     </div>
   );
 }
@@ -242,19 +399,3 @@ function L({ label, children }) {
   return <label style={s('display:flex;flex-direction:column;gap:6px')}><span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>{label}</span>{children}</label>;
 }
 function Muted({ children }) { return <div style={s('padding:30px 8px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>{children}</div>; }
-function Line({ title, sub }) {
-  return (
-    <div style={s('background:var(--d-panel);border-radius:12px;padding:11px 14px;margin-bottom:8px')}>
-      <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{title}</div>
-      {sub && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px;text-transform:capitalize')}>{sub}</div>}
-    </div>
-  );
-}
-function NoteCard({ n }) {
-  return (
-    <div style={s('background:var(--d-note-bg);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;margin-bottom:8px')}>
-      <div style={s('font-size:13px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>{n.body}</div>
-      <div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{n.service_user ? `${n.service_user} · ` : ''}{fmt(n.visit_scheduled_start ?? n.created_at)}</div>
-    </div>
-  );
-}

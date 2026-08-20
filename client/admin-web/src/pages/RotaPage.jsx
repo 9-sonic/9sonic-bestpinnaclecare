@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
 } from '../api/format.js';
-import { Button, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row } from '../ds/console.jsx';
 
 // A cancelled visit is not "short-staffed" — it's cancelled. Only a live visit
 // with fewer active carers than required counts as unfilled.
@@ -141,7 +141,7 @@ function ConfirmDialog({ dialog, onClose }) {
           </div>
         )}
         <div style={s('display:flex;justify-content:flex-end;gap:8px;margin-top:2px')}>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant={dialog.danger ? 'danger' : 'primary'} icon="check" onClick={busy || (dialog.needReason && !reason.trim()) ? undefined : submit}>{busy ? 'Working…' : dialog.confirmLabel}</Button>
         </div>
       </div>
@@ -344,7 +344,7 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
 
   return (
     <Modal title="New visit" subtitle="Add a one-off visit to the rota. It starts as a draft until you publish." onClose={onClose}
-      footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><span data-tour="rota-create-cancel"><Button onClick={onClose}>Cancel</Button></span><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
+      footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><span data-tour="rota-create-cancel"><Button variant="ghost" onClick={onClose}>Cancel</Button></span><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
       <div data-tour="rota-create-fields" style={s('padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
         <div style={field}><span style={label}>Client</span>
           <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={control}>
@@ -511,7 +511,6 @@ export default function RotaPage() {
   const [detail, setDetail] = useState(null);
   const [reassigning, setReassigning] = useState(null); // { visit, assignmentId }
   const [selected, setSelected] = useState([]);
-  const [exporting, setExporting] = useState(false);
   const navigate = useNavigate();
 
   const range = useMemo(() => weekOf(weekStart), [weekStart]);
@@ -691,8 +690,8 @@ export default function RotaPage() {
         <div style={s('display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end')}>
           <span data-tour="rota-generate"><Button icon="sync" onClick={busy ? undefined : handleGenerateNextWeek}>{busy ? 'Working…' : 'Generate next week'}</Button></span>
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
-          <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'csv'); toast.success('Rota CSV downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>CSV</Button>
-          <Button icon="download" disabled={exporting} onClick={async () => { setExporting(true); try { await exportRota(range.from, range.to, 'xlsx'); toast.success('Rota XLSX downloaded'); } catch (e) { toast.error(e.message || 'Export failed'); } finally { setExporting(false); } }}>{exporting ? 'Exporting…' : 'Export rota'}</Button>
+          <ExportButton label="Export rota" title="Export rota" subtitle="Choose a file format. The week on screen is exported."
+            onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />
           <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint text="Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can't be double-booked at the same time." /></span>
         </div>
       )}
@@ -718,7 +717,7 @@ export default function RotaPage() {
             <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
           </div>
           <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
-          <div onClick={() => load()} title="Refresh the rota" className="hv" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
+          <div onClick={() => load()} className="hv tip" data-tip="Refresh the rota" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
         </div>
       </div>
 

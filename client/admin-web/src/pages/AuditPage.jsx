@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { listAudit, exportAuditLog, exportAttendanceAudit, listLoginAttempts, listServiceUsers, listEmployees, listAdmins } from '../api/index.js';
 import { formatDate, formatTime, fullName } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs, DateField, SelectField, RangeChips, FilterBar } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Button, ExportButton, TableWrap, Th, Td, Row, SegTabs, DateField, SelectField, FilterBar } from '../ds/console.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'Everything', icon: 'menu', test: () => true },
@@ -66,29 +66,17 @@ export function VisitAuditExport() {
   const iso = (d) => d.toISOString().slice(0, 10);
   const [vaFrom, setVaFrom] = useState(iso(new Date(Date.now() - 6 * 86400000)));
   const [vaTo, setVaTo] = useState(iso(new Date()));
-  const [vaExporting, setVaExporting] = useState(false);
-
-  const setVaRange = (days) => {
-    setVaTo(iso(new Date()));
-    setVaFrom(iso(new Date(Date.now() - (days - 1) * 86400000)));
-  };
 
   const downloadVisitAudit = async (type) => {
-    setVaExporting(true);
     try {
       // Send full-day bounds so the To date is inclusive.
       await exportAttendanceAudit(`${vaFrom}T00:00:00`, `${vaTo}T23:59:59`, type);
       toast.success(`Visit audit ${type.toUpperCase()} downloaded`);
     } catch (e) {
       toast.error(e.message || 'Export failed');
-    } finally {
-      setVaExporting(false);
+      return false;
     }
   };
-
-  const vaSpan = vaTo === iso(new Date())
-    ? Math.round((Date.parse(vaTo) - Date.parse(vaFrom)) / 86400000) + 1
-    : null;
 
   return (
     <Panel>
@@ -96,10 +84,8 @@ export function VisitAuditExport() {
       <FilterBar style={{ marginTop: 4 }}>
         <DateField label="From" value={vaFrom} onChange={setVaFrom} max={vaTo} />
         <DateField label="To" value={vaTo} onChange={(val) => setVaTo(val < vaFrom ? vaFrom : val)} min={vaFrom} />
-        <RangeChips active={vaSpan} onSelect={setVaRange} />
         <FilterBar.Spacer />
-        <Button icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('csv')}>CSV</Button>
-        <Button variant="primary" icon="download" disabled={vaExporting} onClick={() => downloadVisitAudit('xlsx')}>{vaExporting ? 'Building…' : 'Export XLSX'}</Button>
+        <ExportButton onExport={downloadVisitAudit} title="Export visit audit" subtitle="Choose a file format. The date range on screen is applied." />
       </FilterBar>
     </Panel>
   );

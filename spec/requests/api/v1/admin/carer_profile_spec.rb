@@ -65,4 +65,60 @@ RSpec.describe "Admin carer 360", type: :request do
     get "/api/v1/admin/employees/#{carer.id}/requests", headers: auth
     expect(response.parsed_body["total"]).to eq(2)
   end
+
+  describe "history filters (reach records from any point in time)" do
+    let(:other_su) { create(:service_user, first_name: "Zed", last_name: "Client") }
+
+    it "visits: from/to reaches an old visit and service_user_id scopes to one client" do
+      old_v  = create(:visit, service_user: su, scheduled_start: 400.days.ago, scheduled_end: 400.days.ago + 30.minutes)
+      create(:visit_assignment, visit: old_v, employee: carer)
+      recent = create(:visit, service_user: other_su, scheduled_start: 1.day.ago, scheduled_end: 1.day.ago + 30.minutes)
+      create(:visit_assignment, visit: recent, employee: carer)
+
+      # A wide date range that includes the 400-day-old visit finds it.
+      get "/api/v1/admin/employees/#{carer.id}/visits", params: { from: 500.days.ago.to_date.iso8601, to: Date.current.iso8601 }, headers: auth
+      expect(response.parsed_body["total"]).to eq(2)
+
+      # Narrow to just the old window -> only the old visit.
+      get "/api/v1/admin/employees/#{carer.id}/visits", params: { from: 410.days.ago.to_date.iso8601, to: 390.days.ago.to_date.iso8601 }, headers: auth
+      expect(response.parsed_body["total"]).to eq(1)
+      expect(response.parsed_body["items"].first["visit_id"]).to eq(old_v.id)
+
+      # Scope by client.
+      get "/api/v1/admin/employees/#{carer.id}/visits", params: { service_user_id: other_su.id }, headers: auth
+      expect(response.parsed_body["total"]).to eq(1)
+      expect(response.parsed_body["items"].first["visit_id"]).to eq(recent.id)
+    end
+
+    it "notes: q searches the body and treats % / _ literally" do
+      VisitNote.create!(visit_assignment: va, author: carer, body: "Gave 50% of the meal", client_note_id: SecureRandom.uuid)
+      VisitNote.create!(visit_assignment: va, author: carer, body: "Client slept well", client_note_id: SecureRandom.uuid)
+
+      get "/api/v1/admin/employees/#{carer.id}/notes", params: { q: "slept" }, headers: auth
+      expect(response.parsed_body["items"].map { |n| n["body"] }).to eq([ "Client slept well" ])
+
+      # A literal % must not act as a wildcard matching everything.
+      get "/api/v1/admin/employees/#{carer.id}/notes", params: { q: "50%" }, headers: auth
+      expect(response.parsed_body["items"].map { |n| n["body"] }).to eq([ "Gave 50% of the meal" ])
+    end
+
+    it "does not 500 on a garbage date" do
+      va
+      get "/api/v1/admin/employees/#{carer.id}/visits", params: { from: "not-a-date" }, headers: auth
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  it "GET mileage returns this carer's travel claims, newest first, with the client when tied to a visit" do
+    carer.mileage_claims.create!(travel_date: Date.current, miles: 4.2, source: "carer", state: "claimed",
+                                 visit_assignment: va, from_label: "Base", to_label: "Client")
+    carer.mileage_claims.create!(travel_date: 3.days.ago, miles: 1.5, source: "carer", state: "claimed")
+
+    get "/api/v1/admin/employees/#{carer.id}/mileage", headers: auth
+    expect(response).to have_http_status(:ok)
+    body = response.parsed_body
+    expect(body["total"]).to eq(2)
+    first = body["items"].first
+    expect(first).to include("miles" => 4.2, "from_label" => "Base", "service_user" => su.full_name)
+  end
 end

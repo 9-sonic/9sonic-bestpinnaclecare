@@ -64,7 +64,7 @@ export default function PushOptInBanner() {
         <div style={s('font-size:12px;font-weight:500;color:var(--d-ink2);margin-top:1px;line-height:1.45')}>Get missed clock-ins, escalations and messages even when this tab is closed.</div>
       </div>
       <Button variant="primary" icon="bell" disabled={busy} onClick={busy ? undefined : enable}>{busy ? 'Enabling…' : 'Enable'}</Button>
-      <div onClick={dismiss} title="Not now" className="hv"
+      <div onClick={dismiss} className="hv tip" data-tip="Not now"
         style={{ ...s('width:32px;height:32px;border-radius:50%;background:var(--d-card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-card-hover)' }}>
         <Icon name="close" size={15} />
       </div>

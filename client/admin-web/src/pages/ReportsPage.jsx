@@ -4,7 +4,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { getReports, exportReportPack } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, LineChart, BarChart, StackedBars, DonutChart, CHART, SegTabs } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, ExportButton, TableWrap, Th, Td, Row, LineChart, BarChart, StackedBars, DonutChart, CHART, SegTabs } from '../ds/console.jsx';
 
 export const RANGES = [{ id: 'week', label: 'Weekly', days: 7 }, { id: 'month', label: 'Monthly', days: 30 }, { id: 'year', label: 'Yearly', days: 365 }];
 const SEV_COLOR = { high: CHART.danger, normal: CHART.warn };
@@ -23,25 +23,17 @@ export function rangeWindow(rangeId) {
 // it can live on the Exports tab; same handler, same period as what's on screen.
 export function ReportPackExport({ range }) {
   const toast = useToast();
-  const [exporting, setExporting] = useState(false);
   const pull = async (type) => {
-    setExporting(true);
     try {
       const { from, to } = rangeWindow(range);
       await exportReportPack(from, to, type);
       toast.success(`${type.toUpperCase()} report pack downloaded`);
     } catch (e) {
       toast.error(e.message || 'Export failed');
-    } finally {
-      setExporting(false);
+      return false;
     }
   };
-  return (
-    <div style={s('display:flex;gap:8px')}>
-      <Button icon="download" disabled={exporting} onClick={() => pull('csv')}>CSV</Button>
-      <Button variant="primary" icon="download" disabled={exporting} onClick={() => pull('xlsx')}>{exporting ? 'Building…' : 'Export report pack'}</Button>
-    </div>
-  );
+  return <ExportButton label="Export report pack" title="Export report pack" subtitle="Choose a file format. The period on screen is applied." onExport={pull} />;
 }
 
 export default function OverviewTab({ range, setRange }) {
