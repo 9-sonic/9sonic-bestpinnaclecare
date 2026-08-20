@@ -66,7 +66,7 @@ export default function NotificationsBell() {
 
   return (
     <div ref={ref} style={s('position:relative')}>
-      <div onClick={() => setOpen((v) => !v)} className="hv tip" data-tip="Notifications"
+      <div onClick={() => setOpen((v) => !v)} className="hv tip tip--below" data-tip="Notifications"
         style={{ ...s('width:46px;height:46px;border-radius:50%;background:var(--d-card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);position:relative'), '--hbg': 'var(--d-card-hover)' }}>
         <Icon name="bell" size={20} />
         {unseen.length > 0 && (

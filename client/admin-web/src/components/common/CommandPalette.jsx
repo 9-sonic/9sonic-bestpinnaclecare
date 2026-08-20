@@ -11,7 +11,7 @@ const PAGES = [
   ['Live board', '/', 'target'], ['Lifecycle', '/lifecycle', 'sync'],
   ['Exceptions', '/exceptions', 'alert'], ['Alerts', '/alerts', 'bell'],
   ['Staffing', '/staffing', 'refresh'], ['Cover', '/staffing', 'refresh'], ['Requests', '/staffing?tab=requests', 'note'],
-  ['Timesheets', '/timesheets', 'wallet'], ['Rota', '/rota', 'calendar'],
+  ['Attendance records', '/attendance', 'wallet'], ['Rota', '/rota', 'calendar'],
   ['Clients', '/clients', 'user'], ['Employees', '/employees', 'users'], ['Messages', '/messages', 'chat'],
   ['Audit', '/audit', 'file'], ['Reports', '/reports', 'trend'], ['Settings', '/settings', 'settings'],
 ];

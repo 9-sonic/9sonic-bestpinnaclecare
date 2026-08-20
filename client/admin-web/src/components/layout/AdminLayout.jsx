@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../common/Icon.jsx';
-import Spinner from '../common/Spinner.jsx';
 import NotificationsBell from '../common/NotificationsBell.jsx';
 import TourLauncher from '../common/TourLauncher.jsx';
 import CommandPalette from '../common/CommandPalette.jsx';
@@ -27,7 +26,7 @@ const NAV = [
   { to: '/staffing', label: 'Staffing', icon: 'refresh', tour: 'staffing' },
   null,
   { to: '/rota', label: 'Rota', icon: 'calendar', tour: 'rota' },
-  { to: '/timesheets', label: 'Timesheets', icon: 'wallet', tour: 'timesheets' },
+  { to: '/attendance', label: 'Attendance records', icon: 'wallet', tour: 'timesheets' },
   null,
   { to: '/clients', label: 'Clients', icon: 'user', tour: 'clients' },
   { to: '/employees', label: 'Employees', icon: 'users', tour: 'employees' },
@@ -47,7 +46,7 @@ const TITLE = {
   '/staffing': 'Staffing',
   '/cover': 'Staffing',
   '/requests': 'Staffing',
-  '/timesheets': 'Timesheets',
+  '/attendance': 'Attendance records',
   '/rota': 'Rota',
   '/clients': 'Clients',
   '/service-users': 'Clients',
@@ -207,7 +206,7 @@ export default function AdminLayout() {
             // Go back where the user actually came from (a visit is reachable from
             // rota, a client or a carer). Fall back to the section path only if
             // there's no history to pop.
-            <div onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(backTo))} title="Back" className="hv"
+            <div onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(backTo))} className="hv"
               style={{ ...s('height:40px;border-radius:20px;background:var(--d-card);display:flex;align-items:center;gap:7px;padding:0 15px 0 12px;cursor:pointer;color:var(--d-ink2);font-size:13px;font-weight:700;flex:none'), '--hbg': 'var(--d-card-hover)' }}>
               <Icon name="chevronLeft" size={16} /> Back
             </div>
@@ -215,7 +214,7 @@ export default function AdminLayout() {
           <div style={s('flex:1')} />
 
           {/* ⌘K search — centred, roomier, with a clear input affordance. */}
-          <div onClick={() => setPaletteOpen(true)} className="topbar-search" title="Search (⌘K)"
+          <div onClick={() => setPaletteOpen(true)} className="topbar-search"
             style={{ ...s('height:42px;border-radius:21px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:0 7px 0 15px;cursor:text;width:min(340px,30vw)') }}>
             <Icon name="search" size={18} />
             <span style={s('flex:1;font-size:13.5px;font-weight:500;color:var(--d-muted)')}>Search carers, clients, pages…</span>
@@ -230,9 +229,9 @@ export default function AdminLayout() {
 
           {/* Avatar — profile link. Click the small badge to change your photo. */}
           <input ref={avatarInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onAvatarPick} />
-          <div onClick={() => navigate('/profile')} title="Your profile" className="hv"
+          <div onClick={() => navigate('/profile')} className="hv"
             style={{ ...s('height:46px;border-radius:24px;background:var(--d-card);display:flex;align-items:center;gap:11px;padding:0 14px 0 6px;cursor:pointer;color:var(--d-ink);flex:none'), '--hbg': 'var(--d-card-hover)' }}>
-            <div onClick={(e) => { e.stopPropagation(); avatarInput.current?.click(); }} title="Change your photo"
+            <div onClick={(e) => { e.stopPropagation(); avatarInput.current?.click(); }} className="tip tip--below" data-tip="Change your photo"
               style={s('width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center')}>
               {admin?.avatar_url
                 ? <img src={admin.avatar_url} alt="" style={s('width:34px;height:34px;object-fit:cover;display:block')} />
@@ -242,7 +241,7 @@ export default function AdminLayout() {
           </div>
 
           {/* Sign out — moved here from the rail. */}
-          <div onClick={async () => { await logout(); navigate('/login'); }} title="Sign out" className="hv"
+          <div onClick={async () => { await logout(); navigate('/login'); }} className="hv tip tip--below" data-tip="Sign out"
             style={{ ...s('width:46px;height:46px;border-radius:23px;background:var(--d-card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-danger-dot);flex:none'), '--hbg': 'var(--d-danger-bg)' }}>
             <Icon name="logout" size={19} />
           </div>
@@ -264,7 +263,11 @@ export default function AdminLayout() {
             top bar stay put — instead of the whole shell blanking to a
             full-screen spinner (the "loading screen flash" on tab switch). */}
         <div style={s('flex:1;min-height:0')}>
-          <Suspense fallback={<div style={s('display:flex;align-items:center;justify-content:center;padding:80px 0')}><Spinner /></div>}>
+          {/* No fallback here: the lazy chunk load is near-instant once cached,
+              and each page shows its own data-loading spinner. Rendering a
+              spinner here too produced a visible DOUBLE spinner (chunk spinner →
+              page-data spinner) on navigation. */}
+          <Suspense fallback={null}>
             <Outlet />
           </Suspense>
         </div>

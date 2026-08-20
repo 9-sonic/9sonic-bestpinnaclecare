@@ -127,7 +127,7 @@ module Api
         def clock_scope(e)
           ClockEvent.joins(visit_assignment: :visit)
                     .where(visit_assignments: { employee_id: e.id })
-                    .includes(visit_assignment: { visit: :service_user })
+                    .includes(:device, visit_assignment: { visit: :service_user })
                     .order(occurred_at: :desc)
         end
 

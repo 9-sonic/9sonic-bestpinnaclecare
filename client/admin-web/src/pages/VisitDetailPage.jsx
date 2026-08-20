@@ -20,6 +20,14 @@ const LIFECYCLE_TONE = {
 const CLOCK_KIND = { clock_in: 'Clocked in', clock_out: 'Clocked out', break_start: 'Break start', break_end: 'Break end' };
 const ORIGIN_LABEL = { offline_sync: 'offline — synced later', manual_admin: 'entered by office' };
 
+// The device a tap came from — platform + app version if we know the device,
+// else the short fingerprint. An EVV trust signal.
+function deviceLabel(d) {
+  if (!d) return '';
+  if (d.platform) return `${d.platform}${d.app_version ? ` ${d.app_version}` : ''}`;
+  return `device ${String(d.fingerprint).slice(0, 8)}`;
+}
+
 const inits = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || ((p?.full_name ?? p?.name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join(''));
 
 export default function VisitDetailPage() {
@@ -109,6 +117,8 @@ export default function VisitDetailPage() {
                     <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>
                       {c.distance_from_site_m != null ? `${c.distance_from_site_m} m from site` : 'no location'}
                       {ORIGIN_LABEL[c.origin] ? ` · ${ORIGIN_LABEL[c.origin]}` : ''}
+                      {c.device ? ` · ${deviceLabel(c.device)}` : ''}
+                      {c.ip_address ? ` · IP ${c.ip_address}` : ''}
                     </div>
                   </div>
                   {c.geofence_result && <Tag tone={c.geofence_result === 'pass' ? 'success' : c.geofence_result === 'fail' ? 'danger' : 'muted'}>{c.geofence_result.replace(/_/g, ' ')}</Tag>}

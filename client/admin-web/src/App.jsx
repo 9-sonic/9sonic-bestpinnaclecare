@@ -52,7 +52,9 @@ export default function App() {
           <Route path="/visits/:id" element={<VisitDetailPage />} />
           <Route path="/service-users" element={<ServiceUsersPage />} />
           <Route path="/exceptions" element={<ExceptionsPage />} />
-          <Route path="/timesheets" element={<TimesheetsPage />} />
+          <Route path="/attendance" element={<TimesheetsPage />} />
+          {/* Old path kept as a redirect so bookmarks/links don't break. */}
+          <Route path="/timesheets" element={<Navigate to="/attendance" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
 
           {/* New IA — real where the backend exists, placeholder where it doesn't */}

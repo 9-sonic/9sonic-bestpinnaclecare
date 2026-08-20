@@ -29,18 +29,32 @@ function AmendModal({ row, onClose, onDone }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // A missed / never-clocked visit: no clock-in on record. The modal reframes to
+  // "record attendance" — the office heard the carer did attend and enters the
+  // real times, which reconciles the missed visit to completed. Same audited
+  // append-only path; the original state is preserved in the trail.
+  const reconciling = !row.clocked_in;
+
   // HH:MM -> ISO anchored to the visit's scheduled day (shift_began from the row).
   const mk = (t) => { const base = new Date(row.shift_began ?? Date.now()); const [h, m] = t.split(':').map(Number); base.setHours(h, m, 0, 0); return base.toISOString(); };
 
   async function save() {
     if (!reason.trim()) { toast.error('A reason is required — it goes in the audit trail'); return; }
-    const jobs = [];
-    if (inTime && inTime !== origIn) jobs.push(correctClock({ visit_assignment_id: row.visit_assignment_id, kind: 'clock_in', occurred_at: mk(inTime), reason: reason.trim() }));
-    if (outTime && outTime !== origOut) jobs.push(correctClock({ visit_assignment_id: row.visit_assignment_id, kind: 'clock_out', occurred_at: mk(outTime), reason: reason.trim() }));
-    if (jobs.length === 0) { toast.info('Change a clock time to record a correction'); return; }
+    // Reconciling a missed visit must go clock-in FIRST (the backend only lets a
+    // missed visit be reopened by a clock-in), then clock-out. Sequence, not
+    // parallel, so ordering holds.
+    const steps = [];
+    if (inTime && inTime !== origIn) steps.push(['clock_in', inTime]);
+    if (outTime && outTime !== origOut) steps.push(['clock_out', outTime]);
+    if (steps.length === 0) { toast.info(reconciling ? 'Enter when the carer clocked in' : 'Change a clock time to record a correction'); return; }
     setBusy(true);
-    try { await Promise.all(jobs); toast.success('Correction recorded against the original'); onDone(); onClose(); }
-    catch (e) { toast.error(e.message || 'Could not record the correction'); } finally { setBusy(false); }
+    try {
+      for (const [kind, t] of steps) {
+        await correctClock({ visit_assignment_id: row.visit_assignment_id, kind, occurred_at: mk(t), reason: reason.trim() });
+      }
+      toast.success(reconciling ? 'Attendance recorded — the visit is reconciled' : 'Correction recorded against the original');
+      onDone(); onClose();
+    } catch (e) { toast.error(e.message || 'Could not save'); } finally { setBusy(false); }
   }
 
   const field = { ...s('height:40px;border-radius:11px;border:1.5px solid var(--d-border);background:var(--d-card);color:var(--d-ink);font-size:13px;font-weight:600;padding:0 12px;width:100%;box-sizing:border-box'), fontFamily: 'inherit', colorScheme: 'light dark' };
@@ -49,16 +63,22 @@ function AmendModal({ row, onClose, onDone }) {
     <Modal
       onClose={onClose}
       maxWidth={460}
-      title={`Correct clock times — ${row.staff}`}
+      title={`${reconciling ? 'Record attendance' : 'Correct clock times'} — ${row.staff}`}
       subtitle={<span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{row.service_user} · {formatDate(row.shift_began)} · scheduled {row.shift_timing}</span>}
       footer={
         <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save & verify'}</Button>
+          <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={busy ? undefined : save}>{busy ? 'Saving…' : reconciling ? 'Record & reconcile' : 'Save & verify'}</Button>
         </div>
       }
     >
       <div style={s('flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px')}>
+        {reconciling && (
+          <div style={s('display:flex;gap:9px;background:var(--d-warn-bg);border-radius:14px;padding:12px 14px;font-size:12px;font-weight:500;color:var(--d-warn-ink);line-height:1.5')}>
+            <Icon name="info" size={15} style={{ flex: 'none', marginTop: '1px' }} />
+            This visit is marked <b>missed</b>. If the carer did attend, enter when they clocked in (and out). Recording it reconciles the visit to <b>completed</b> — the missed status stays in the audit trail.
+          </div>
+        )}
         <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
           <label style={s('display:flex;flex-direction:column;gap:5px')}>
             <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Clock in</span>

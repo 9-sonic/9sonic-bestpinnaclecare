@@ -81,6 +81,7 @@ module Clocking
           geofence_result:      geo.result,
           distance_from_site_m: geo.distance_m,
           device_fingerprint:   @device_fingerprint,
+          ip_address:           Current.ip_address,
           client_event_id:      @client_event_id,
           reason:               @reason,
           corrects_id:          @corrects_id,
