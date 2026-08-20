@@ -1008,10 +1008,12 @@ button.tile:hover { border-color: var(--color-border-strong); }
 
 /* ------------------------------- Info hint ------------------------------- */
 /* ⓘ next to a control; its bubble reveals on hover or keyboard focus. */
+/* Right-anchored (opens leftward) so a bubble on an ⓘ near the right edge never
+   sticks off the page — that was forcing a page-wide horizontal scrollbar. */
 .info-hint .info-hint__bubble {
   opacity: 0;
   visibility: hidden;
-  transform: translateX(-50%) translateY(4px);
+  transform: translateY(4px);
   transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
 }
 .info-hint:hover .info-hint__bubble,
@@ -1019,7 +1021,7 @@ button.tile:hover { border-color: var(--color-border-strong); }
 .info-hint:focus .info-hint__bubble {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 .info-hint:hover, .info-hint:focus { color: var(--d-primary); }
 
@@ -1226,23 +1228,9 @@ button.tile:hover { border-color: var(--color-border-strong); }
   .row-actions { justify-content: flex-start; margin-top: var(--space-2); }
 }
 
-/* ===================== Login + splash (mimics the PWA) ===================== */
+/* ===================== Login (mimics the PWA) ===================== */
 /* Desktop-specific: the PWA's teal wave + "Welcome Back!" hero, but presented as
    a centred card for the office rather than a full-bleed phone column. */
-
-/* Branded boot splash — centred mono logo over the wallpaper, fades out. */
-.admin-splash {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #0b5f6e url('/brand/wallpaper.webp') center / cover no-repeat;
-  transition: opacity 0.34s ease, visibility 0.34s;
-}
-.admin-splash--leaving { opacity: 0; visibility: hidden; }
-.admin-splash__logo { width: min(38vw, 220px); height: auto; margin-bottom: 3vh; object-fit: contain; }
 
 /* Login shell: centre a card on the page. */
 .dlogin {

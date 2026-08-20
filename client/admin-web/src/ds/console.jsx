@@ -137,7 +137,9 @@ export function ExportButton({ onExport, label = 'Export', title = 'Export', sub
   );
 }
 
-export function StatCard({ label, value, hint, tone = 'primary', icon, live, active, onClick }) {
+// `hint` is intentionally accepted-and-ignored: callers still pass a hint line,
+// but the descriptive sub-text under each stat was removed by request.
+export function StatCard({ label, value, tone = 'primary', icon, live, active, onClick }) {
   const c = TONE[tone] || TONE.primary;
   return (
     <div onClick={onClick} className={onClick ? 'hv' : ''}
@@ -151,7 +153,6 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, live, act
       <div className="d-num" style={s('font-size:32px;font-weight:700;color:var(--d-ink);line-height:1')}>{value}</div>
       <div style={s('display:flex;flex-direction:column;gap:2px')}>
         <div style={s('font-size:13px;font-weight:600;color:var(--d-ink)')}>{label}</div>
-        {hint && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>{hint}</div>}
       </div>
     </div>
   );
