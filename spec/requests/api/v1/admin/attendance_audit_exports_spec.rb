@@ -86,6 +86,9 @@ RSpec.describe "Admin attendance audit export", type: :request do
       rows = response.parsed_body
       expect(rows.size).to eq(1)
       expect(rows.first).to include("staff", "service_user" => "Amber Kingham", "late_in" => 5)
+      # The on-screen table carries the assignment id so a manager can amend the
+      # clock times from here (the export CSV/XLSX omit it).
+      expect(rows.first["visit_assignment_id"]).to be_present
     end
 
     it "filters by service_user_id" do

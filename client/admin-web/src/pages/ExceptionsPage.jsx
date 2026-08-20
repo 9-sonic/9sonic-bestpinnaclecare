@@ -65,7 +65,7 @@ function ExceptionModal({ ex, onClose, onDone }) {
     <div style={s('display:flex;flex-wrap:wrap;gap:10px')}>
       {canAmend && canManage && <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={save}>{busy ? 'Saving…' : 'Save & verify'}</Button>}
       {ex.alertId && canManage && <Button icon="check" onClick={accept}>Accept as is</Button>}
-      <Button onClick={onClose}>Cancel</Button>
+      <Button variant="ghost" onClick={onClose}>Cancel</Button>
     </div>
   );
 

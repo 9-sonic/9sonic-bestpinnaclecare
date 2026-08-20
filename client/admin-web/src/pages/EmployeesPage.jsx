@@ -176,7 +176,7 @@ function EmployeesTab() {
           maxWidth={520}
           footer={(
             <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
-              <span data-tour="employees-modal-cancel"><Button onClick={closeModal}>Cancel</Button></span>
+              <span data-tour="employees-modal-cancel"><Button variant="ghost" onClick={closeModal}>Cancel</Button></span>
               <Button variant="primary" icon="check" onClick={saving ? undefined : handleSave}>{saving ? 'Saving…' : 'Send invitation'}</Button>
             </div>
           )}

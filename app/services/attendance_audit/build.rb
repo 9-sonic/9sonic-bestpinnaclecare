@@ -13,6 +13,7 @@ module AttendanceAudit
   # floored at 1.0 and hard-capped at 35.0, matching the source file's ~3.6
   # ratio and its 35.0 ceiling. Both inputs are already on the clock event.
   Row = Struct.new(
+    :visit_assignment_id,
     :staff, :service_user, :shift_timing, :shift_began, :shift_ended,
     :clocked_in, :offline_in, :metres_in, :index_in, :late_in, :map_in, :reason,
     :clocked_out, :offline_out, :metres_out, :index_out, :late_out, :map_out,
@@ -59,6 +60,7 @@ module AttendanceAudit
       cout = a.effective_clock_out
 
       Row.new(
+        visit_assignment_id: a.id,
         staff:        a.employee&.full_name,
         service_user: su&.full_name,
         shift_timing: window(v),

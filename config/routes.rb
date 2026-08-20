@@ -63,7 +63,10 @@ Rails.application.routes.draw do
         # Domain: service users, care packages, visits, assignments
         resources :service_users, only: %i[index show create update] do
           resources :care_plan_items, only: %i[index create update destroy]
-          member { get :notes }   # the client's visit-note journal across visits
+          member do
+            get :notes    # the client's visit-note journal across visits
+            get :visits   # the client's visits (who attended, when) — from/to + carer filter
+          end
         end
         resources :care_package_slots, only: %i[index create update]
         resources :visits, only: %i[index show create update destroy] do
@@ -91,6 +94,7 @@ Rails.application.routes.draw do
           get "notes",           to: "carer_profile#notes"
           get "clock_events",    to: "carer_profile#clock_events"
           get "requests",        to: "carer_profile#requests"
+          get "mileage",         to: "carer_profile#mileage"
         end
         resources :admins,    only: %i[index show create update] do
           member { post :resend_invite } # re-send a pending office-user invite

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 
 // Shared console primitives, ported from the design's component set into the
@@ -12,6 +13,9 @@ const TONE = {
   info: { bg: 'var(--d-info-bg)', ink: 'var(--d-info-ink)' },
   primary: { bg: 'var(--d-primary-soft)', ink: 'var(--d-primary-deep)' },
   magenta: { bg: 'var(--d-primary-soft)', ink: 'var(--d-magenta)' },
+  // A true purple — self-contained (no theme token yet) but tuned to read on
+  // both light and dark surfaces via a translucent wash + a fixed purple ink.
+  violet: { bg: 'color-mix(in oklch, oklch(0.55 0.2 292) 16%, transparent)', ink: 'oklch(0.6 0.2 292)' },
   muted: { bg: 'var(--d-panel)', ink: 'var(--d-muted)' },
 };
 
@@ -64,22 +68,72 @@ export function SeverityPill({ severity }) {
   return <Tag tone={tone}>{label}</Tag>;
 }
 
-export function Button({ variant = 'ghost', icon, children, onClick, disabled, size = 'md' }) {
+export function Button({ variant = 'primary', icon, children, onClick, disabled, size = 'md' }) {
   const V = {
-    // Primary paints --d-grad-primary (a flat colour on the current skin, the
-    // brand gradient under the PWA skin) and carries --d-shadow-cta (none by
-    // default). Hover still swaps to the flat --d-pill-hover via .hv.
-    primary: { bg: 'var(--d-grad-primary)', ink: 'var(--d-pill-ink)', hbg: 'var(--d-pill-hover)', bd: 'transparent', shadow: 'var(--d-shadow-cta)' },
-    ghost: { bg: 'var(--d-card)', ink: 'var(--d-ink)', hbg: 'var(--d-card-hover)', bd: 'var(--d-border)' },
-    danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', hbg: 'var(--d-danger-bg2)', bd: 'transparent' },
-    subtle: { bg: 'var(--d-panel)', ink: 'var(--d-ink2)', hbg: 'var(--d-sage)', bd: 'transparent' },
+    primary: { bg: 'var(--d-grad-primary)', ink: 'var(--d-pill-ink)', bd: 'transparent', shadow: '0 2px 8px rgba(10, 126, 142, 0.25)' },
+    ghost: { bg: 'var(--d-card)', ink: 'var(--d-ink)', bd: 'var(--d-border)', shadow: 'none' },
+    danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', bd: 'rgba(220, 38, 38, 0.15)', shadow: 'none' },
+    subtle: { bg: 'var(--d-panel)', ink: 'var(--d-ink2)', bd: 'transparent', shadow: 'none' },
   }[variant] || {};
   const h = size === 'sm' ? 34 : 40;
+  const r = size === 'sm' ? 10 : 12;
   return (
-    <div onClick={disabled ? undefined : onClick} className="hv"
-      style={{ ...s(`height:${h}px;border-radius:${h / 2}px;display:inline-flex;align-items:center;gap:7px;padding:0 ${size === 'sm' ? 13 : 16}px;font-size:${size === 'sm' ? 12.5 : 13.5}px;font-weight:700;cursor:pointer;box-sizing:border-box;white-space:nowrap`), background: V.bg, color: V.ink, border: `1px solid ${V.bd}`, boxShadow: V.shadow, '--hbg': V.hbg, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+    <button type="button" disabled={disabled} onClick={disabled ? undefined : onClick}
+      className={disabled ? '' : 'pressable'}
+      style={{
+        ...s(`height:${h}px;border-radius:${r}px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 ${size === 'sm' ? 12 : 16}px;font-size:${size === 'sm' ? 12.5 : 13.5}px;font-weight:600;white-space:nowrap;outline:none`),
+        fontFamily: 'inherit',
+        background: V.bg,
+        color: V.ink,
+        border: `1px solid ${V.bd}`,
+        boxShadow: V.shadow,
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+      }}>
       {icon && <Icon name={icon} size={size === 'sm' ? 14 : 16} />} {children}
-    </div>
+    </button>
+  );
+}
+
+// One "Export" button that opens a modal to pick the file format, then calls
+// onExport(type). Replaces the per-page CSV + XLSX button pairs so every export
+// on the console works the same way. `formats` defaults to CSV + XLSX; pass your
+// own to offer different types (e.g. add 'pdf').
+const EXPORT_FORMATS = [
+  { type: 'csv', label: 'CSV', hint: 'Comma-separated — opens in any spreadsheet or text tool.', icon: 'file' },
+  { type: 'xlsx', label: 'Excel (XLSX)', hint: 'Formatted workbook with the audit columns.', icon: 'download' },
+];
+export function ExportButton({ onExport, label = 'Export', title = 'Export', subtitle = 'Choose a file format. The filters on screen are applied.', formats = EXPORT_FORMATS, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const run = async (type) => {
+    setBusy(true);
+    try { const ok = await onExport(type); if (ok !== false) setOpen(false); }
+    finally { setBusy(false); }
+  };
+  return (
+    <>
+      <Button variant="primary" icon="download" disabled={disabled} onClick={() => setOpen(true)}>{label}</Button>
+      {open && (
+        <Modal open onClose={() => (busy ? null : setOpen(false))} title={title} subtitle={subtitle} maxWidth={440}>
+          <div style={s('padding:6px 24px 20px;display:flex;flex-direction:column;gap:12px')}>
+            {formats.map((o) => (
+              <button key={o.type} type="button" disabled={busy} onClick={() => run(o.type)} className={busy ? '' : 'hv'}
+                style={{ ...s('display:flex;align-items:center;gap:14px;text-align:left;border:1px solid var(--d-border);border-radius:14px;padding:14px 16px;cursor:pointer;background:var(--d-card)'), fontFamily: 'inherit', opacity: busy ? 0.6 : 1, cursor: busy ? 'wait' : 'pointer', '--hbg': 'var(--d-card-hover)' }}>
+                <div style={{ ...s('width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none'), background: 'var(--d-primary-soft)', color: 'var(--d-primary-deep)' }}><Icon name={o.icon} size={18} /></div>
+                <div style={s('flex:1;min-width:0')}>
+                  <div style={s('font-size:14px;font-weight:700;color:var(--d-ink)')}>{o.label}</div>
+                  <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:2px;line-height:1.4')}>{o.hint}</div>
+                </div>
+                <Icon name="chevronRight" size={16} style={{ color: 'var(--d-faint)' }} />
+              </button>
+            ))}
+            {busy && <div style={s('font-size:12px;font-weight:600;color:var(--d-muted);text-align:center')}>Building your file…</div>}
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -114,7 +168,7 @@ export function SegTabs({ tabs, active, onSelect }) {
         const on = active === t.key;
         return (
           <div key={t.key} onClick={() => onSelect(t.key)} className={on ? '' : 'hv'}
-            style={{ ...s('height:32px;border-radius:11px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer;font-size:12.5px;font-weight:700;white-space:nowrap'), background: on ? 'var(--d-pill)' : 'transparent', color: on ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': 'var(--d-panel)' }}>
+            style={{ ...s('height:32px;border-radius:11px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer;font-size:12.5px;font-weight:700;white-space:nowrap'), background: on ? 'var(--d-grad-primary)' : 'transparent', color: on ? 'var(--d-pill-ink)' : 'var(--d-ink2)', boxShadow: on ? '0 2px 8px rgba(10, 126, 142, 0.25)' : 'none', '--hbg': 'var(--d-panel)' }}>
             {t.icon && <Icon name={t.icon} size={14} />}
             {t.label}
             {t.count != null && <span style={{ ...s('min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;padding:0 5px'), background: on ? 'rgba(255,255,255,0.22)' : 'var(--d-panel)', color: on ? 'var(--d-pill-ink)' : 'var(--d-muted)' }}>{t.count}</span>}
@@ -137,8 +191,8 @@ export function TableWrap({ children, minWidth = 760 }) {
 export function Th({ children, align }) {
   return <th style={{ ...s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px'), textAlign: align || 'left' }}>{children}</th>;
 }
-export function Td({ children, align, mono }) {
-  return <td style={{ ...s('font-size:12.5px;font-weight:500;color:var(--d-ink2);padding:12px;border-top:1px solid var(--d-border)'), textAlign: align || 'left', fontVariantNumeric: mono ? 'tabular-nums' : undefined }}>{children}</td>;
+export function Td({ children, align, mono, style }) {
+  return <td style={{ ...s('font-size:12.5px;font-weight:500;color:var(--d-ink2);padding:12px;border-top:1px solid var(--d-border)'), textAlign: align || 'left', fontVariantNumeric: mono ? 'tabular-nums' : undefined, ...style }}>{children}</td>;
 }
 export function Row({ children, onClick, selected }) {
   return <tr onClick={onClick} className={onClick ? 'hv' : ''} style={{ cursor: onClick ? 'pointer' : 'default', background: selected ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>{children}</tr>;
@@ -278,14 +332,9 @@ export function Pager({ page, perPage, total, onPage }) {
 // right. Compose them inside <FilterBar>…</FilterBar>.
 
 const FIELD_LABEL = 'font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em';
-const FIELD_BOX = 'height:40px;border:1.5px solid var(--d-border);border-radius:12px;background:var(--d-card);color:var(--d-ink);font-size:12.5px;font-weight:600';
+const FIELD_BOX = 'height:40px;border:1px solid var(--d-border);border-radius:12px;background:var(--d-card);color:var(--d-ink);font-size:13px;font-weight:600;transition:all 0.15s ease';
 
 /* -------------------------------- Date picker ------------------------------ */
-// A branded date field: shows UK DD/MM/YYYY, opens a popover calendar built from
-// the console tokens (so it matches the PWA end to end, unlike the native input's
-// OS popup), and honours min/max. The value contract is unchanged — it takes and
-// returns an ISO 'YYYY-MM-DD' string, so every page and export keeps working.
-
 const DP_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DP_DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -295,19 +344,18 @@ const dpParse = (iso) => {
   return (y && m && d) ? new Date(y, m - 1, d) : null;
 };
 const dpIso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-const dpUK = (iso) => { const d = dpParse(iso); return d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : ''; };
-// Compare by calendar day, ignoring time.
+// Friendly display ("20 Aug 2026") for the trigger — reads as a chosen date, not
+// a raw native input.
+const dpNice = (iso) => { const d = dpParse(iso); return d ? `${d.getDate()} ${DP_MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}` : ''; };
 const dpDayNum = (dt) => dt.getFullYear() * 10000 + dt.getMonth() * 100 + dt.getDate();
 
 export function DatePicker({ value, onChange, min, max, width = 160 }) {
   const [open, setOpen] = useState(false);
-  // The month the calendar is showing; seeded from the value (or today).
   const [view, setView] = useState(() => dpParse(value) || new Date());
   const wrapRef = useRef(null);
 
   useEffect(() => { if (open) setView(dpParse(value) || new Date()); }, [open, value]);
 
-  // Close on outside click / Escape while open.
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
@@ -322,34 +370,70 @@ export function DatePicker({ value, onChange, min, max, width = 160 }) {
   const maxN = max ? dpDayNum(dpParse(max)) : Infinity;
   const disabledDay = (dt) => { const n = dpDayNum(dt); return n < minN || n > maxN; };
 
-  // Build the 6-week grid for the viewed month, Monday-first.
   const first = new Date(view.getFullYear(), view.getMonth(), 1);
-  const startOffset = (first.getDay() + 6) % 7; // 0=Mon
+  const startOffset = (first.getDay() + 6) % 7;
   const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - startOffset);
   const days = Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
   const todayN = dpDayNum(new Date());
 
   const step = (delta) => setView(new Date(view.getFullYear(), view.getMonth() + delta, 1));
   const pick = (dt) => { if (!disabledDay(dt)) { onChange(dpIso(dt)); setOpen(false); } };
+  const pickToday = () => { const now = new Date(); if (!disabledDay(now)) { onChange(dpIso(now)); setView(now); setOpen(false); } };
 
   return (
     <div ref={wrapRef} style={s('position:relative;flex:none')}>
       <button type="button" onClick={() => setOpen((v) => !v)}
-        style={{ ...s(`${FIELD_BOX};display:flex;align-items:center;gap:9px;padding:0 13px;cursor:pointer;text-align:left`), width, fontFamily: 'inherit' }}>
-        <span style={{ ...s('flex:1;min-width:0'), color: value ? 'var(--d-ink)' : 'var(--d-faint)' }}>{value ? dpUK(value) : 'dd/mm/yyyy'}</span>
-        <Icon name="calendar" size={16} />
+        style={{
+          ...s(`${FIELD_BOX};display:flex;align-items:center;gap:9px;padding:0 12px;cursor:pointer;text-align:left;outline:none`),
+          width,
+          fontFamily: 'inherit',
+          borderColor: open ? 'var(--d-primary)' : 'var(--d-border)',
+          boxShadow: open ? '0 0 0 3px rgba(10, 126, 142, 0.18)' : 'none',
+        }}>
+        <span style={{ color: (open || value) ? 'var(--d-primary)' : 'var(--d-muted)', display: 'inline-flex', flex: 'none' }}>
+          <Icon name="calendar" size={16} />
+        </span>
+        <span style={{ ...s('flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'), color: value ? 'var(--d-ink)' : 'var(--d-faint)', fontWeight: value ? 600 : 500 }}>{value ? dpNice(value) : 'Any date'}</span>
+        {value && (
+          <span role="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); onChange(''); }}
+            style={{ ...s('display:inline-flex;flex:none;color:var(--d-faint);border-radius:6px;padding:2px'), '--hbg': 'var(--d-panel)' }} className="hv" aria-label="Clear date">
+            <Icon name="close" size={14} />
+          </span>
+        )}
       </button>
       {open && (
-        <div style={{ ...s('position:absolute;z-index:60;top:calc(100% + 6px);left:0;border-radius:16px;padding:12px;width:248px'), background: 'var(--d-card)', border: '1px solid var(--d-border)', boxShadow: 'var(--d-shadow-lg, 0 12px 28px rgba(0,0,0,0.18))' }}>
-          <div style={s('display:flex;align-items:center;justify-content:space-between;margin-bottom:10px')}>
-            <button type="button" onClick={() => step(-1)} className="hv" style={{ ...s('width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-card);color:var(--d-ink2)'), '--hbg': 'var(--d-card-hover)' }}><Icon name="chevronLeft" size={16} /></button>
-            <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{DP_MONTHS[view.getMonth()]} {view.getFullYear()}</div>
-            <button type="button" onClick={() => step(1)} className="hv" style={{ ...s('width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-card);color:var(--d-ink2)'), '--hbg': 'var(--d-card-hover)' }}><Icon name="chevronRight" size={16} /></button>
+        <div style={{
+          ...s('position:absolute;z-index:100;top:calc(100% + 8px);left:0;border-radius:18px;padding:16px;width:280px;box-sizing:border-box'),
+          background: 'var(--d-card)',
+          border: '1px solid var(--d-border)',
+          boxShadow: '0 20px 40px -8px rgba(0,0,0,0.18), 0 6px 16px -4px rgba(0,0,0,0.12)',
+        }}>
+          {/* Header */}
+          <div style={s('display:flex;align-items:center;justify-content:space-between;margin-bottom:12px')}>
+            <button type="button" onClick={() => step(-1)} className="pressable"
+              style={{ ...s('width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-panel);color:var(--d-ink)'), outline: 'none' }}>
+              <Icon name="chevronLeft" size={16} />
+            </button>
+            <div className="d-num" style={s('font-size:14px;font-weight:700;color:var(--d-ink);letter-spacing:-0.2px')}>
+              {DP_MONTHS[view.getMonth()]} {view.getFullYear()}
+            </div>
+            <button type="button" onClick={() => step(1)} className="pressable"
+              style={{ ...s('width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--d-border);background:var(--d-panel);color:var(--d-ink)'), outline: 'none' }}>
+              <Icon name="chevronRight" size={16} />
+            </button>
           </div>
-          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px')}>
-            {DP_DOW.map((d) => <div key={d} style={s('height:24px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase')}>{d}</div>)}
+
+          {/* DOW Row */}
+          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px')}>
+            {DP_DOW.map((d) => (
+              <div key={d} style={s('height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>
+                {d}
+              </div>
+            ))}
           </div>
-          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:2px')}>
+
+          {/* Days Grid */}
+          <div style={s('display:grid;grid-template-columns:repeat(7,1fr);gap:4px')}>
             {days.map((dt) => {
               const inMonth = dt.getMonth() === view.getMonth();
               const n = dpDayNum(dt);
@@ -357,16 +441,34 @@ export function DatePicker({ value, onChange, min, max, width = 160 }) {
               const isToday = n === todayN;
               const dis = disabledDay(dt);
               return (
-                <button key={n} type="button" disabled={dis} onClick={() => pick(dt)} className={isSel || dis ? '' : 'hv'}
-                  style={{ ...s('height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent'),
-                    background: isSel ? 'var(--d-pill)' : 'transparent',
-                    color: isSel ? 'var(--d-pill-ink)' : dis ? 'var(--d-faint)' : inMonth ? 'var(--d-ink)' : 'var(--d-faint)',
-                    borderColor: isToday && !isSel ? 'var(--d-border-strong, var(--d-border))' : 'transparent',
-                    opacity: dis ? 0.4 : 1, cursor: dis ? 'not-allowed' : 'pointer', '--hbg': 'var(--d-card-hover)' }}>
+                <button key={n} type="button" disabled={dis} onClick={() => pick(dt)} className={dis ? '' : 'pressable'}
+                  style={{
+                    ...s('height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;outline:none;transition:all 0.12s ease'),
+                    background: isSel ? 'var(--d-grad-primary)' : isToday ? 'var(--d-primary-soft)' : 'transparent',
+                    color: isSel ? '#ffffff' : dis ? 'var(--d-faint)' : isToday ? 'var(--d-primary)' : inMonth ? 'var(--d-ink)' : 'var(--d-faint)',
+                    border: isSel ? '1px solid transparent' : isToday ? '1.5px solid var(--d-primary)' : '1px solid transparent',
+                    boxShadow: isSel ? '0 4px 12px rgba(10, 126, 142, 0.35)' : 'none',
+                    opacity: dis ? 0.35 : inMonth ? 1 : 0.45,
+                    cursor: dis ? 'not-allowed' : 'pointer',
+                  }}>
                   {dt.getDate()}
                 </button>
               );
             })}
+          </div>
+
+          {/* Quick Footer */}
+          <div style={s('margin-top:12px;padding-top:10px;border-top:1px solid var(--d-border);display:flex;align-items:center;justify-content:space-between')}>
+            <button type="button" onClick={pickToday}
+              style={{ ...s('background:transparent;border:0;font-size:12px;font-weight:700;color:var(--d-primary);cursor:pointer;padding:2px 6px;border-radius:6px'), fontFamily: 'inherit' }}>
+              Today
+            </button>
+            {value && (
+              <button type="button" onClick={() => { onChange(''); setOpen(false); }}
+                style={{ ...s('background:transparent;border:0;font-size:12px;font-weight:600;color:var(--d-muted);cursor:pointer;padding:2px 6px;border-radius:6px'), fontFamily: 'inherit' }}>
+                Clear
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -383,10 +485,6 @@ export function DateField({ label, value, onChange, max, min }) {
   );
 }
 
-// Branded select: a token-styled trigger + a popover options list, replacing the
-// native <select> whose open menu is the OS's (unthemed white in dark mode, off
-// brand). Same API as before — options are {id|value, label}; pass allLabel to
-// prepend an "all/any" row (omit it for a required choice like a setting).
 export function SelectField({ label, value, onChange, options, allLabel, minWidth = 160, disabled = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -411,20 +509,39 @@ export function SelectField({ label, value, onChange, options, allLabel, minWidt
       {label && <span style={s(FIELD_LABEL)}>{label}</span>}
       <div ref={wrapRef} style={s('position:relative')}>
         <button type="button" disabled={disabled} onClick={() => setOpen((v) => !v)}
-          style={{ ...s(`${FIELD_BOX};display:flex;align-items:center;gap:8px;padding:0 11px;cursor:pointer;text-align:left;width:100%`), fontFamily: 'inherit', opacity: disabled ? 0.55 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+          style={{
+            ...s(`${FIELD_BOX};display:flex;align-items:center;gap:8px;padding:0 13px;cursor:pointer;text-align:left;width:100%;outline:none`),
+            fontFamily: 'inherit',
+            opacity: disabled ? 0.55 : 1,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            borderColor: open ? 'var(--d-primary)' : 'var(--d-border)',
+            boxShadow: open ? '0 0 0 3px rgba(10, 126, 142, 0.18)' : 'none',
+          }}>
           <span style={s('flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{shown}</span>
-          <span style={{ display: 'inline-flex', transition: 'transform 0.15s ease', transform: open ? 'rotate(180deg)' : 'none', color: 'var(--d-muted)' }}><Icon name="chevronDown" size={16} /></span>
+          <span style={{ display: 'inline-flex', transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)', transform: open ? 'rotate(180deg)' : 'none', color: open ? 'var(--d-primary)' : 'var(--d-muted)' }}>
+            <Icon name="chevronDown" size={16} />
+          </span>
         </button>
         {open && !disabled && (
-          <div style={{ ...s('position:absolute;z-index:60;top:calc(100% + 6px);left:0;width:100%;min-width:180px;border-radius:12px;padding:5px;max-height:280px;overflow-y:auto'), background: 'var(--d-card)', border: '1px solid var(--d-border)', boxShadow: 'var(--d-shadow-lg, 0 12px 28px rgba(0,0,0,0.18))' }}>
+          <div style={{
+            ...s('position:absolute;z-index:100;top:calc(100% + 8px);left:0;width:100%;min-width:190px;border-radius:16px;padding:6px;max-height:280px;overflow-y:auto;box-sizing:border-box'),
+            background: 'var(--d-card)',
+            border: '1px solid var(--d-border)',
+            boxShadow: '0 20px 40px -8px rgba(0,0,0,0.18), 0 6px 16px -4px rgba(0,0,0,0.12)',
+          }}>
             {items.map((o) => {
               const v = o.__all ? '' : optVal(o);
               const sel = v === value;
               return (
-                <button key={o.__all ? '__all' : v} type="button" onClick={() => choose(o)} className={sel ? '' : 'hv'}
-                  style={{ ...s('display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-radius:9px;padding:9px 10px;font-size:12.5px;font-weight:600;cursor:pointer'), fontFamily: 'inherit', background: sel ? 'var(--d-pill)' : 'transparent', color: sel ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': 'var(--d-card-hover)' }}>
-                  <span style={s('flex:1;min-width:0')}>{o.label}</span>
-                  {sel && <Icon name="check" size={14} />}
+                <button key={o.__all ? '__all' : v} type="button" onClick={() => choose(o)} className="pressable"
+                  style={{
+                    ...s('display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.12s ease;outline:none'),
+                    fontFamily: 'inherit',
+                    background: sel ? 'var(--d-primary-soft)' : 'transparent',
+                    color: sel ? 'var(--d-primary)' : 'var(--d-ink)',
+                  }}>
+                  <span style={s('flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{o.label}</span>
+                  {sel && <span style={{ color: 'var(--d-primary)', display: 'inline-flex' }}><Icon name="check" size={15} /></span>}
                 </button>
               );
             })}
@@ -435,30 +552,12 @@ export function SelectField({ label, value, onChange, options, allLabel, minWidt
   );
 }
 
-// Quick-range chips (7d / 30d / 90d by default). `active` is the currently
-// selected day-count, so the chosen chip reads as selected; onSelect(days) fires.
-export function RangeChips({ ranges = [{ label: '7d', days: 7 }, { label: '30d', days: 30 }, { label: '90d', days: 90 }], active, onSelect }) {
-  return (
-    <div style={s('display:flex;gap:6px;align-items:center;height:40px')}>
-      {ranges.map((r) => {
-        const on = active === r.days;
-        return (
-          <button key={r.label} type="button" onClick={() => onSelect(r.days)} className={on ? '' : 'hv'}
-            style={{ ...s('height:32px;padding:0 12px;border-radius:16px;font-size:11.5px;font-weight:700;cursor:pointer'), fontFamily: 'inherit', background: on ? 'var(--d-pill)' : 'var(--d-card)', color: on ? 'var(--d-pill-ink)' : 'var(--d-ink2)', border: `1px solid ${on ? 'transparent' : 'var(--d-border)'}`, '--hbg': 'var(--d-card-hover)' }}>
-            {r.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // Row wrapper: aligns fields on their bottom edge, wraps on narrow screens, and
 // pushes anything after a <FilterBar.Spacer/> (e.g. export buttons) to the right.
 // NOTE: style is MERGED into the flex base, never spread over it — passing
 // style={{marginTop}} used to clobber display:flex and stack every field.
 export function FilterBar({ children, style, ...rest }) {
-  return <div style={{ ...s('display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap'), ...style }} {...rest}>{children}</div>;
+  return <div style={{ ...s('display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap'), ...style }} {...rest}>{children}</div>;
 }
 FilterBar.Spacer = function Spacer() { return <div style={s('flex:1')} />; };
 

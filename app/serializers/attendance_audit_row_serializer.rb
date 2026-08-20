@@ -1,6 +1,9 @@
 class AttendanceAuditRowSerializer
   def self.call(row)
     {
+      # For the in-app amend action (correcting a clock time); omitted from the
+      # CSV/XLSX exports, which are for external reading, not editing.
+      visit_assignment_id: row.visit_assignment_id,
       staff:         row.staff,
       service_user:  row.service_user,
       shift_timing:  row.shift_timing,

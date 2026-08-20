@@ -8,14 +8,12 @@ import { usePageTour } from '../../tour/TourRoot.jsx';
 export default function TourLauncher() {
   const { start, available } = usePageTour();
   if (!available) return null;
+  // Icon-only by default; expands left on hover to reveal the label. The label
+  // sits BEFORE the icon so the pill grows leftward (see .tour-launch in admin.css).
   return (
-    <div
-      onClick={start}
-      title="Show me around this page"
-      className="hv"
-      style={{ ...s('height:40px;border-radius:20px;background:var(--d-card);display:flex;align-items:center;gap:7px;padding:0 14px;cursor:pointer;color:var(--d-ink2);font-size:13px;font-weight:700;flex:none'), '--hbg': 'var(--d-card-hover)' }}
-    >
-      <Icon name="info" size={16} /> Show me around
-    </div>
+    <button type="button" onClick={start} className="tour-launch" aria-label="Show me around this page" style={{ ...s('border:0;flex:none'), fontFamily: 'inherit' }}>
+      <span className="tour-launch__label">Show me around</span>
+      <span className="tour-launch__icon"><Icon name="info" size={16} /></span>
+    </button>
   );
 }

@@ -18,7 +18,7 @@ module Api
         # delivery: the schedule, the care plan, which tasks were done, and the
         # carer's notes. Read-only; mirrors what the carer saw and recorded.
         def show
-          visit = Visit.includes(:service_user, visit_assignments: %i[employee visit_tasks visit_notes]).find(params[:id])
+          visit = Visit.includes(:service_user, visit_assignments: %i[employee visit_tasks visit_notes clock_events]).find(params[:id])
           su = visit.service_user
           render json: VisitSerializer.call(visit, include_service_user: true).merge(
             care_plan: su.care_plan_items.active.map { |c| CarePlanItemSerializer.call(c) },
@@ -28,8 +28,16 @@ module Api
                 # name + full_name: keep the shape uniform with every other
                 # employee object in the API so fullName() works either way.
                 employee: va.employee && { id: va.employee.id, name: va.employee.full_name, full_name: va.employee.full_name },
+                assignment_status: va.assignment_status,
+                lifecycle_state:   va.lifecycle_state,
+                actual_start:      va.actual_start&.iso8601,
+                actual_end:        va.actual_end&.iso8601,
+                worked_minutes:    va.worked_minutes,
                 tasks: va.visit_tasks.map { |t| VisitTaskSerializer.call(t) },
-                notes: va.visit_notes.effective.sort_by(&:created_at).map { |n| VisitNoteSerializer.call(n) }
+                notes: va.visit_notes.effective.sort_by(&:created_at).map { |n| VisitNoteSerializer.call(n) },
+                # The clock history for this carer on this visit — in/out taps with
+                # location, so a visit reads as a complete record of what happened.
+                clock_events: va.clock_events.sort_by(&:occurred_at).map { |ce| ClockEventSerializer.call(ce) }
               }
             end
           )

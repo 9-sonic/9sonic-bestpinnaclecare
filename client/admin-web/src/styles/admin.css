@@ -1034,6 +1034,84 @@ button.tile:hover { border-color: var(--color-border-strong); }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--d-primary) 14%, transparent);
 }
 
+/* ------------------------------ Tooltips -------------------------------- */
+/* One tooltip style across the app, matching the sidebar rail pill: a dark
+   (--d-ink) bubble with light text, appearing above the element on hover/focus.
+   Usage: add className="tip" and data-tip="Label" to any element (works
+   alongside other classes, e.g. "hv tip"). Replaces scattered native title=. */
+.tip { position: relative; }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--d-ink);
+  color: var(--d-card);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 7px 11px;
+  border-radius: 9px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 200;
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
+}
+.tip:hover::after, .tip:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---------------------- "Show me around" launcher ----------------------- */
+/* A circular (i) button that expands LEFT on hover to reveal its label. The
+   label lives before the icon (so it grows leftward) and animates its max-width
+   from 0. */
+.tour-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 40px;
+  padding: 0;
+  border-radius: 20px;
+  background: var(--d-card);
+  color: var(--d-ink2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: gap 0.18s ease, padding 0.18s ease, background 0.15s ease, color 0.15s ease;
+}
+.tour-launch__icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.tour-launch__label {
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  transition: max-width 0.2s ease, opacity 0.16s ease;
+}
+.tour-launch:hover, .tour-launch:focus-visible {
+  gap: 6px;
+  padding-left: 15px;
+  background: var(--d-card-hover);
+  color: var(--d-ink);
+}
+.tour-launch:hover .tour-launch__label,
+.tour-launch:focus-visible .tour-launch__label {
+  max-width: 160px;
+  opacity: 1;
+}
+
 /* -------------------------------- Toasts --------------------------------- */
 /* Ported from the carer PWA: a solid-colour toast in a bottom-centre stack,
    white text, sliding up. Colours use the admin tokens so dark mode follows. */

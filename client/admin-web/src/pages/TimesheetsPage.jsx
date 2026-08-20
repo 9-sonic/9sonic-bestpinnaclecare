@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { listAttendanceAudit, exportAttendanceAudit, listServiceUsers, listEmployees } from '../api/index.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import { listAttendanceAudit, exportAttendanceAudit, listServiceUsers, listEmployees, correctClock } from '../api/index.js';
 import { fullName, formatDate, formatTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
-import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Row, DateField, SelectField, RangeChips, FilterBar } from '../ds/console.jsx';
+import Modal from '../components/common/Modal.jsx';
+import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, ExportButton, TableWrap, Th, Td, Row, DateField, SelectField, FilterBar } from '../ds/console.jsx';
 
 // CQC visit-attendance audit: one row per carer x visit, filterable by date
 // range, client and carer — the same data as the CSV/XLSX export
@@ -14,8 +16,73 @@ import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, TableWrap, Th, Td, Ro
 const iso = (d) => d.toISOString().slice(0, 10);
 const initials = (name) => (name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
 
+// Correct a visit's clock in/out from the attendance record. Posts to the same
+// audited correctClock endpoint the Exceptions queue uses — a manual_admin event
+// appended with a mandatory reason; the original is never overwritten and the
+// lifecycle status recomputes from the corrected times.
+function AmendModal({ row, onClose, onDone }) {
+  const toast = useToast();
+  const origIn = row.clocked_in ? formatTime(row.clocked_in) : '';
+  const origOut = row.clocked_out ? formatTime(row.clocked_out) : '';
+  const [inTime, setInTime] = useState(origIn);
+  const [outTime, setOutTime] = useState(origOut);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // HH:MM -> ISO anchored to the visit's scheduled day (shift_began from the row).
+  const mk = (t) => { const base = new Date(row.shift_began ?? Date.now()); const [h, m] = t.split(':').map(Number); base.setHours(h, m, 0, 0); return base.toISOString(); };
+
+  async function save() {
+    if (!reason.trim()) { toast.error('A reason is required — it goes in the audit trail'); return; }
+    const jobs = [];
+    if (inTime && inTime !== origIn) jobs.push(correctClock({ visit_assignment_id: row.visit_assignment_id, kind: 'clock_in', occurred_at: mk(inTime), reason: reason.trim() }));
+    if (outTime && outTime !== origOut) jobs.push(correctClock({ visit_assignment_id: row.visit_assignment_id, kind: 'clock_out', occurred_at: mk(outTime), reason: reason.trim() }));
+    if (jobs.length === 0) { toast.info('Change a clock time to record a correction'); return; }
+    setBusy(true);
+    try { await Promise.all(jobs); toast.success('Correction recorded against the original'); onDone(); onClose(); }
+    catch (e) { toast.error(e.message || 'Could not record the correction'); } finally { setBusy(false); }
+  }
+
+  const field = { ...s('height:40px;border-radius:11px;border:1.5px solid var(--d-border);background:var(--d-card);color:var(--d-ink);font-size:13px;font-weight:600;padding:0 12px;width:100%;box-sizing:border-box'), fontFamily: 'inherit', colorScheme: 'light dark' };
+
+  return (
+    <Modal
+      onClose={onClose}
+      maxWidth={460}
+      title={`Correct clock times — ${row.staff}`}
+      subtitle={<span style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{row.service_user} · {formatDate(row.shift_began)} · scheduled {row.shift_timing}</span>}
+      footer={
+        <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" icon="check" disabled={busy || !reason.trim()} onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save & verify'}</Button>
+        </div>
+      }
+    >
+      <div style={s('flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px')}>
+        <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
+          <label style={s('display:flex;flex-direction:column;gap:5px')}>
+            <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Clock in</span>
+            <input type="time" value={inTime} onChange={(e) => setInTime(e.target.value)} style={field} />
+          </label>
+          <label style={s('display:flex;flex-direction:column;gap:5px')}>
+            <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Clock out</span>
+            <input type="time" value={outTime} onChange={(e) => setOutTime(e.target.value)} style={field} />
+          </label>
+        </div>
+        <label style={s('display:flex;flex-direction:column;gap:5px')}>
+          <span style={s('font-size:10.5px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Reason (required)</span>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="e.g. Carer confirmed by phone they left at 19:05; battery died." style={{ ...field, height: 'auto', padding: '10px 12px', resize: 'vertical', lineHeight: 1.5 }} />
+        </label>
+        <div style={s('background:var(--d-note-bg);border-radius:14px;padding:12px 15px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>Saving writes a new, immutable audit entry under your name with the original and new values and your reason. Nothing is overwritten; status recomputes from the corrected times.</div>
+      </div>
+    </Modal>
+  );
+}
+
 export default function TimesheetsPage() {
   const toast = useToast();
+  const { canManage } = useAuth();
+  const [amending, setAmending] = useState(null); // the row being corrected
   const [from, setFrom] = useState(iso(new Date(Date.now() - 6 * 86400000)));
   const [to, setTo] = useState(iso(new Date()));
   const [serviceUserId, setServiceUserId] = useState('');
@@ -23,36 +90,28 @@ export default function TimesheetsPage() {
   const [clients, setClients] = useState([]);
   const [staff, setStaff] = useState([]);
   const [rows, setRows] = useState(null); // null = loading
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([listServiceUsers().catch(() => []), listEmployees().catch(() => [])])
       .then(([su, e]) => { setClients(su); setStaff(e); });
   }, []);
 
-  useEffect(() => {
-    let active = true;
+  // Load the attendance rows for the current filters. Extracted so a recorded
+  // correction can refresh the table (onDone) with the corrected times.
+  const load = useCallback(async () => {
     setRows(null);
-    listAttendanceAudit({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, serviceUserId, employeeId })
-      .then((r) => { if (active) setRows(r ?? []); })
-      .catch(() => { if (active) setRows([]); });
-    return () => { active = false; };
+    try { setRows(await listAttendanceAudit({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, serviceUserId, employeeId }) ?? []); }
+    catch { setRows([]); }
   }, [from, to, serviceUserId, employeeId]);
 
-  const setRange = (days) => { setTo(iso(new Date())); setFrom(iso(new Date(Date.now() - (days - 1) * 86400000))); };
-  // Which quick-range chip (if any) matches the current from/to, so it can read
-  // as selected. Matches only when To is today, like the chips set it.
-  const activeSpan = to === iso(new Date())
-    ? Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1
-    : null;
+  useEffect(() => { load(); }, [load]);
+
 
   const handleExport = async (type) => {
-    setExporting(true);
     try {
       await exportAttendanceAudit(`${from}T00:00:00`, `${to}T23:59:59`, type, { serviceUserId, employeeId });
       toast.success(`${type.toUpperCase()} downloaded`);
-    } catch (e) { toast.error(e.message || 'Export failed'); }
-    finally { setExporting(false); }
+    } catch (e) { toast.error(e.message || 'Export failed'); return false; }
   };
 
   const clientOptions = useMemo(() => clients.map((c) => ({ id: c.id, label: fullName(c) })).sort((a, b) => a.label.localeCompare(b.label)), [clients]);
@@ -82,12 +141,10 @@ export default function TimesheetsPage() {
         <FilterBar data-tour="timesheets-period" style={{ marginTop: 4 }}>
           <DateField label="From" value={from} onChange={setFrom} max={to} />
           <DateField label="To" value={to} onChange={(val) => setTo(val < from ? from : val)} min={from} />
-          <RangeChips active={activeSpan} onSelect={setRange} />
           <SelectField label="Client" value={serviceUserId} onChange={setServiceUserId} options={clientOptions} allLabel="All" />
           <SelectField label="Carer" value={employeeId} onChange={setEmployeeId} options={staffOptions} allLabel="All" />
           <FilterBar.Spacer />
-          <Button icon="download" disabled={exporting} onClick={() => handleExport('csv')}>CSV</Button>
-          <Button variant="primary" icon="download" disabled={exporting} onClick={() => handleExport('xlsx')}>{exporting ? 'Building…' : 'Export XLSX'}</Button>
+          <ExportButton onExport={handleExport} title="Export timesheets" subtitle="Choose a file format. The current date range and filters are applied." />
         </FilterBar>
       </Panel>
 
@@ -109,7 +166,7 @@ export default function TimesheetsPage() {
                 <Th>Carer</Th><Th>Client</Th><Th>Shift</Th>
                 <Th>Clocked in</Th><Th align="right">Late</Th><Th align="right">Distance</Th>
                 <Th>Clocked out</Th><Th align="right">Late</Th><Th align="right">Distance</Th>
-                <Th>Origin</Th>
+                <Th>Origin</Th>{canManage && <Th align="right" />}
               </tr>
             </thead>
             <tbody>
@@ -132,7 +189,8 @@ export default function TimesheetsPage() {
                   <Td mono>{r.clocked_out ? formatTime(r.clocked_out) : (r.clocked_in ? <Tag tone="warning">Missed</Tag> : <span style={s('color:var(--d-faint)')}>–</span>)}</Td>
                   <Td align="right" mono>{r.late_out ? <span style={s('color:var(--d-warn-ink);font-weight:700')}>+{r.late_out}m</span> : (r.clocked_out ? <span style={s('color:var(--d-faint)')}>on time</span> : '')}</Td>
                   <Td align="right" mono>{r.metres_out != null ? `${r.metres_out}m` : <span style={s('color:var(--d-faint)')}>–</span>}</Td>
-                  <Td>{(r.offline_in === 'Yes' || r.offline_out === 'Yes') ? <Tag tone="magenta">Offline sync</Tag> : <span style={s('font-size:11.5px;font-weight:600;color:var(--d-muted)')}>Live</span>}</Td>
+                  <Td>{(r.offline_in === 'Yes' || r.offline_out === 'Yes') ? <Tag tone="violet">Offline sync</Tag> : <Tag tone="success">Live</Tag>}</Td>
+                  {canManage && <Td align="right">{r.visit_assignment_id && <Button size="sm" icon="edit" onClick={() => setAmending(r)}>Amend</Button>}</Td>}
                 </Row>
               ))}
             </tbody>
@@ -140,6 +198,7 @@ export default function TimesheetsPage() {
         </Panel>
       )}
 
+      {amending && <AmendModal row={amending} onClose={() => setAmending(null)} onDone={load} />}
     </div>
   );
 }

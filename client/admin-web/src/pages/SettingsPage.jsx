@@ -6,6 +6,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, PanelTitle, Button, fieldStyle } from '../ds/console.jsx';
+import ProfilePage from './ProfilePage.jsx';
 
 // System settings — the single place the office configures how clocking behaves.
 // Every field here is a REAL, enforced setting the backend reads at runtime
@@ -34,23 +35,10 @@ function NumberField({ value, onChange, suffix, min, disabled }) {
   );
 }
 
-function SelectField({ value, onChange, options, disabled }) {
-  return (
-    <select value={value ?? ''} onChange={onChange} disabled={disabled} style={{ ...inputStyle(disabled) }}>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  );
-}
-
 function Section({ title, hint, children }) {
   return (<Panel style={{ padding: '22px 24px' }}><PanelTitle hint={hint}>{title}</PanelTitle><div style={s('display:flex;flex-direction:column;gap:16px;margin-top:4px')}>{children}</div></Panel>);
 }
 
-const GEOFENCE_MODES = [
-  { value: 'record', label: 'Record only — clock-ins away from the address are logged, not blocked' },
-  { value: 'warn', label: 'Warn — the carer is warned but can still clock in' },
-  { value: 'block', label: 'Block — a clock-in outside the fence is refused' },
-];
 export default function SettingsPage() {
   const toast = useToast();
   const { canManage } = useAuth();
@@ -91,8 +79,13 @@ export default function SettingsPage() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-        <div style={s('flex:1')} />
+      {/* Your profile — photo, personal details and notifications. Saves on its
+          own (separate from the system settings below). Embedded = no page
+          heading and full width, so it sits flush with the settings below. */}
+      <ProfilePage embedded />
+
+      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;padding-top:16px;border-top:1px solid var(--d-border)')}>
+        <h1 style={s('font-size:22px;font-weight:700;color:var(--d-ink);letter-spacing:-0.4px;flex:1')}>System settings</h1>
         {canManage && <Button variant="primary" icon="check" disabled={saving || !dirty} onClick={saving || !dirty ? undefined : save}>{saving ? 'Saving…' : 'Save changes'}</Button>}
       </div>
 
@@ -120,16 +113,6 @@ export default function SettingsPage() {
           </Field>
           <Field label="Clock-skew tolerance" hint="A tap whose time is off from the server by more than this is flagged for review.">
             <NumberField value={form.clock_skew_tolerance_minutes} onChange={setNum('clock_skew_tolerance_minutes')} suffix="min" min="0" disabled={ro} />
-          </Field>
-        </Section>
-
-        {/* Geofence — location at clock only */}
-        <Section title="Geofence" hint="Location is captured at clock moments only, never between visits">
-          <Field label="Enforcement" hint="What happens when a carer clocks in away from the client's address.">
-            <SelectField value={form.geofence_mode} onChange={set('geofence_mode')} options={GEOFENCE_MODES} disabled={ro} />
-          </Field>
-          <Field label="Fence radius" hint="How close to the registered address a clock-in must be.">
-            <NumberField value={form.geofence_radius_m} onChange={setNum('geofence_radius_m')} suffix="m" min="0" disabled={ro} />
           </Field>
         </Section>
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getLiveBoard, listAlerts, getCover } from '../api/index.js';
+import { getLiveBoard, listAlerts, getCover, getDashboard } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
@@ -27,6 +27,48 @@ function inLabel(iso) {
   return `in ${Math.round(mins / 60)}h`;
 }
 
+// Nth weekday of a month (e.g. last Monday of May) — for UK bank holidays that
+// fall on a weekday rather than a fixed date.
+function nthWeekday(year, month, weekday, n) {
+  if (n > 0) {
+    const first = new Date(year, month, 1);
+    const offset = (weekday - first.getDay() + 7) % 7;
+    return new Date(year, month, 1 + offset + (n - 1) * 7).getDate();
+  }
+  const last = new Date(year, month + 1, 0);
+  const offset = (last.getDay() - weekday + 7) % 7;
+  return last.getDate() - offset;
+}
+
+// A greeting that leans into the day: named UK holidays and seasonal moments
+// take priority; otherwise a warm time-of-day greeting. Returns the FULL line
+// (name folded in where it reads naturally) so callers render it verbatim.
+function greetingFor(now, name) {
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-11
+  const d = now.getDate();
+  const who = name ? `, ${name}` : '';
+  const is = (mm, dd) => m === mm && d === dd;
+
+  // Fixed-date holidays / seasonal days.
+  if (is(0, 1)) return `Happy New Year${who} 🎉`;
+  if (m === 1 && d === 14) return `Happy Valentine's Day${who}`;
+  if (m === 2 && d === 17) return `Happy St Patrick's Day${who} ☘️`;
+  if (is(9, 31)) return `Happy Halloween${who} 🎃`;
+  if (m === 11 && d >= 24 && d <= 26) return `Merry Christmas${who} 🎄`;
+  if (m === 11 && d >= 27 && d <= 31) return `Season's greetings${who} ✨`;
+  // UK bank holidays that move: early May (1st Mon), spring (last Mon May),
+  // summer (last Mon Aug).
+  if (m === 4 && d === nthWeekday(y, 4, 1, 1)) return `Happy bank holiday${who}`;
+  if (m === 4 && d === nthWeekday(y, 4, 1, 0)) return `Happy bank holiday${who}`;
+  if (m === 7 && d === nthWeekday(y, 7, 1, 0)) return `Happy bank holiday${who}`;
+
+  // Seasonal warmth on the solstice-ish weeks, else time of day.
+  const hour = now.getHours();
+  const base = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  return `${base}${who}`;
+}
+
 export default function LiveBoardPage() {
   const navigate = useNavigate();
   const { admin } = useAuth();
@@ -34,22 +76,22 @@ export default function LiveBoardPage() {
   const [board, setBoard] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [cover, setCover] = useState({ open_shifts: [], counts: {} });
+  const [dash, setDash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
-  const [updatedAt, setUpdatedAt] = useState(null);
   const [detail, setDetail] = useState(null);
 
   // Fetch the board. The live_board call is the one that must succeed — alerts
   // and cover degrade gracefully — so a failure here is surfaced, not swallowed.
   const load = useCallback(async () => {
-    const [b, al, cv] = await Promise.all([
+    const [b, al, cv, ds] = await Promise.all([
       getLiveBoard(),
       listAlerts().catch(() => []),
       getCover().catch(() => ({ open_shifts: [], counts: {} })),
+      getDashboard().catch(() => null),
     ]);
-    setBoard(b); setAlerts(al ?? []); setCover(cv ?? { open_shifts: [], counts: {} });
-    setUpdatedAt(new Date());
+    setBoard(b); setAlerts(al ?? []); setCover(cv ?? { open_shifts: [], counts: {} }); setDash(ds);
   }, []);
 
   // Manual refresh: give feedback (button shows "Refreshing…" + disables) and
@@ -105,8 +147,7 @@ export default function LiveBoardPage() {
   const escalation = [...alerts].sort((x, y) => new Date(y.raised_at) - new Date(x.raised_at)).slice(0, 5);
   const coverage = (cover.open_shifts ?? []).slice(0, 4);
   const now = new Date();
-  const hour = now.getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = greetingFor(now, admin?.first_name);
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
@@ -115,19 +156,17 @@ export default function LiveBoardPage() {
       <div style={s('display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap')}>
         <div style={s('flex:1;min-width:240px')}>
           <div style={s('font-size:26px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>
-            {greeting}{admin?.first_name ? `, ${admin.first_name}` : ''}
+            {greeting}
           </div>
-          <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>Here&rsquo;s what needs you across Best Pinnacle Care right now.</div>
+          <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:3px')}>Here&rsquo;s what needs your attention right now.</div>
         </div>
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
           <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-card);border:1px solid var(--d-card-line,transparent);box-shadow:var(--d-shadow-card,none);border-radius:14px;padding:9px 15px')}>
             <span style={{ ...s('width:8px;height:8px;border-radius:50%;flex:none'), background: 'var(--d-ok-ink)' }} />
             <span style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Live</span>
-            <span className="d-num" style={s('font-size:12.5px;font-weight:500;color:var(--d-muted)')}>{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
             <span style={s('font-size:12.5px;font-weight:500;color:var(--d-faint)')}>· {all.length} today</span>
           </div>
           <span data-tour="liveboard-refresh" style={s('display:inline-flex;align-items:center;gap:9px')}>
-            {updatedAt && <span className="d-num" style={s('font-size:11.5px;font-weight:500;color:var(--d-faint)')}>Updated {updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
             <Button icon="refresh" size="sm" disabled={refreshing} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
           </span>
         </div>
@@ -139,6 +178,15 @@ export default function LiveBoardPage() {
         <StatCard label="Late" value={counts.late ?? 0} hint="Past the grace period" tone="warning" icon="clock" active={filter === 'late'} onClick={() => setFilter(filter === 'late' ? 'all' : 'late')} />
         <StatCard label="Missed / overdue" value={(counts.missed ?? 0) + (counts.overdue ?? 0)} hint="Escalation running" tone="danger" icon="alert" active={filter === 'missed'} onClick={() => setFilter(filter === 'missed' ? 'all' : 'missed')} />
         <StatCard label="Completed" value={counts.completed ?? 0} hint="Finished today" tone="info" icon="check" active={filter === 'done'} onClick={() => setFilter(filter === 'done' ? 'all' : 'done')} />
+        {/* Backlog that outlives "today": auto-closed visits awaiting a manager's
+            review, and upcoming visits with no carer. Global counts from the
+            dashboard endpoint — the today-only board can't show these. */}
+        {(dash?.pending_review ?? 0) > 0 && (
+          <StatCard label="Needs review" value={dash.pending_review} hint="Auto-closed — awaiting a manager" tone="warning" icon="eye" onClick={() => navigate('/exceptions')} />
+        )}
+        {(dash?.unassigned_upcoming ?? 0) > 0 && (
+          <StatCard label="Unassigned (7 days)" value={dash.unassigned_upcoming} hint="Upcoming visits with no carer" tone="danger" icon="users" onClick={() => navigate('/staffing')} />
+        )}
       </div>
 
       <div style={s('display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start')}>
@@ -165,7 +213,7 @@ export default function LiveBoardPage() {
                           <Td mono>{formatTimeRange(a.visit?.scheduled_start, a.visit?.scheduled_end)}</Td>
                           <Td mono>{a.actual_start ? formatTime(a.actual_start) : '--:--'} – {a.actual_end ? formatTime(a.actual_end) : '--:--'}</Td>
                           <Td mono><b style={s('font-weight:700;color:var(--d-ink)')}>{a.worked_minutes != null ? minutesToHours(a.worked_minutes) : '–'}</b></Td>
-                          <Td><StatusPill state={a.lifecycle_state} /></Td>
+                          <Td><span style={s('display:inline-flex;align-items:center;gap:6px')}><StatusPill state={a.lifecycle_state} />{(a.flags ?? []).length > 0 && <span title={a.flags.join(', ').replace(/_/g, ' ')} style={s('display:inline-flex;color:var(--d-warn-ink)')}><Icon name="alert" size={14} /></span>}</span></Td>
                         </Row>
                       ))}
                     </tbody>
@@ -306,6 +354,13 @@ export default function LiveBoardPage() {
                   </div>
                 ))}
               </div>
+              {/* Anomaly flags raised on this assignment (e.g. auto_closed). */}
+              {(detail.flags ?? []).length > 0 && (
+                <div style={s('display:flex;align-items:center;gap:7px;flex-wrap:wrap')}>
+                  <span style={s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em')}>Flags</span>
+                  {detail.flags.map((f) => <Tag key={f} tone="warning">{f.replace(/_/g, ' ')}</Tag>)}
+                </div>
+              )}
               <div style={s('background:var(--d-note-bg);border-radius:14px;padding:13px 15px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.55')}>Any amendment is appended to the audit trail with your name, the time and a mandatory reason. The original record is never overwritten.</div>
             </div>
         </Modal>

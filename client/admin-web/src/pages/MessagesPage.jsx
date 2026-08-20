@@ -260,9 +260,9 @@ export default function MessagesPage() {
           <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>Messages</div>
           <InfoHint text="Start a new conversation: a direct message to one person, a private group, or a channel (which can auto-post shift alerts and request read receipts)." />
           <div style={s('flex:1')} />
-          <div data-tour="messages-new-message" onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv" title="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
-          <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv" title="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
-          <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv" title="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
+          <div data-tour="messages-new-message" onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv tip" data-tip="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
+          <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv tip" data-tip="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
+          <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv tip" data-tip="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
         </div>
         <div style={s('padding:0 12px 10px')}>
           <div style={s('height:38px;background:var(--d-field);border:1.5px solid var(--d-border);border-radius:19px;display:flex;align-items:center;gap:8px;padding:0 13px')}>
@@ -336,7 +336,7 @@ export default function MessagesPage() {
                           )))}
                         </div>
                         <div style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:3px'), justifyContent: out ? 'flex-end' : 'flex-start' }}>
-                          <span onClick={() => togglePin(m)} className="hv" title={m.pinned_at ? 'Unpin' : 'Pin'} style={{ ...s('font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:1px 5px'), color: m.pinned_at ? 'var(--d-warn-ink)' : 'var(--d-faint)', '--hbg': 'var(--d-panel)' }}><Icon name="pin" size={11} />{m.pinned_at ? 'Pinned' : 'Pin'}</span>
+                          <span onClick={() => togglePin(m)} className="hv tip" data-tip={m.pinned_at ? 'Unpin' : 'Pin'} style={{ ...s('font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:1px 5px'), color: m.pinned_at ? 'var(--d-warn-ink)' : 'var(--d-faint)', '--hbg': 'var(--d-panel)' }}><Icon name="pin" size={11} />{m.pinned_at ? 'Pinned' : 'Pin'}</span>
                           {out && rc > 0 && (
                             <span style={{ ...s('display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600'), color: (m.read_count ?? 0) >= rc ? 'var(--d-ok-ink)' : 'var(--d-muted)' }}>
                               <Icon name="check" size={12} />{rc <= 1 ? ((m.read_count ?? 0) > 0 ? 'Read' : 'Delivered') : `${m.read_count ?? 0} of ${rc} read`}
@@ -373,7 +373,7 @@ export default function MessagesPage() {
               )}
               <div style={s('display:flex;align-items:center;gap:10px')}>
                 <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={broadcast ? 'Write a broadcast…' : `Message ${active.kind === 'direct' ? convoTitle(active, admin?.id) : `#${convoTitle(active, admin?.id).replace(/^#/, '')}`}`} style={{ ...s('flex:1;height:44px;border-radius:22px;background:var(--d-field);padding:0 18px;border:1.5px solid var(--d-border);outline:none;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
-                <div onClick={send} className="hv" title="Send" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'), '--hbg': 'var(--d-pill-hover)', opacity: sending || (!draft.trim() && files.length === 0) ? 0.5 : 1 }}><Icon name="send" size={18} /></div>
+                <div onClick={send} className="hv tip" data-tip="Send" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'), '--hbg': 'var(--d-pill-hover)', opacity: sending || (!draft.trim() && files.length === 0) ? 0.5 : 1 }}><Icon name="send" size={18} /></div>
               </div>
             </div>
           </>
@@ -437,7 +437,7 @@ export default function MessagesPage() {
                   })}
                 </div>
                 <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
-                  <Button size="sm" onClick={() => setAdding(null)}>Cancel</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setAdding(null)}>Cancel</Button>
                   <Button size="sm" variant="primary" icon="check" disabled={addBusy || adding.length === 0} onClick={addBusy || adding.length === 0 ? undefined : addMembers}>{addBusy ? 'Adding…' : 'Add'}</Button>
                 </div>
               </div>
@@ -465,7 +465,7 @@ export default function MessagesPage() {
           title={composer === 'direct' ? 'New message' : `New ${composer}`}
           footer={(
             <div style={s('display:flex;justify-content:flex-end;gap:10px')}>
-              <Button onClick={() => setComposer(null)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setComposer(null)}>Cancel</Button>
               <Button variant="primary" icon={composer === 'direct' ? 'send' : 'plus'} disabled={!canCreate} onClick={canCreate ? create : undefined}>{composer === 'direct' ? 'Open conversation' : `Create ${composer}`}</Button>
             </div>
           )}

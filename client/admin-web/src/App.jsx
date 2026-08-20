@@ -12,6 +12,7 @@ const EmployeesPage = lazy(() => import('./pages/EmployeesPage.jsx'));
 const CarerDetailPage = lazy(() => import('./pages/CarerDetailPage.jsx'));
 const ServiceUsersPage = lazy(() => import('./pages/ServiceUsersPage.jsx'));
 const ClientDetailPage = lazy(() => import('./pages/ClientDetailPage.jsx'));
+const VisitDetailPage = lazy(() => import('./pages/VisitDetailPage.jsx'));
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage.jsx'));
 const TimesheetsPage = lazy(() => import('./pages/TimesheetsPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/employees/:id" element={<CarerDetailPage />} />
           <Route path="/clients" element={<ServiceUsersPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
+          <Route path="/visits/:id" element={<VisitDetailPage />} />
           <Route path="/service-users" element={<ServiceUsersPage />} />
           <Route path="/exceptions" element={<ExceptionsPage />} />
           <Route path="/timesheets" element={<TimesheetsPage />} />

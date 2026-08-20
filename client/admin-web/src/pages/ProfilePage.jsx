@@ -102,7 +102,7 @@ function NotificationsPanel() {
   );
 }
 
-export default function ProfilePage() {
+export default function ProfilePage({ embedded = false }) {
   const { admin, refreshAdmin } = useAuth();
   const toast = useToast();
   const fileRef = useRef(null);
@@ -148,13 +148,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <div style={s('display:flex;flex-direction:column;gap:18px;max-width:720px')}>
-      <div>
-        <h1 style={s('font-size:22px;font-weight:700;color:var(--d-ink);letter-spacing:-0.4px')}>My profile</h1>
-        <p style={s('font-size:13px;font-weight:500;color:var(--d-muted);margin-top:4px')}>
-          Your photo and personal details. Role and access are managed by a registered manager.
-        </p>
-      </div>
+    <div style={s(`display:flex;flex-direction:column;gap:16px${embedded ? '' : ';max-width:720px'}`)}>
+      {!embedded && (
+        <div>
+          <h1 style={s('font-size:22px;font-weight:700;color:var(--d-ink);letter-spacing:-0.4px')}>My profile</h1>
+          <p style={s('font-size:13px;font-weight:500;color:var(--d-muted);margin-top:4px')}>
+            Your photo and personal details. Role and access are managed by a registered manager.
+          </p>
+        </div>
+      )}
 
       <Panel>
         <PanelTitle>Photo</PanelTitle>
