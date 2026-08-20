@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/common/Icon.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { listAudit, exportAuditLog, exportAttendanceAudit, listLoginAttempts, listServiceUsers, listEmployees, listAdmins } from '../api/index.js';
+import { listAudit, exportAuditLog, listLoginAttempts, listServiceUsers, listEmployees, listAdmins } from '../api/index.js';
 import { formatDate, formatTime, fullName } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
-import { Panel, PanelTitle, Tag, Button, ExportButton, TableWrap, Th, Td, Row, SegTabs, DateField, SelectField, FilterBar } from '../ds/console.jsx';
+import { Panel, PanelTitle, Tag, Button, TableWrap, Th, Td, Row, SegTabs, DateField, SelectField, FilterBar } from '../ds/console.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'Everything', icon: 'menu', test: () => true },
@@ -57,38 +57,6 @@ function mapEvent(e) {
     ipAddress: e.ip_address,
     device: e.device_fingerprint,
   };
-}
-
-// CQC visit-attendance export: one row per carer × visit over a date range, as
-// CSV or XLSX. Lifted onto the Exports tab; self-contained (own date state).
-export function VisitAuditExport() {
-  const toast = useToast();
-  const iso = (d) => d.toISOString().slice(0, 10);
-  const [vaFrom, setVaFrom] = useState(iso(new Date(Date.now() - 6 * 86400000)));
-  const [vaTo, setVaTo] = useState(iso(new Date()));
-
-  const downloadVisitAudit = async (type) => {
-    try {
-      // Send full-day bounds so the To date is inclusive.
-      await exportAttendanceAudit(`${vaFrom}T00:00:00`, `${vaTo}T23:59:59`, type);
-      toast.success(`Visit audit ${type.toUpperCase()} downloaded`);
-    } catch (e) {
-      toast.error(e.message || 'Export failed');
-      return false;
-    }
-  };
-
-  return (
-    <Panel>
-      <PanelTitle hint="One row per carer × visit — scheduled vs actual taps, metres from the client's home, offline flags, lateness and map links. The CQC attendance export.">Visit attendance audit</PanelTitle>
-      <FilterBar style={{ marginTop: 4 }}>
-        <DateField label="From" value={vaFrom} onChange={setVaFrom} max={vaTo} />
-        <DateField label="To" value={vaTo} onChange={(val) => setVaTo(val < vaFrom ? vaFrom : val)} min={vaFrom} />
-        <FilterBar.Spacer />
-        <ExportButton onExport={downloadVisitAudit} title="Export visit audit" subtitle="Choose a file format. The date range on screen is applied." />
-      </FilterBar>
-    </Panel>
-  );
 }
 
 // Full append-only change-log export (all events) as CSV or XLSX.
@@ -162,9 +130,6 @@ export default function ChangeLogTab() {
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
-      {/* The visit-attendance (CQC) export lives here with the audit data it
-          draws from, rather than in a separate Exports tab. */}
-      <VisitAuditExport />
       <div style={s('display:flex;flex-direction:column')}>
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
           <span style={s('flex:1;min-width:0')}><SegTabs tabs={FILTERS.map((f) => ({ key: f.id, label: f.label, count: entries.filter(f.test).length }))} active={filter} onSelect={setFilter} /></span>

@@ -1067,6 +1067,17 @@ button.tile:hover { border-color: var(--color-border-strong); }
   transform: translateX(-50%) translateY(0);
 }
 
+/* Point the bubble BELOW the element — for top-bar icons where an above-tooltip
+   would clip against the top of the screen. */
+.tip--below::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-4px);
+}
+.tip--below:hover::after, .tip--below:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ---------------------- "Show me around" launcher ----------------------- */
 /* A circular (i) button that expands LEFT on hover to reveal its label. The
    label lives before the icon (so it grows leftward) and animates its max-width
@@ -1214,3 +1225,65 @@ button.tile:hover { border-color: var(--color-border-strong); }
   .table td:empty { display: none; }
   .row-actions { justify-content: flex-start; margin-top: var(--space-2); }
 }
+
+/* ===================== Login + splash (mimics the PWA) ===================== */
+/* Desktop-specific: the PWA's teal wave + "Welcome Back!" hero, but presented as
+   a centred card for the office rather than a full-bleed phone column. */
+
+/* Branded boot splash — centred mono logo over the wallpaper, fades out. */
+.admin-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b5f6e url('/brand/wallpaper.webp') center / cover no-repeat;
+  transition: opacity 0.34s ease, visibility 0.34s;
+}
+.admin-splash--leaving { opacity: 0; visibility: hidden; }
+.admin-splash__logo { width: min(38vw, 220px); height: auto; margin-bottom: 3vh; object-fit: contain; }
+
+/* Login shell: centre a card on the page. */
+.dlogin {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--d-bg);
+}
+.dlogin__card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--d-card);
+  border: 1px solid var(--d-border);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.12);
+}
+
+/* The wave header — the PWA's teal art, filling the card top. */
+.dlogin__wave {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+}
+.dlogin__wave svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dlogin__brand {
+  position: absolute;
+  z-index: 1;
+  left: 0; right: 0; top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+.dlogin__brand img { width: 46px; height: 46px; object-fit: contain; }
+.dlogin__brand-name { font-size: 15px; font-weight: 800; letter-spacing: -0.2px; }
+
+.dlogin__body { padding: 26px 32px 34px; margin-top: -14px; }
+.dlogin__title { font-size: 25px; font-weight: 800; letter-spacing: -0.6px; color: var(--d-ink); text-align: center; }
+.dlogin__subtitle { margin-top: 5px; font-size: 13.5px; font-weight: 600; color: var(--d-muted); text-align: center; }
+.dlogin__form { display: flex; flex-direction: column; gap: 16px; margin-top: 22px; }

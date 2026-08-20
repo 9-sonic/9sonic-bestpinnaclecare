@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -157,6 +157,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_120000) do
     t.uuid "device_fingerprint"
     t.integer "distance_from_site_m"
     t.enum "geofence_result", default: "not_checked", null: false, enum_type: "geofence_result"
+    t.text "ip_address"
     t.enum "kind", null: false, enum_type: "clock_kind"
     t.decimal "lat", precision: 10, scale: 7
     t.decimal "lng", precision: 10, scale: 7

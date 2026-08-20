@@ -31,6 +31,12 @@ const VISIT_TONE = {
 const ORIGIN_LABEL = { offline_sync: 'Offline — synced later', manual_admin: 'Entered by office' };
 
 const metresLabel = (m) => (m < 1000 ? `${m} m away` : `${(m / 1000).toFixed(1)} km away`);
+// The device a tap came from — platform + app version, else short fingerprint.
+const deviceLabel = (d) => {
+  if (!d) return '';
+  if (d.platform) return `${d.platform}${d.app_version ? ` ${d.app_version}` : ''}`;
+  return `device ${String(d.fingerprint).slice(0, 8)}`;
+};
 const syncGapMin = (occurred, recorded) => {
   const o = new Date(occurred).getTime(); const r = new Date(recorded).getTime();
   return (!o || !r || r <= o) ? 0 : Math.round((r - o) / 60000);
@@ -100,6 +106,8 @@ const ACTIVITY_TYPES = {
           c.distance_from_site_m != null ? metresLabel(c.distance_from_site_m) : null,
           ORIGIN_LABEL[c.origin] || null,
           (c.method && c.method !== 'gps') ? c.method.replace(/_/g, ' ') : null,
+          c.device ? deviceLabel(c.device) : null,
+          c.ip_address ? `IP ${c.ip_address}` : null,
           (c.recorded_at && syncGapMin(c.occurred_at, c.recorded_at) >= 2) ? `synced ${syncGapLabel(c.occurred_at, c.recorded_at)} later` : null,
         ].filter(Boolean).join(' · ') || '—',
       ],

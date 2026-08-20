@@ -18,7 +18,7 @@ module Api
         # delivery: the schedule, the care plan, which tasks were done, and the
         # carer's notes. Read-only; mirrors what the carer saw and recorded.
         def show
-          visit = Visit.includes(:service_user, visit_assignments: %i[employee visit_tasks visit_notes clock_events]).find(params[:id])
+          visit = Visit.includes(:service_user, visit_assignments: [ :employee, :visit_tasks, :visit_notes, { clock_events: :device } ]).find(params[:id])
           su = visit.service_user
           render json: VisitSerializer.call(visit, include_service_user: true).merge(
             care_plan: su.care_plan_items.active.map { |c| CarePlanItemSerializer.call(c) },

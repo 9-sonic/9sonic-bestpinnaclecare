@@ -224,8 +224,11 @@ export default function LiveBoardPage() {
           </div>
         </div>
 
-        {/* Aside */}
+        {/* Aside — a spacer pushes it down so it starts level with the roster,
+            not the tabs. Roster top = tabs(32px) + roster gap(12px) = 44px; the
+            aside's own 16px column gap covers part of it, so the spacer is 28px. */}
         <div style={s('display:flex;flex-direction:column;gap:16px')}>
+          <div style={s('height:28px;flex:none')} aria-hidden="true" />
           <Panel>
             <PanelTitle hint="System-raised, still open — attend so records stay right"
               action={<Button size="sm" icon="chevronRight" onClick={() => navigate('/exceptions?tab=alerts')}>Alerts</Button>}>

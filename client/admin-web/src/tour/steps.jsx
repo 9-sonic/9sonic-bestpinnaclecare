@@ -157,7 +157,7 @@ export const TOUR_PAGES = [
   },
   {
     key: 'timesheets',
-    route: '/timesheets',
+    route: '/attendance',
     steps: [
       {
         anchor: 'timesheets-period',
@@ -265,7 +265,7 @@ const routeForKey = {
   // Cover + Requests are merged under Staffing (two tabs), so their tours share
   // the /staffing route.
   cover: '/staffing', requests: '/staffing',
-  rota: '/rota', timesheets: '/timesheets', clients: '/clients', employees: '/employees',
+  rota: '/rota', timesheets: '/attendance', clients: '/clients', employees: '/employees',
   messages: '/messages', 'reports-overview': '/reports', guide: '/guide',
 };
 

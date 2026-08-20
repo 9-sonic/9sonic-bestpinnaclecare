@@ -11,14 +11,8 @@ import '../styles/design-shell.css';
 // against the admins table, and most office accounts have TOTP turned on, so the
 // second step is the normal path rather than an exception.
 
-const POINTS = [
-  ['target', 'See who is on shift and who is late'],
-  ['calendar', 'Build the rota and assign carers'],
-  ['wallet', 'Review the visit-attendance record'],
-];
-
 const inputStyle = {
-  ...s('height:48px;border-radius:16px;background:var(--d-field);padding:0 16px;font-size:14.5px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid var(--d-border)'),
+  ...s('height:48px;border-radius:14px;background:var(--d-field);padding:0 16px;font-size:14.5px;font-weight:500;color:var(--d-ink);outline:none;box-sizing:border-box;width:100%;border:1.5px solid var(--d-border)'),
   fontFamily: 'inherit',
 };
 
@@ -28,6 +22,29 @@ function Field({ label, children }) {
       <span style={s('font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
       {children}
     </label>
+  );
+}
+
+// The PWA's teal wave art (vector variant) — self-contained, no assets, so it
+// scales to the card top on desktop.
+function WaveArt() {
+  return (
+    <svg viewBox="0 0 390 210" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="adminWaveBase" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#0b5f6e" />
+          <stop offset="55%" stopColor="#12a2b6" />
+          <stop offset="100%" stopColor="#2ed3dd" />
+        </linearGradient>
+        <linearGradient id="adminWaveRibbon" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#2ed3dd" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#7ff0f5" stopOpacity="0.28" />
+        </linearGradient>
+      </defs>
+      <path d="M0 0h390v128c-58 26-104 30-160 18C160 132 96 118 44 132 27 137 12 143 0 150z" fill="url(#adminWaveBase)" />
+      <path d="M0 0c74 8 118 34 168 62 44 25 88 44 146 40 30-2 55-9 76-18V0z" fill="url(#adminWaveRibbon)" />
+      <path d="M390 0v58c-40 14-79 12-118-4-30-13-56-33-84-54z" fill="#7ff0f5" opacity="0.22" />
+    </svg>
   );
 }
 
@@ -96,49 +113,37 @@ export default function LoginPage() {
     cursor: disabled ? 'not-allowed' : 'pointer',
   });
 
+  const hero = mfaRequired
+    ? { title: 'Enter your code', subtitle: 'Two-step verification' }
+    : forgot
+      ? { title: 'Reset your password', subtitle: 'We’ll email you a link' }
+      : { title: 'Welcome back', subtitle: 'Office Portal Sign In' };
+
   return (
-    <div style={{ ...s('min-height:100vh;background:var(--d-bg);display:flex;align-items:center;justify-content:center;padding:24px;position:relative'), fontFamily: "'Figtree', system-ui, -apple-system, sans-serif" }}>
+    <div className="dlogin" style={{ position: 'relative', fontFamily: "'Plus Jakarta Sans', 'Figtree', system-ui, -apple-system, sans-serif" }}>
       {/* Theme toggle */}
-      <div onClick={toggle} className="hv" title={dark ? 'Switch to light' : 'Switch to dark'}
+      <div onClick={toggle} className="hv tip" data-tip={dark ? 'Switch to light' : 'Switch to dark'}
         style={{ ...s('position:absolute;top:22px;right:22px;width:44px;height:44px;border-radius:50%;background:var(--d-card);color:var(--d-ink2);display:flex;align-items:center;justify-content:center;cursor:pointer'), '--hbg': 'var(--d-card-hover)' }}>
         <Icon name={dark ? 'sun' : 'moon'} size={20} />
       </div>
 
-      <div style={s('width:100%;max-width:940px;background:var(--d-card);border:1px solid var(--d-border);box-shadow:0 24px 60px rgba(2,6,23,0.10);border-radius:32px;overflow:hidden;display:flex;flex-wrap:wrap')}>
-        {/* Brand panel */}
-        <div style={s('flex:1 1 380px;min-width:300px;background:var(--d-panel);padding:40px 38px;display:flex;flex-direction:column;gap:28px')}>
-          <div style={s('display:flex;align-items:center;gap:14px')}>
-            <div style={s('width:52px;height:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;border:1px solid var(--d-border)')}>
-              <img src="/logo.png" alt="" style={s('width:36px;height:36px;object-fit:contain')} />
-            </div>
-            <div style={s('display:flex;flex-direction:column;line-height:1.15')}>
-              <span style={s('font-size:18px;font-weight:700;color:var(--d-ink);letter-spacing:-0.3px')}>Best Pinnacle Care</span>
-              <span style={s('font-size:13px;font-weight:600;color:var(--d-muted)')}>Office</span>
-            </div>
-          </div>
-
-          <div style={s('font-size:15px;font-weight:500;color:var(--d-ink2);line-height:1.55')}>
-            The live board, the rota and the week&apos;s hours. Sign in with your office account.
-          </div>
-
-          <div style={s('display:flex;flex-direction:column;gap:14px;margin-top:auto')}>
-            {POINTS.map(([icon, label]) => (
-              <div key={label} style={s('display:flex;align-items:center;gap:12px')}>
-                <div style={s('width:38px;height:38px;border-radius:12px;background:var(--d-sage);display:flex;align-items:center;justify-content:center;flex:none;color:var(--d-ink2)')}><Icon name={icon} size={18} /></div>
-                <span style={s('font-size:13.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
-              </div>
-            ))}
+      <div className="dlogin__card">
+        {/* Wave header with the brand mark — mirrors the carer app. */}
+        <div className="dlogin__wave">
+          <WaveArt />
+          <div className="dlogin__brand">
+            <img src="/brand/logo-mono.webp" alt="" />
+            <span className="dlogin__brand-name">Best Pinnacle Care · Office</span>
           </div>
         </div>
 
-        {/* Form panel */}
-        <div style={s('flex:1 1 380px;min-width:300px;padding:40px 38px;display:flex;flex-direction:column;justify-content:center')}>
+        <div className="dlogin__body">
+          <div className="dlogin__title">{hero.title}</div>
+          <div className="dlogin__subtitle">{hero.subtitle}</div>
+
           {mfaRequired ? (
-            <form onSubmit={handleOtp} style={s('display:flex;flex-direction:column;gap:18px')}>
-              <div>
-                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Enter your code</div>
-                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:6px')}>Open your authenticator app and enter the six digit code for Best Pinnacle Care.</div>
-              </div>
+            <form onSubmit={handleOtp} className="dlogin__form">
+              <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5;text-align:center')}>Open your authenticator app and enter the six digit code for Best Pinnacle Care.</div>
 
               <Field label="Six digit code">
                 <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" autoFocus
@@ -154,11 +159,8 @@ export default function LoginPage() {
               </button>
             </form>
           ) : forgot ? (
-            <form onSubmit={handleForgot} style={s('display:flex;flex-direction:column;gap:18px')}>
-              <div>
-                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Reset your password</div>
-                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:6px')}>Enter your work email and we&apos;ll send a link to set a new one.</div>
-              </div>
+            <form onSubmit={handleForgot} className="dlogin__form">
+              <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5;text-align:center')}>Enter your work email and we&apos;ll send a link to set a new one.</div>
 
               {sent ? (
                 <div style={s('display:flex;align-items:center;gap:9px;background:var(--d-ok-bg);border-radius:14px;padding:12px 14px;font-size:12.5px;font-weight:600;color:var(--d-ok-ink)')}>
@@ -179,12 +181,7 @@ export default function LoginPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSubmit} style={s('display:flex;flex-direction:column;gap:18px')}>
-              <div>
-                <div style={s('font-size:24px;font-weight:700;color:var(--d-ink);letter-spacing:-0.5px')}>Sign in</div>
-                <div style={s('font-size:13.5px;font-weight:500;color:var(--d-muted);margin-top:6px')}>Office and management accounts only.</div>
-              </div>
-
+            <form onSubmit={handleSubmit} className="dlogin__form">
               <Field label="Work email">
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required style={inputStyle} />
               </Field>
@@ -211,10 +208,6 @@ export default function LoginPage() {
               <button type="submit" disabled={busy} className="hv" style={{ ...primaryPill(busy), '--hbg': 'var(--d-pill-hover)' }}>{busy ? 'Signing in…' : 'Sign in'}</button>
             </form>
           )}
-
-          <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);line-height:1.5;margin-top:24px')}>
-            Carers use the separate mobile app. This site is for office staff.
-          </div>
         </div>
       </div>
     </div>
