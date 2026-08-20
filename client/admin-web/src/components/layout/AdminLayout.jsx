@@ -141,7 +141,9 @@ export default function AdminLayout() {
     <div
       data-skin="pwa"
       style={{
-        ...s('height:100vh;display:flex;background:var(--d-bg);overflow:hidden'),
+        // The rail's floating gap is padding on THIS wrapper, not margin on the
+        // rail — margin on a flex item grows the flex line and spilled a scroll.
+        ...s('height:100vh;display:flex;background:var(--d-bg);overflow:hidden;padding:20px 0 20px 20px;box-sizing:border-box'),
         // Plus Jakarta Sans (the PWA's interface font) carries body text; Outfit
         // carries headings/figures via .d-num. Matches the carer PWA so the two
         // apps read as one product. The whole console is skinned to the PWA via
@@ -151,7 +153,7 @@ export default function AdminLayout() {
     >
       {/* Rail — a full-height rounded capsule matching the dashboard top bar
           surface (--d-panel + 24px radius), spanning the whole page. */}
-      <div style={s('width:72px;flex:none;height:calc(100vh - 40px);margin:20px 0;background:var(--d-panel);border-radius:24px;display:flex;flex-direction:column;align-items:center;padding:18px 0 24px')}>
+      <div style={s('width:72px;flex:none;height:100%;background:var(--d-panel);border-radius:24px;display:flex;flex-direction:column;align-items:center;padding:18px 0 24px')}>
         <div style={s('width:44px;height:44px;border-radius:50%;background:var(--d-card);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;border:1px solid var(--d-border)')}>
           <img src="/logo.png" alt="Best Pinnacle Care" style={s('width:30px;height:30px;object-fit:contain')} />
         </div>
@@ -198,7 +200,10 @@ export default function AdminLayout() {
       </div>
 
       {/* Main */}
-      <main style={s('flex:1;min-width:0;height:100vh;overflow:auto;display:flex;flex-direction:column;padding:20px 24px;gap:18px')}>
+      {/* overflow-x:hidden so a stray-wide child (a tooltip, a scrollbar gutter)
+          can never give the whole page a horizontal scrollbar; pages that need
+          sideways scroll (the rota grid) do it in their own inner container. */}
+      <main style={s('flex:1;min-width:0;height:100%;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:0 24px 20px;gap:18px')}>
         {/* Top bar: Back (on sub-pages) · a centred search · notifications, profile
             and sign out on the right. */}
         <div style={s('height:70px;flex:none;background:var(--d-panel);border-radius:24px;display:flex;align-items:center;padding:0 14px 0 18px;gap:12px')}>

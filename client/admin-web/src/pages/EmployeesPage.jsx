@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listEmployees, inviteEmployee, resendEmployeeInvite } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
-import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
 import InfoHint from '../components/common/InfoHint.jsx';
 import { s } from '../lib/ui.jsx';
@@ -121,7 +120,11 @@ function EmployeesTab() {
         <div style={s('flex:1;min-width:220px')}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search name, email or reference" />
         </div>
-        <div onClick={() => setShowInactive((v) => !v)} className="hv" style={{ ...s('height:46px;border-radius:23px;display:flex;align-items:center;gap:8px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:700'), background: showInactive ? 'var(--d-pill)' : 'var(--d-card)', color: showInactive ? 'var(--d-pill-ink)' : 'var(--d-ink2)', '--hbg': showInactive ? 'var(--d-pill-hover)' : 'var(--d-card-hover)' }}><Icon name="eye" size={16} /> Show inactive</div>
+        {/* A quiet filter toggle, grouped with the search — not an action. */}
+        <label style={s('display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--d-ink2);user-select:none')}>
+          <input type="checkbox" checked={showInactive} onChange={() => setShowInactive((v) => !v)} style={s('width:16px;height:16px;accent-color:var(--d-pill);cursor:pointer')} />
+          Show inactive
+        </label>
         <div style={s('flex:1')} />
         {canManage && <span data-tour="employees-invite" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={openInvite}>Invite carer</Button><InfoHint text="Invite a new carer by name and work email. They get an email to set their own password — the account stays inactive until they do, so no one else can use it." /></span>}
       </div>
