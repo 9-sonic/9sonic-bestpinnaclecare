@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { fullName } from '../api/format.js';
 import { listAdmins, inviteAdmin, updateAdmin, resendAdminInvite } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
+import InfoHint from '../components/common/InfoHint.jsx';
 import { StatCard, Tag, Avatar, Button, TableWrap, Th, Td, Row, Pager, fieldStyle, SearchBox } from '../ds/console.jsx';
 
 // Office users (the admins table). Inviting / editing is the registered
@@ -19,10 +20,12 @@ const ROLE_LABELS = {
 };
 const EMPTY = { email: '', first_name: '', last_name: '', role: 'coordinator' };
 
-function Field({ label, error, hint, children }) {
+function Field({ label, error, hint, about, children }) {
   return (
     <label style={s('display:flex;flex-direction:column;gap:7px')}>
-      <span style={s('font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
+      <span style={s('display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>
+        {label}{about && <InfoHint text={about} label={`About ${label}`} />}
+      </span>
       {children}
       {error && <span style={s('font-size:12px;font-weight:600;color:var(--d-danger-ink)')}>{error}</span>}
       {hint && !error && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>{hint}</span>}
@@ -189,11 +192,11 @@ export default function TeamPage() {
           <div style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
             {!editing && <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password, then set up two-step sign-in on first login. The account stays pending until they accept.</div>}
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-              <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
-              <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
+              <Field label="First name" error={errors.first_name} about="The office user's first name, shown across the console."><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name" error={errors.last_name} about="Their surname."><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
             </div>
-            <Field label="Work email" error={errors.email} hint={editing ? 'Email is the sign-in name and cannot be changed here.' : undefined}><input style={input(errors.email, !!editing)} type="email" value={form.email} onChange={set('email')} disabled={!!editing} /></Field>
-            <Field label="Role"><select style={input(false)} value={form.role} onChange={set('role')}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></Field>
+            <Field label="Work email" error={errors.email} about="Where the invite is sent, and their sign-in name. Cannot be changed after the account is created." hint={editing ? 'Email is the sign-in name and cannot be changed here.' : undefined}><input style={input(errors.email, !!editing)} type="email" value={form.email} onChange={set('email')} disabled={!!editing} /></Field>
+            <Field label="Role" about="What this user can do: a registered manager has full access; managers and coordinators have progressively fewer permissions."><select style={input(false)} value={form.role} onChange={set('role')}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></Field>
             {editing && editing.id !== admin?.id && (
               <label style={s('display:flex;align-items:center;gap:10px;cursor:pointer')}>
                 <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

@@ -2,8 +2,10 @@ class Conversation < ApplicationRecord
   belongs_to :created_by, polymorphic: true, optional: true
   has_many   :conversation_participants, dependent: :destroy
   has_many   :messages, dependent: :destroy
-  has_one    :last_message, -> { order(created_at: :desc) }, class_name: "Message"
-  has_one    :pinned_message, -> { where.not(pinned_at: nil).order(pinned_at: :desc) }, class_name: "Message"
+  # Both ignore deleted messages: the thread's preview and pinned banner should
+  # never surface something that's been removed (its body is gone anyway).
+  has_one    :last_message, -> { where(deleted_at: nil).order(created_at: :desc) }, class_name: "Message"
+  has_one    :pinned_message, -> { where(deleted_at: nil).where.not(pinned_at: nil).order(pinned_at: :desc) }, class_name: "Message"
 
   scope :auto_posting_channels, -> { where(kind: :channel, auto_post: true) }
 

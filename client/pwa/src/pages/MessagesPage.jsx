@@ -8,6 +8,7 @@ import Avatar from '../components/common/Avatar.jsx';
 import Icon from '../components/common/Icon.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import { SkeletonList } from '../components/common/Skeleton.jsx';
+import NewOfficeChatSheet from '../components/messages/NewOfficeChatSheet.jsx';
 import { formatChatTime } from '../utils/format.js';
 
 export default function MessagesPage() {
@@ -16,6 +17,7 @@ export default function MessagesPage() {
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [newChatOpen, setNewChatOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -69,17 +71,27 @@ export default function MessagesPage() {
         large
         title="Messages"
         action={
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Notifications"
-            onClick={() => navigate('/notifications')}
-          >
-            <span className="bell-wrap">
-              <Icon name="bell" size={21} />
-              {unreadTotal > 0 && <span className="bell-wrap__dot" />}
-            </span>
-          </button>
+          <>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="New message to the office"
+              onClick={() => setNewChatOpen(true)}
+            >
+              <Icon name="edit" size={21} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Notifications"
+              onClick={() => navigate('/notifications')}
+            >
+              <span className="bell-wrap">
+                <Icon name="bell" size={21} />
+                {unreadTotal > 0 && <span className="bell-wrap__dot" />}
+              </span>
+            </button>
+          </>
         }
       />
 
@@ -103,7 +115,7 @@ export default function MessagesPage() {
           text={
             query
               ? 'Try a different name or keyword.'
-              : 'Messages from your manager and team will appear here.'
+              : 'Tap the compose button to message the office, or wait for your manager to reach out.'
           }
         />
       ) : (
@@ -148,6 +160,12 @@ export default function MessagesPage() {
           </section>
         ))
       )}
+
+      <NewOfficeChatSheet
+        open={newChatOpen}
+        onClose={() => setNewChatOpen(false)}
+        onOpened={(threadId) => { setNewChatOpen(false); navigate(`/messages/${threadId}`); }}
+      />
     </div>
   );
 }

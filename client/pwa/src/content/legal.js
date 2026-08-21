@@ -5,7 +5,7 @@
 // Best Pinnacle before release: it describes how the system behaves, but the
 // data controller details and retention periods are the client's to confirm.
 
-import { OFFICE_CONTACT } from './contact.js';
+import { OFFICE_CONTACT, OFFICE_EMAIL, OFFICE_ADDRESS } from './contact.js';
 
 export const TERMS = {
   title: 'Terms of use',
@@ -66,6 +66,10 @@ export const PRIVACY = {
     {
       heading: 'Messages',
       body: 'Messages you send in the app are between you and the office. Treat them as work records, and do not put anything about a client in them that does not belong in the care record.',
+    },
+    {
+      heading: 'Who is responsible, and how to contact us',
+      body: `Your data is controlled by ${OFFICE_ADDRESS}. To ask about your data or raise a concern, email ${OFFICE_EMAIL} or call the office. (Company registration and ICO reference to be confirmed by the office.)`,
     },
   ],
 };

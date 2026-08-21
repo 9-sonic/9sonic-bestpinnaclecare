@@ -193,17 +193,18 @@ export const deleteDevice = (fingerprint) => api.delete(`/admin/devices/${finger
 
 export const listConversations = () => api.get('/conversations');
 export const listMessages = (conversationId) => api.get(`/conversations/${conversationId}/messages`);
-export const sendMessage = (conversationId, body, clientMessageId, broadcast = false, visitId = null, files = null) => {
+export const sendMessage = (conversationId, body, clientMessageId, broadcast = false, visitId = null, files = null, replyToId = null) => {
   if (files && files.length) {
     const fd = new FormData();
     fd.append('body', body ?? '');
     fd.append('client_message_id', clientMessageId);
     fd.append('broadcast', broadcast ? 'true' : 'false');
     if (visitId) fd.append('visit_id', visitId);
+    if (replyToId) fd.append('reply_to_id', replyToId);
     files.forEach((f) => fd.append('files[]', f));
     return apiUpload(`/conversations/${conversationId}/messages`, fd);
   }
-  return api.post(`/conversations/${conversationId}/messages`, { body, client_message_id: clientMessageId, broadcast, visit_id: visitId });
+  return api.post(`/conversations/${conversationId}/messages`, { body, client_message_id: clientMessageId, broadcast, visit_id: visitId, reply_to_id: replyToId });
 };
 // Mark a message read — stamps a receipt and advances the reader's
 // last_read_message_id, which is what clears the conversation's unread count.
@@ -212,6 +213,8 @@ export const muteConversation = (id, muted) => api.patch(`/conversations/${id}/m
 export const chaseUnread = (id) => api.post(`/conversations/${id}/chase`);
 export const pinMessage = (conversationId, id) => api.post(`/conversations/${conversationId}/messages/${id}/pin`);
 export const unpinMessage = (conversationId, id) => api.delete(`/conversations/${conversationId}/messages/${id}/pin`);
+export const editMessage = (conversationId, id, body) => api.patch(`/conversations/${conversationId}/messages/${id}`, { body });
+export const deleteMessage = (conversationId, id) => api.delete(`/conversations/${conversationId}/messages/${id}`);
 export const createChannel = (title, participantIds, purpose, autoPost = false) =>
   api.post('/conversations', { kind: 'channel', title, purpose, auto_post: autoPost, participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
 export const createGroup = (title, participantIds, purpose) =>
@@ -222,6 +225,13 @@ export const createDirect = (employeeId) =>
 // Add carers to an existing group/channel. Direct threads reject this server-side.
 export const addConversationParticipants = (conversationId, participantIds) =>
   api.post(`/conversations/${conversationId}/participants`, { participants: (participantIds ?? []).map((id) => ({ type: 'Employee', id })) });
+// Rename a channel/group or edit its purpose. Pass only the fields you're changing.
+export const updateConversation = (id, attrs) => api.patch(`/conversations/${id}`, attrs);
+// Delete (soft-archive) a channel/group.
+export const deleteConversation = (id) => api.delete(`/conversations/${id}`);
+// Remove one member from a channel/group. `type` is 'Admin' or 'Employee'.
+export const removeParticipant = (id, type, participantId) =>
+  api.delete(`/conversations/${id}/participants/${type}/${participantId}`);
 // Full-text search over message bodies in my conversations -> { query, results: [{ conversation_id, snippet, ... }] }
 export const searchConversations = (q) => api.get(`/conversations/search?q=${encodeURIComponent(q ?? '')}`);
 
@@ -258,9 +268,10 @@ export async function exportAuditLog(params = {}, type = 'csv') {
 // The same CQC visit-attendance rows as JSON, for the on-screen filterable
 // table (one row per carer x visit) — optionally narrowed to one client and/or
 // one carer.
-export const listAttendanceAudit = ({ from, to, serviceUserId, employeeId } = {}) =>
+export const listAttendanceAudit = ({ from, to, serviceUserId, employeeId, page = 1, perPage = 50 } = {}) =>
   api.get('/admin/attendance_audit_exports/rows', {
     from, to, service_user_id: serviceUserId || undefined, employee_id: employeeId || undefined,
+    page, per_page: perPage,
   });
 
 // Streams the CQC visit-attendance audit (one row per carer x visit over the

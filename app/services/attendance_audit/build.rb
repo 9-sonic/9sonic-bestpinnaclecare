@@ -25,6 +25,13 @@ module AttendanceAudit
       new(from, to, service_user_id: service_user_id, employee_id: employee_id).call
     end
 
+    # Paginated variant for the on-screen table: returns { rows:, total: } for one
+    # page. The exports still use .call (all rows) — a CQC export must be complete.
+    def self.page(from:, to:, service_user_id: nil, employee_id: nil, page: 1, per_page: 50)
+      new(from, to, service_user_id: service_user_id, employee_id: employee_id)
+        .page(page: page, per_page: per_page)
+    end
+
     def initialize(from, to, service_user_id: nil, employee_id: nil)
       @from = from
       @to   = to
@@ -36,12 +43,42 @@ module AttendanceAudit
       assignments.map { |a| row_for(a) }
     end
 
+    def page(page:, per_page:)
+      scope = base_scope
+      total = scope.count
+      per   = per_page.to_i.clamp(1, 200)
+      pg    = [ page.to_i, 1 ].max
+      rows  = scope.order("visits.scheduled_start ASC")
+                   .offset((pg - 1) * per).limit(per)
+                   .map { |a| row_for(a) }
+      { rows: rows, total: total, summary: summary_for(scope) }
+    end
+
+    # Aggregate counts across the WHOLE filtered range (not just the page), so the
+    # stat cards stay accurate under pagination. Computed from the built rows of
+    # the full scope — late/missed/offline all derive from the same clock logic
+    # as row_for, so this is the honest count, not an approximation.
+    def summary_for(scope)
+      all = scope.map { |a| row_for(a) }
+      {
+        total:      all.size,
+        late:       all.count { |r| (r.late_in || 0) > 0 },
+        missed_in:  all.count { |r| r.clocked_in.nil? },
+        missed_out: all.count { |r| r.clocked_in && r.clocked_out.nil? },
+        offline:    all.count { |r| r.offline_in == "Yes" || r.offline_out == "Yes" }
+      }
+    end
+
     private
 
     # Every assigned slot whose visit starts in the range, delivered or not, in a
     # stable order (client, then start time) so the export reads like a rota.
     # Optionally narrowed to one client and/or one carer for on-screen filtering.
     def assignments
+      base_scope.order("visits.scheduled_start ASC").to_a
+    end
+
+    def base_scope
       scope = VisitAssignment
         .assigned
         .joins(:visit)
@@ -50,7 +87,7 @@ module AttendanceAudit
         .where.not(lifecycle_state: :cancelled)
       scope = scope.where(visits: { service_user_id: @service_user_id }) if @service_user_id.present?
       scope = scope.where(employee_id: @employee_id) if @employee_id.present?
-      scope.order("visits.scheduled_start ASC").to_a
+      scope
     end
 
     def row_for(a)

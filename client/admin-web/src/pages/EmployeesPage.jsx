@@ -14,10 +14,12 @@ import TeamPage from './TeamPage.jsx';
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', employee_reference: '' };
 const METHOD = { gps: 'App (GPS)', pin: 'PIN tablet', manual_admin: 'Manual', manual: 'Manual' };
 
-function Field({ label, error, hint, children, full }) {
+function Field({ label, error, hint, about, children, full }) {
   return (
     <label style={{ ...s('display:flex;flex-direction:column;gap:7px'), gridColumn: full ? '1 / -1' : undefined }}>
-      <span style={s('font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>{label}</span>
+      <span style={s('display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--d-ink2)')}>
+        {label}{about && <InfoHint text={about} label={`About ${label}`} />}
+      </span>
       {children}
       {error && <span style={s('font-size:12px;font-weight:600;color:var(--d-danger-ink)')}>{error}</span>}
       {hint && !error && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>{hint}</span>}
@@ -187,12 +189,13 @@ function EmployeesTab() {
           <div data-tour="employees-modal" style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
             <div style={s('font-size:13px;font-weight:500;color:var(--d-muted);line-height:1.5')}>They get an email with a link to set their own password. The account stays inactive until they use it.</div>
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-              <Field label="First name" error={errors.first_name}><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
-              <Field label="Last name" error={errors.last_name}><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
+              <Field label="First name" error={errors.first_name} about="The carer's first name, as it appears in the app and on the rota."><input style={input(errors.first_name)} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name" error={errors.last_name} about="The carer's surname."><input style={input(errors.last_name)} value={form.last_name} onChange={set('last_name')} /></Field>
             </div>
-            <Field label="Work email" error={errors.email}><input style={input(errors.email)} type="email" value={form.email} onChange={set('email')} /></Field>
-            <Field label="Mobile"><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
-            <Field label="Staff reference"><input style={input(false)} value={form.employee_reference} onChange={set('employee_reference')} placeholder="EMP-0000" /></Field>
+            <Field label="Work email" error={errors.email} about="Where the invite is sent, and the carer's sign-in name. Must be unique."><input style={input(errors.email)} type="email" value={form.email} onChange={set('email')} /></Field>
+            <Field label="Mobile" about="The carer's mobile number. Optional — used for contact, not sign-in."><input style={input(false)} value={form.phone} onChange={set('phone')} placeholder="07700 900000" /></Field>
+            {/* Staff reference is auto-generated (EMP-xxxx) on invite, so it's not asked here.
+            <Field label="Staff reference" about="Your own payroll/HR reference for this carer. Optional."><input style={input(false)} value={form.employee_reference} onChange={set('employee_reference')} placeholder="EMP-0000" /></Field> */}
           </div>
         </Modal>
       )}

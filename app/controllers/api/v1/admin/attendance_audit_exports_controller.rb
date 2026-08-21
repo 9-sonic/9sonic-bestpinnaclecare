@@ -14,9 +14,17 @@ module Api
         def rows
           to   = parse_time(params[:to]) || Time.current.end_of_day
           from = parse_time(params[:from]) || 7.days.ago.beginning_of_day
+          page     = [ params.fetch(:page, 1).to_i, 1 ].max
+          per_page = params.fetch(:per_page, 50).to_i.clamp(1, 200)
 
-          data = AttendanceAudit::Build.call(from: from, to: to, **filter_params)
-          render json: data.map { |r| AttendanceAuditRowSerializer.call(r) }
+          result = AttendanceAudit::Build.page(from: from, to: to, page: page, per_page: per_page, **filter_params)
+          render json: {
+            items:    result[:rows].map { |r| AttendanceAuditRowSerializer.call(r) },
+            total:    result[:total],
+            summary:  result[:summary],
+            page:     page,
+            per_page: per_page
+          }
         end
 
         def show

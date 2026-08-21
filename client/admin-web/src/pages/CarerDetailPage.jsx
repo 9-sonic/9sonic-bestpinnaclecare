@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
-import { s } from '../lib/ui.jsx';
+import { s, imageTooLarge } from '../lib/ui.jsx';
 import { fullName, formatTime, minutesToHours } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -200,6 +200,8 @@ export default function CarerDetailPage() {
   async function onAvatar(e) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
+    const tooBig = imageTooLarge(file);
+    if (tooBig) { toast.error(tooBig); return; }
     try { await uploadEmployeeAvatar(carer.id, file); toast.success('Photo updated'); await load(); }
     catch (err) { toast.error(err.message || 'Could not upload'); }
   }

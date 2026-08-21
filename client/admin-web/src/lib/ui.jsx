@@ -34,3 +34,20 @@ export function s(css) {
   });
   return o;
 }
+
+// Reject an oversized image before it's uploaded (the server also enforces 5MB;
+// this gives instant feedback). Returns an error string, or null when OK.
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+export function imageTooLarge(file) {
+  if (file && file.size > MAX_IMAGE_BYTES) return 'That image is over 5 MB. Please choose a smaller one.';
+  return null;
+}
+
+// Message attachments (docs, images, audio, video): 25 MB per file, matching the
+// backend's Message::MESSAGE_FILE_MAX_BYTES gate. Checked here first so an
+// oversize file is rejected with a clear message before it's ever uploaded.
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB
+export function attachmentTooLarge(file) {
+  if (file && file.size > MAX_ATTACHMENT_BYTES) return `“${file.name}” is over 25 MB. Please choose a smaller file.`;
+  return null;
+}

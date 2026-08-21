@@ -25,16 +25,18 @@ Rails.application.routes.draw do
       patch "notification_preferences", to: "notification_preferences#update"
 
       # Shared chat (participants are Admin or Employee)
-      resources :conversations, only: %i[index create] do
+      resources :conversations, only: %i[index create update destroy] do
         collection do
           get :search             # full-text search over message bodies in my conversations
         end
         member do
           patch :mute               # mute/unmute notifications for this conversation
           post  :chase              # re-notify who hasn't read the latest message
-          post  :participants, action: :add_participants  # add people to a group/channel
+          post  :participants, action: :add_participants     # add people to a group/channel
+          # remove one person from a group/channel (soft: stamps left_at)
+          delete "participants/:participant_type/:participant_id", action: :remove_participant
         end
-        resources :messages, only: %i[index create] do
+        resources :messages, only: %i[index create update destroy] do
           member do
             post   :pin
             delete :pin, action: :unpin
@@ -148,6 +150,7 @@ Rails.application.routes.draw do
         post "mfa",           to: "mfa#create"
         post "mfa/confirm",   to: "mfa#confirm"
         get  "me",            to: "me#show"
+        get  "office_contacts", to: "office_contacts#index"   # admins a carer may start a chat with
 
         # Biometric / passkey (WebAuthn)
         post "webauthn/registration/options",   to: "webauthn_registrations#create_options"

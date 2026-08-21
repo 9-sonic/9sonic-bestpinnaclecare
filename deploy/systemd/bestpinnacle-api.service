@@ -10,6 +10,11 @@
 Description=Best Pinnacle Care Rails API (Puma)
 After=network.target postgresql.service
 Wants=postgresql.service
+# Restart rate-limit lives in [Unit] (systemd ignores it in [Service]). Paired
+# with Restart=always below, this lets Puma bounce many times while Postgres is
+# mid-restart without systemd giving up and leaving the API dead.
+StartLimitIntervalSec=300
+StartLimitBurst=20
 
 [Service]
 Type=simple
@@ -30,8 +35,15 @@ EnvironmentFile=/home/qqwqvwsb/api/.env
 Environment=PORT=3002
 
 ExecStart=/home/qqwqvwsb/.rbenv/shims/bundle exec puma -C config/puma.rb
-Restart=on-failure
-RestartSec=5
+
+# Self-heal on ANY exit, not just failures. When Postgres restarts (e.g. an
+# unattended security patch — a normal, recurring event), the Solid-Queue-in-Puma
+# plugin loses its DB heartbeat and gracefully stops Puma, which exits 0. With
+# `on-failure` systemd treated that clean exit as "done" and left the API dead
+# until a human noticed (that's the Aug-2026 outage). `always` brings it back on
+# its own. RestartSec gives Postgres time to finish coming up before we retry.
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target

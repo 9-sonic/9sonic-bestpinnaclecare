@@ -7,7 +7,10 @@ import { fullName, formatDate, formatTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
-import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, ExportButton, TableWrap, Th, Td, Row, DateField, SelectField, FilterBar } from '../ds/console.jsx';
+import { Panel, PanelTitle, StatCard, Avatar, Tag, Button, ExportButton, TableWrap, Th, Td, Row, DateField, SelectField, FilterBar, Pager } from '../ds/console.jsx';
+
+// Attendance-record rows per page (server-side).
+const ATT_PER_PAGE = 50;
 
 // CQC visit-attendance audit: one row per carer x visit, filterable by date
 // range, client and carer — the same data as the CSV/XLSX export
@@ -110,19 +113,29 @@ export default function TimesheetsPage() {
   const [clients, setClients] = useState([]);
   const [staff, setStaff] = useState([]);
   const [rows, setRows] = useState(null); // null = loading
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState(null); // range-wide stat counts
 
   useEffect(() => {
     Promise.all([listServiceUsers().catch(() => []), listEmployees().catch(() => [])])
       .then(([su, e]) => { setClients(su); setStaff(e); });
   }, []);
 
-  // Load the attendance rows for the current filters. Extracted so a recorded
-  // correction can refresh the table (onDone) with the corrected times.
+  // Back to page 1 whenever a filter changes, so you never land on an empty page.
+  useEffect(() => { setPage(1); }, [from, to, serviceUserId, employeeId]);
+
+  // Load one page of attendance rows for the current filters. Extracted so a
+  // recorded correction can refresh the table (onDone) with the corrected times.
   const load = useCallback(async () => {
     setRows(null);
-    try { setRows(await listAttendanceAudit({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, serviceUserId, employeeId }) ?? []); }
-    catch { setRows([]); }
-  }, [from, to, serviceUserId, employeeId]);
+    try {
+      const r = await listAttendanceAudit({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, serviceUserId, employeeId, page, perPage: ATT_PER_PAGE });
+      setRows(r.items ?? []);
+      setTotal(r.total ?? 0);
+      setSummary(r.summary ?? null);
+    } catch { setRows([]); setTotal(0); setSummary(null); }
+  }, [from, to, serviceUserId, employeeId, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -137,15 +150,15 @@ export default function TimesheetsPage() {
   const clientOptions = useMemo(() => clients.map((c) => ({ id: c.id, label: fullName(c) })).sort((a, b) => a.label.localeCompare(b.label)), [clients]);
   const staffOptions = useMemo(() => staff.map((e) => ({ id: e.id, label: fullName(e) })).sort((a, b) => a.label.localeCompare(b.label)), [staff]);
 
-  // Summary stats for the range currently on screen.
-  const stats = useMemo(() => {
-    const r = rows ?? [];
-    const missedIn = r.filter((x) => !x.clocked_in).length;
-    const missedOut = r.filter((x) => x.clocked_in && !x.clocked_out).length;
-    const late = r.filter((x) => (x.late_in ?? 0) > 0).length;
-    const offline = r.filter((x) => x.offline_in === 'Yes' || x.offline_out === 'Yes').length;
-    return { total: r.length, missedIn, missedOut, late, offline };
-  }, [rows]);
+  // Range-wide summary counts (from the server, so they cover every page — not
+  // just the rows currently loaded).
+  const stats = {
+    total: summary?.total ?? 0,
+    late: summary?.late ?? 0,
+    missedIn: summary?.missed_in ?? 0,
+    missedOut: summary?.missed_out ?? 0,
+    offline: summary?.offline ?? 0,
+  };
 
   return (
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
@@ -217,6 +230,8 @@ export default function TimesheetsPage() {
           </TableWrap>
         </Panel>
       )}
+
+      {total > ATT_PER_PAGE && <Pager page={page} perPage={ATT_PER_PAGE} total={total} onPage={setPage} />}
 
       {amending && <AmendModal row={amending} onClose={() => setAmending(null)} onDone={load} />}
     </div>

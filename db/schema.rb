@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -187,6 +187,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
   end
 
   create_table "conversations", force: :cascade do |t|
+    t.timestamptz "archived_at"
     t.boolean "auto_post", default: false, null: false
     t.timestamptz "created_at", default: -> { "now()" }, null: false
     t.bigint "created_by_id"
@@ -350,6 +351,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
     t.timestamptz "pinned_at"
     t.bigint "pinned_by_id"
     t.text "pinned_by_type"
+    t.bigint "reply_to_id"
     t.bigint "sender_id"
     t.text "sender_type"
     t.boolean "system", default: false, null: false
@@ -357,6 +359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
     t.index ["client_message_id"], name: "index_messages_on_client_message_id", unique: true
     t.index ["conversation_id", "created_at"], name: "idx_messages_conversation", order: { created_at: :desc }
     t.index ["conversation_id", "pinned_at"], name: "idx_messages_pinned", where: "(pinned_at IS NOT NULL)"
+    t.index ["reply_to_id"], name: "index_messages_on_reply_to_id"
     t.index ["visit_id"], name: "index_messages_on_visit_id"
   end
 
@@ -705,6 +708,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_120000) do
   add_foreign_key "message_attachments", "messages"
   add_foreign_key "message_receipts", "messages"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "messages", "messages", column: "reply_to_id", on_delete: :nullify
   add_foreign_key "mileage_claims", "employees"
   add_foreign_key "mileage_claims", "visit_assignments"
   add_foreign_key "notifications", "alerts"

@@ -83,12 +83,16 @@ RSpec.describe "Admin attendance audit export", type: :request do
 
       get "/api/v1/admin/attendance_audit_exports/rows", headers: auth
       expect(response).to have_http_status(:ok)
-      rows = response.parsed_body
+      body = response.parsed_body
+      expect(body["total"]).to eq(1)
+      rows = body["items"]
       expect(rows.size).to eq(1)
       expect(rows.first).to include("staff", "service_user" => "Amber Kingham", "late_in" => 5)
       # The on-screen table carries the assignment id so a manager can amend the
       # clock times from here (the export CSV/XLSX omit it).
       expect(rows.first["visit_assignment_id"]).to be_present
+      # Range-wide summary counts drive the stat cards under pagination.
+      expect(body["summary"]).to include("total" => 1, "late" => 1)
     end
 
     it "filters by service_user_id" do
@@ -98,7 +102,7 @@ RSpec.describe "Admin attendance audit export", type: :request do
       create(:visit_assignment, visit: v2)
 
       get "/api/v1/admin/attendance_audit_exports/rows", params: { service_user_id: su.id }, headers: auth
-      rows = response.parsed_body
+      rows = response.parsed_body["items"]
       expect(rows.size).to eq(1)
       expect(rows.first["service_user"]).to eq("Amber Kingham")
     end
@@ -109,7 +113,7 @@ RSpec.describe "Admin attendance audit export", type: :request do
       create(:visit_assignment, visit: other_visit)
 
       get "/api/v1/admin/attendance_audit_exports/rows", params: { employee_id: va1.employee_id }, headers: auth
-      rows = response.parsed_body
+      rows = response.parsed_body["items"]
       expect(rows.size).to eq(1)
       expect(rows.first["staff"]).to eq(va1.employee.full_name)
     end

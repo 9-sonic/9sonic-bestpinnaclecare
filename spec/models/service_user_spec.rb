@@ -8,6 +8,16 @@ RSpec.describe ServiceUser, type: :model do
     expect(su.lng.to_f).to eq(-2.2426)
   end
 
+  it "auto-generates an SU- reference when none is supplied" do
+    su = ServiceUser.create!(first_name: "Ivy", last_name: "Bell", lat: 53.48, lng: -2.24)
+    expect(su.reference).to match(/\ASU-[0-9A-F]{8}\z/)
+  end
+
+  it "keeps a supplied reference" do
+    su = ServiceUser.create!(first_name: "Ivy", last_name: "Bell", reference: "SU-1001", lat: 53.48, lng: -2.24)
+    expect(su.reference).to eq("SU-1001")
+  end
+
   it "does not overwrite admin-provided coordinates" do
     su = ServiceUser.create!(first_name: "Bob", last_name: "Jones",
                              address_line1: "2 Low St", postcode: "M2 2BB", lat: 51.5, lng: -0.1)
