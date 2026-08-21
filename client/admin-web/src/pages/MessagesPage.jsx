@@ -4,9 +4,8 @@ import { listConversations, listMessages, sendMessage, createChannel, createGrou
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
-import InfoHint from '../components/common/InfoHint.jsx';
 import ContextMenu from '../components/common/ContextMenu.jsx';
-import { s } from '../lib/ui.jsx';
+import { s, attachmentTooLarge } from '../lib/ui.jsx';
 import { subscribeInbox } from '../lib/cable.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -14,6 +13,21 @@ import { formatTime, fullName } from '../api/format.js';
 import { Panel, PanelTitle, Tag, Avatar, Button } from '../ds/console.jsx';
 
 const initials = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+
+// Insert or replace a message in a thread list without ever duplicating it.
+// Two independent paths deliver the same message — send()'s optimistic append
+// and the ActionCable echo (fan_out reaches the sender too) — and edits/deletes
+// re-deliver an existing one. We match on client_message_id (present on both the
+// POST response and the socket payload, stable across timing) and fall back to
+// the server id. Whichever copy arrives second replaces the first in place.
+function upsertMessage(list, m) {
+  const same = (x) => (m.client_message_id && x.client_message_id === m.client_message_id) || x.id === m.id;
+  const i = list.findIndex(same);
+  if (i === -1) return [...list, m];
+  const next = list.slice();
+  next[i] = m;
+  return next;
+}
 const QUICK = ['On my way', 'Running late', 'Can you cover this?', 'Please call the office', 'Thanks!'];
 
 function convoTitle(convo, adminId) {
@@ -26,6 +40,8 @@ const avatarFor = (parts, type, id) => (parts ?? []).find((p) => p.type === type
 const dmAvatar = (c, adminId) => (c.participants ?? []).find((p) => !(p.type === 'Admin' && p.id === adminId))?.avatar_url ?? null;
 const humanFileSize = (n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const isImage = (ct) => (ct ?? '').startsWith('image/');
+const isAudio = (ct) => (ct ?? '').startsWith('audio/');
+const isVideo = (ct) => (ct ?? '').startsWith('video/');
 
 export default function MessagesPage() {
   const { admin, canManage } = useAuth();
@@ -56,6 +72,8 @@ export default function MessagesPage() {
   const [files, setFiles] = useState([]);
   // Right-click menu on a message bubble: { x, y, msg } while open, null otherwise.
   const [msgMenu, setMsgMenu] = useState(null);
+  // The message being replied to (shown as a banner above the composer), or null.
+  const [replyTo, setReplyTo] = useState(null);
   // Inline edit: { id, text } while editing one of my own messages, else null.
   const [editing, setEditing] = useState(null);
   // Delete confirmation: the message pending deletion, or null.
@@ -67,6 +85,7 @@ export default function MessagesPage() {
   const [removing, setRemoving] = useState(null);
   const [confirmDeleteConvo, setConfirmDeleteConvo] = useState(false);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const reload = useCallback(async () => {
     const cs = (await listConversations()) ?? [];
@@ -107,6 +126,8 @@ export default function MessagesPage() {
   // Live over the WebSocket: append to the open thread (dedupe by id) + bump the list.
   const activeIdRef = useRef(activeId);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  // A reply target belongs to one thread — drop it when switching conversations.
+  useEffect(() => { setReplyTo(null); }, [activeId]);
   useEffect(() => {
     const off = subscribeInbox((payload) => {
       if (payload?.type !== 'message' || !payload.message) return;
@@ -114,10 +135,13 @@ export default function MessagesPage() {
       const fromMe = m.sender_type === 'Admin' && m.sender_id === admin?.id;
       const isOpen = m.conversation_id === activeIdRef.current;
       if (isOpen) {
-        // The same fan-out channel carries new messages AND edits/deletes of
-        // existing ones — so replace in place when we already have the id, append
-        // otherwise. (An edit/delete keeps the id; a new message brings a new one.)
-        setMessages((xs) => (xs.some((x) => x.id === m.id) ? xs.map((x) => (x.id === m.id ? m : x)) : [...xs, m]));
+        // Upsert, don't blindly append. A message can reach the open thread twice:
+        // once from send()'s own optimistic append, and again from this socket
+        // echo (fan_out broadcasts to the sender too, for multi-device) — plus
+        // edits/deletes re-send an existing id. Match on client_message_id first
+        // (both the POST response and the echo carry the same one, so it's stable
+        // even before the server id is known) and fall back to id.
+        setMessages((xs) => upsertMessage(xs, m));
         // Thread is open on screen, so it's already been seen — mark it read
         // and don't raise its badge. A tombstone has nothing to read.
         if (!fromMe && !m.deleted_at) markMessageRead(m.id).catch(() => {});
@@ -160,13 +184,31 @@ export default function MessagesPage() {
   const active = useMemo(() => convos.find((c) => c.id === activeId), [convos, activeId]);
   const mine = (m) => m.sender_type === 'Admin' && m.sender_id === admin?.id;
 
+  // Queue picked/dropped files onto the composer. Any type is allowed; each is
+  // checked against the 25 MB limit here (the backend enforces it too) and an
+  // oversize file is rejected with a clear message rather than failing on send.
+  function addFiles(fileList) {
+    const picked = Array.from(fileList ?? []);
+    if (picked.length === 0) return;
+    const ok = [];
+    for (const f of picked) {
+      const tooBig = attachmentTooLarge(f);
+      if (tooBig) { toast.error(tooBig); continue; }
+      ok.push(f);
+    }
+    if (ok.length) setFiles((xs) => [...xs, ...ok]);
+  }
+
   async function send() {
     const body = draft.trim();
     if ((!body && files.length === 0) || sending || !active) return;
     setSending(true);
     try {
-      const saved = await sendMessage(activeId, body, crypto.randomUUID(), broadcast && active.kind === 'channel', null, files.length ? files : null);
-      setMessages((xs) => [...xs, saved]); setDraft(''); setFiles([]);
+      const saved = await sendMessage(activeId, body, crypto.randomUUID(), broadcast && active.kind === 'channel', null, files.length ? files : null, replyTo?.id ?? null);
+      // Upsert (not append): the socket echo for this same message may already
+      // have landed, or land right after — dedup on client_message_id so it can
+      // never show twice regardless of which arrives first.
+      setMessages((xs) => upsertMessage(xs, saved)); setDraft(''); setFiles([]); setReplyTo(null);
       setConvos((cs) => cs.map((c) => (c.id === activeId ? { ...c, last_message_preview: body || `${files.length} attachment${files.length === 1 ? '' : 's'}`, last_message_at: new Date().toISOString() } : c)));
     } catch (e) { toast.error(e.message || 'Could not send'); } finally { setSending(false); }
   }
@@ -273,14 +315,6 @@ export default function MessagesPage() {
       toast.success('Copied to clipboard');
     } catch { toast.error('Could not copy'); }
   }
-  // Quote the message into the composer as a reply. Non-destructive: it just
-  // seeds the draft, the office still types and sends normally.
-  function quoteReply(m) {
-    const who = nameFor(active.participants, m.sender_type, m.sender_id) || 'them';
-    const quoted = (m.body ?? '').split('\n').map((l) => `> ${l}`).join('\n');
-    setDraft((d) => `${quoted}\n\n${d}`.trimStart());
-    toast.success(`Replying to ${who}`);
-  }
   // Save an inline edit to one of my own messages. Backend stamps edited_at and
   // fans the new body out over the socket; we also patch it in locally so the
   // change shows instantly without waiting for the echo.
@@ -322,7 +356,7 @@ export default function MessagesPage() {
     const own = mine(m);
     return [
       m.body ? { label: 'Copy text', icon: 'copy', onClick: () => copyText(m) } : null,
-      { label: 'Reply', icon: 'reply', onClick: () => quoteReply(m) },
+      { label: 'Reply', icon: 'reply', onClick: () => setReplyTo(m) },
       { label: m.pinned_at ? 'Unpin' : 'Pin', icon: 'pin', onClick: () => togglePin(m) },
       own && m.body ? { label: 'Edit', icon: 'edit', onClick: () => setEditing({ id: m.id, text: m.body }) } : null,
       own ? { label: 'Delete', icon: 'trash', danger: true, onClick: () => setConfirmDelete(m) } : null,
@@ -380,11 +414,10 @@ export default function MessagesPage() {
       <div style={s('background:var(--d-card);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;min-height:0')}>
         <div data-tour="messages-new" style={s('padding:14px 14px 10px;display:flex;align-items:center;gap:8px')}>
           <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>Messages</div>
-          <InfoHint text="Start a new conversation: a direct message to one person, a private group, or a channel (which can auto-post shift alerts and request read receipts)." />
           <div style={s('flex:1')} />
-          <div data-tour="messages-new-message" onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv tip" data-tip="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
-          <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv tip" data-tip="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
-          <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv tip" data-tip="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
+          <div data-tour="messages-new-message" onClick={() => { setComposer('direct'); setName(''); setMembers([]); }} className="hv tip tip--below" data-tip="New message" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="edit" size={15} /></div>
+          <div onClick={() => { setComposer('group'); setName(''); setMembers([]); }} className="hv tip tip--below" data-tip="New group" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="users" size={15} /></div>
+          <div onClick={() => { setComposer('channel'); setName(''); setMembers([]); }} className="hv tip tip--below" data-tip="New channel" style={{ ...s('width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-primary)'), '--hbg': 'var(--d-panel)' }}><Icon name="plus" size={16} /></div>
         </div>
         <div style={s('padding:0 12px 10px')}>
           <div style={s('height:38px;background:var(--d-field);border:1.5px solid var(--d-border);border-radius:19px;display:flex;align-items:center;gap:8px;padding:0 13px')}>
@@ -432,7 +465,12 @@ export default function MessagesPage() {
               </div>
             )}
 
-            <div ref={scrollRef} style={s('flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px')}>
+            <div
+              ref={scrollRef}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer?.files); }}
+              style={s('flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px')}
+            >
               {loadingMsgs ? <div style={s('margin:auto;font-size:13px;color:var(--d-muted)')}>Loading…</div>
                 : messages.length === 0 ? <div style={s('margin:auto;font-size:13px;color:var(--d-muted)')}>No messages yet — say hello.</div>
                 : messages.map((m) => {
@@ -440,12 +478,16 @@ export default function MessagesPage() {
                   const system = m.sender_type === 'System';
                   if (system) return <div key={m.id} style={s('display:flex;justify-content:center')}><span style={s('background:var(--d-panel);border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;color:var(--d-muted)')}>{m.body} · {formatTime(m.created_at)}</span></div>;
                   const author = out ? (fullName(admin) || 'You') : (nameFor(active.participants, m.sender_type, m.sender_id) ?? 'Someone');
-                  const rc = m.recipient_count ?? 0;
                   return (
-                    <div key={m.id} onContextMenu={(e) => openMsgMenu(e, m)} style={{ ...s('display:flex;gap:10px;max-width:82%;cursor:context-menu'), flexDirection: out ? 'row-reverse' : 'row', alignSelf: out ? 'flex-end' : 'flex-start' }}>
-                      <Avatar initials={initials(author)} size="sm" src={out ? admin?.avatar_url : avatarFor(active.participants, m.sender_type, m.sender_id)} />
+                    <div key={m.id} onContextMenu={(e) => openMsgMenu(e, m)} style={{ ...s('display:flex;gap:10px;max-width:82%;cursor:context-menu;align-items:flex-end'), flexDirection: out ? 'row' : 'row-reverse', alignSelf: out ? 'flex-end' : 'flex-start' }}>
                       <div style={{ ...s('min-width:0'), textAlign: out ? 'right' : 'left' }}>
-                        <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-bottom:3px')}>{author} · <span className="d-num">{formatTime(m.created_at)}</span></div>
+                        {m.reply_to && !m.deleted_at && (
+                          <div style={{ ...s('display:flex;align-items:center;gap:6px;max-width:100%;width:fit-content;margin-bottom:4px;border-left:3px solid var(--d-primary);border-radius:8px;background:var(--d-panel);padding:5px 9px;font-size:11.5px'), textAlign: 'left', marginLeft: out ? 'auto' : 0, marginRight: out ? 0 : 'auto' }}>
+                            <Icon name="reply" size={12} />
+                            <span style={s('font-weight:700;color:var(--d-primary);flex:none')}>{nameFor(active.participants, m.reply_to.sender_type, m.reply_to.sender_id) ?? (m.reply_to.sender_type === 'System' ? 'System' : 'Someone')}</span>
+                            <span style={s('font-weight:500;color:var(--d-muted);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{m.reply_to.deleted ? 'message deleted' : (m.reply_to.snippet || 'Attachment')}</span>
+                          </div>
+                        )}
                         {m.deleted_at ? (
                           <div style={{ ...s('display:inline-flex;align-items:center;gap:6px;padding:9px 13px;font-size:12.5px;font-weight:600;font-style:italic;line-height:1.45;border-radius:15px;border:1px dashed var(--d-border);color:var(--d-faint)') }}>
                             <Icon name="trash" size={12} />Message deleted
@@ -476,25 +518,34 @@ export default function MessagesPage() {
                                 <Icon name="calendar" size={13} />{m.visit.client} · {formatTime(m.visit.scheduled_start)}
                               </div>
                             )}
-                            {(m.attachments ?? []).map((a) => (isImage(a.content_type) ? (
-                              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.url} alt={a.filename} style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
-                            ) : (
-                              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:7px;border-radius:9px;padding:8px 10px;font-size:11.5px;font-weight:700;text-decoration:none'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}><Icon name="file" size={14} /><span style={s('min-width:0')}>{a.filename}<span style={s('display:block;font-weight:500;opacity:0.7')}>{humanFileSize(a.byte_size)}</span></span></a>
-                            )))}
+                            {(m.attachments ?? []).map((a) => {
+                              if (isImage(a.content_type)) return (
+                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.url} alt={a.filename} style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
+                              );
+                              if (isVideo(a.content_type)) return (
+                                <video key={a.id} src={a.url} controls preload="metadata" style={s('margin-top:7px;max-width:260px;max-height:220px;border-radius:10px;display:block;background:#000')} />
+                              );
+                              if (isAudio(a.content_type)) return (
+                                <div key={a.id} style={s('margin-top:7px')}><audio src={a.url} controls preload="metadata" style={s('max-width:240px;height:36px;display:block')} /><span style={s('display:block;font-size:11px;font-weight:600;opacity:0.7;margin-top:2px')}>{a.filename}</span></div>
+                              );
+                              return (
+                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:7px;border-radius:9px;padding:8px 10px;font-size:11.5px;font-weight:700;text-decoration:none'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}><Icon name="file" size={14} /><span style={s('min-width:0')}>{a.filename}<span style={s('display:block;font-weight:500;opacity:0.7')}>{humanFileSize(a.byte_size)}</span></span></a>
+                              );
+                            })}
                           </div>
                         )}
-                        {!m.deleted_at && editing?.id !== m.id && (
+                        {/* A pinned message still shows a small marker; pin/unpin itself
+                            is a right-click action, so no inline button here. */}
+                        {!m.deleted_at && editing?.id !== m.id && (m.edited_at || m.pinned_at) && (
                           <div style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:3px'), justifyContent: out ? 'flex-end' : 'flex-start' }}>
+                            {m.pinned_at && <span style={{ ...s('font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px'), color: 'var(--d-warn-ink)' }}><Icon name="pin" size={11} />Pinned</span>}
                             {m.edited_at && <span style={s('font-size:10.5px;font-weight:600;color:var(--d-faint)')}>edited</span>}
-                            <span onClick={() => togglePin(m)} className="hv tip" data-tip={m.pinned_at ? 'Unpin' : 'Pin'} style={{ ...s('font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:1px 5px'), color: m.pinned_at ? 'var(--d-warn-ink)' : 'var(--d-faint)', '--hbg': 'var(--d-panel)' }}><Icon name="pin" size={11} />{m.pinned_at ? 'Pinned' : 'Pin'}</span>
-                            {out && rc > 0 && (
-                              <span style={{ ...s('display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600'), color: (m.read_count ?? 0) >= rc ? 'var(--d-ok-ink)' : 'var(--d-muted)' }}>
-                                <Icon name="check" size={12} />{rc <= 1 ? ((m.read_count ?? 0) > 0 ? 'Read' : 'Delivered') : `${m.read_count ?? 0} of ${rc} read`}
-                              </span>
-                            )}
                           </div>
                         )}
+                        {/* Name + time BELOW the message, per the requested order (message, then name/avatar). */}
+                        <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-top:3px')}>{author} · <span className="d-num">{formatTime(m.created_at)}</span></div>
                       </div>
+                      <Avatar initials={initials(author)} size="sm" src={out ? admin?.avatar_url : avatarFor(active.participants, m.sender_type, m.sender_id)} />
                     </div>
                   );
                 })}
@@ -512,6 +563,16 @@ export default function MessagesPage() {
                   <span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>Broadcast — request read acknowledgement</span>
                 </div>
               )}
+              {replyTo && (
+                <div style={s('display:flex;align-items:center;gap:10px;background:var(--d-panel);border-left:3px solid var(--d-primary);border-radius:10px;padding:7px 11px')}>
+                  <Icon name="reply" size={14} />
+                  <div style={s('flex:1;min-width:0')}>
+                    <div style={s('font-size:11px;font-weight:700;color:var(--d-primary)')}>Replying to {mine(replyTo) ? 'yourself' : (nameFor(active.participants, replyTo.sender_type, replyTo.sender_id) ?? 'a message')}</div>
+                    <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{replyTo.body || 'Attachment'}</div>
+                  </div>
+                  <span onClick={() => setReplyTo(null)} className="hv tip" data-tip="Cancel reply" style={{ ...s('cursor:pointer;border-radius:6px;padding:3px;display:inline-flex;color:var(--d-faint)'), '--hbg': 'var(--d-card)' }}><Icon name="close" size={14} /></span>
+                </div>
+              )}
               {files.length > 0 && (
                 <div style={s('display:flex;flex-wrap:wrap;gap:6px')}>
                   {files.map((f, i) => (
@@ -523,6 +584,14 @@ export default function MessagesPage() {
                 </div>
               )}
               <div style={s('display:flex;align-items:center;gap:10px')}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+                  style={{ display: 'none' }}
+                />
+                <div onClick={() => fileInputRef.current?.click()} className="hv tip" data-tip="Attach files" style={{ ...s('width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="paperclip" size={19} /></div>
                 <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={broadcast ? 'Write a broadcast…' : `Message ${active.kind === 'direct' ? convoTitle(active, admin?.id) : `#${convoTitle(active, admin?.id).replace(/^#/, '')}`}`} style={{ ...s('flex:1;height:44px;border-radius:22px;background:var(--d-field);padding:0 18px;border:1.5px solid var(--d-border);outline:none;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
                 <div onClick={send} className="hv tip" data-tip="Send" style={{ ...s('width:44px;height:44px;border-radius:50%;background:var(--d-pill);color:var(--d-pill-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none'), '--hbg': 'var(--d-pill-hover)', opacity: sending || (!draft.trim() && files.length === 0) ? 0.5 : 1 }}><Icon name="send" size={18} /></div>
               </div>
@@ -628,52 +697,55 @@ export default function MessagesPage() {
             </div>
           )}
         >
-          <div data-tour="messages-dialog" style={s('padding:0 24px 4px')}>
-            <div style={s('display:inline-flex;gap:3px;background:var(--d-panel);border-radius:12px;padding:3px')}>
+          <div data-tour="messages-dialog" style={s('padding:16px 24px 20px;display:flex;flex-direction:column;gap:16px')}>
+            {/* Full-width segmented control so the three types read as one clear switch. */}
+            <div style={s('display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:var(--d-panel);border-radius:13px;padding:4px')}>
               {['direct', 'channel', 'group'].map((k) => (
-                <button key={k} type="button" onClick={() => { setComposer(k); setMembers([]); }} style={{ ...s('border:0;border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k === 'direct' ? 'Message' : k[0].toUpperCase() + k.slice(1)}</button>
+                <button key={k} type="button" onClick={() => { setComposer(k); setMembers([]); }} style={{ ...s('border:0;border-radius:10px;padding:8px 0;font-size:12.5px;font-weight:700;cursor:pointer;text-align:center'), background: composer === k ? 'var(--d-pill)' : 'transparent', color: composer === k ? 'var(--d-pill-ink)' : 'var(--d-ink2)', fontFamily: 'inherit' }}>{k === 'direct' ? 'Message' : k[0].toUpperCase() + k.slice(1)}</button>
               ))}
             </div>
-          </div>
-          <div style={s('flex:1;overflow-y:auto;padding:14px 24px;display:flex;flex-direction:column;gap:14px')}>
+
             {composer !== 'direct' && (
-              <label style={s('display:flex;flex-direction:column;gap:6px')}>
+              <label style={s('display:flex;flex-direction:column;gap:7px')}>
                 <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'channel' ? 'Channel name' : 'Group name'}</span>
-                <div style={s('height:44px;border-radius:14px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;padding:0 15px')}>
+                <div style={s('height:44px;border-radius:13px;background:var(--d-field);border:1.5px solid var(--d-border);display:flex;align-items:center;padding:0 14px')}>
                   {composer === 'channel' && <span style={s('font-size:14px;font-weight:700;color:var(--d-muted)')}>#</span>}
                   <input value={name.replace(/^#/, '')} onChange={(e) => setName(e.target.value)} placeholder={composer === 'channel' ? 'north-team' : 'Weekend cover'} style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;font-weight:600;color:var(--d-ink);padding-left:4px'), fontFamily: 'inherit' }} />
                 </div>
               </label>
             )}
             {composer !== 'direct' && (
-              <label style={s('display:flex;flex-direction:column;gap:6px')}>
+              <label style={s('display:flex;flex-direction:column;gap:7px')}>
                 <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></span>
-                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:42px;border-radius:14px;background:var(--d-field);padding:0 15px;border:1.5px solid var(--d-border);outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
+                <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="What is this conversation for?" style={{ ...s('height:44px;border-radius:13px;background:var(--d-field);padding:0 14px;border:1.5px solid var(--d-border);outline:0;font-size:13.5px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
               </label>
             )}
             {composer === 'channel' && (
-              <div onClick={() => setAutoPost((v) => !v)} style={s('display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--d-panel);border-radius:12px;padding:11px 13px')}>
-                <div style={{ ...s('width:34px;height:20px;border-radius:10px;position:relative;flex:none'), background: autoPost ? 'var(--d-primary)' : 'var(--d-field)' }}><div style={{ ...s('position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff'), left: autoPost ? '17px' : '3px' }} /></div>
+              <div onClick={() => setAutoPost((v) => !v)} style={s('display:flex;align-items:center;gap:11px;cursor:pointer;background:var(--d-panel);border-radius:13px;padding:12px 14px')}>
+                <div style={{ ...s('width:34px;height:20px;border-radius:10px;position:relative;flex:none;transition:background 0.15s'), background: autoPost ? 'var(--d-primary)' : 'var(--d-field)' }}><div style={{ ...s('position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.15s'), left: autoPost ? '17px' : '3px' }} /></div>
                 <div style={s('min-width:0')}>
                   <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>Auto-post shift alerts</div>
                   <div style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Late, missed and geofence alerts appear here automatically.</div>
                 </div>
               </div>
             )}
-            <div style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'direct' ? 'To' : `Members (${members.length})`}</div>
-            <div style={s('display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto')}>
-              {staff.map((e) => {
-                const on = members.includes(e.id);
-                // Direct is single-select: picking someone replaces the choice.
-                const toggle = () => setMembers((m) => (composer === 'direct' ? (on ? [] : [e.id]) : (on ? m.filter((x) => x !== e.id) : [...m, e.id])));
-                return (
-                  <div key={e.id} onClick={toggle} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
-                    <Avatar initials={`${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`} size="sm" />
-                    <div style={s('flex:1;font-size:13px;font-weight:700;color:var(--d-ink)')}>{fullName(e)}</div>
-                    <div style={{ ...s('width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center'), background: on ? 'var(--d-primary)' : 'var(--d-panel)', color: '#fff' }}>{on && <Icon name="check" size={13} />}</div>
-                  </div>
-                );
-              })}
+
+            <div style={s('display:flex;flex-direction:column;gap:8px')}>
+              <span style={s('font-size:12px;font-weight:700;color:var(--d-ink2)')}>{composer === 'direct' ? 'To' : `Members (${members.length})`}</span>
+              <div style={s('display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto;margin:0 -6px;padding:0 6px')}>
+                {staff.map((e) => {
+                  const on = members.includes(e.id);
+                  // Direct is single-select: picking someone replaces the choice.
+                  const toggle = () => setMembers((m) => (composer === 'direct' ? (on ? [] : [e.id]) : (on ? m.filter((x) => x !== e.id) : [...m, e.id])));
+                  return (
+                    <div key={e.id} onClick={toggle} className="hv" style={{ ...s('display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;cursor:pointer'), background: on ? 'var(--d-panel)' : 'transparent', '--hbg': 'var(--d-panel)' }}>
+                      <Avatar initials={`${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`} size="sm" />
+                      <div style={s('flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{fullName(e)}</div>
+                      <div style={{ ...s('width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;transition:background 0.12s'), background: on ? 'var(--d-primary)' : 'var(--d-panel)', color: '#fff' }}>{on && <Icon name="check" size={13} />}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Modal>
@@ -692,15 +764,17 @@ export default function MessagesPage() {
             </div>
           )}
         >
-          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
-            It’ll be removed for everyone and replaced with “Message deleted.” The
-            fact it was sent stays in the record — you just can’t bring the text back.
-          </div>
-          {confirmDelete.body && (
-            <div style={s('margin-top:12px;border-radius:12px;background:var(--d-panel);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);max-height:120px;overflow:auto')}>
-              {confirmDelete.body}
+          <div style={s('padding:6px 24px 10px')}>
+            <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+              It’ll be removed for everyone and replaced with “Message deleted.” The
+              fact it was sent stays in the record — you just can’t bring the text back.
             </div>
-          )}
+            {confirmDelete.body && (
+              <div style={s('margin-top:12px;border-radius:12px;background:var(--d-panel);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);max-height:120px;overflow:auto')}>
+                {confirmDelete.body}
+              </div>
+            )}
+          </div>
         </Modal>
       )}
 
@@ -718,20 +792,22 @@ export default function MessagesPage() {
             </div>
           )}
         >
-          <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin-bottom:6px')}>Name</label>
-          <input
-            value={manage.title}
-            onChange={(e) => setManage((m) => ({ ...m, title: e.target.value }))}
-            placeholder={active.kind === 'channel' ? 'e.g. Morning handover' : 'e.g. Weekend team'}
-            style={{ ...s('width:100%;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none'), fontFamily: 'inherit' }}
-          />
-          <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin:14px 0 6px')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></label>
-          <textarea
-            value={manage.purpose}
-            onChange={(e) => setManage((m) => ({ ...m, purpose: e.target.value }))}
-            placeholder="What is this conversation for?"
-            style={{ ...s('width:100%;min-height:70px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' }}
-          />
+          <div style={s('padding:6px 24px 10px')}>
+            <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin-bottom:6px')}>Name</label>
+            <input
+              value={manage.title}
+              onChange={(e) => setManage((m) => ({ ...m, title: e.target.value }))}
+              placeholder={active.kind === 'channel' ? 'e.g. Morning handover' : 'e.g. Weekend team'}
+              style={{ ...s('width:100%;height:44px;border-radius:13px;border:1.5px solid var(--d-border);background:var(--d-field);padding:0 14px;font-size:13.5px;font-weight:500;color:var(--d-ink);outline:none'), fontFamily: 'inherit' }}
+            />
+            <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin:14px 0 6px')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></label>
+            <textarea
+              value={manage.purpose}
+              onChange={(e) => setManage((m) => ({ ...m, purpose: e.target.value }))}
+              placeholder="What is this conversation for?"
+              style={{ ...s('width:100%;min-height:70px;border-radius:13px;border:1.5px solid var(--d-border);background:var(--d-field);padding:11px 14px;font-size:13.5px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' }}
+            />
+          </div>
         </Modal>
       )}
 
@@ -747,7 +823,7 @@ export default function MessagesPage() {
             </div>
           )}
         >
-          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+          <div style={s('padding:6px 24px 10px;font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
             <b style={s('color:var(--d-ink)')}>{removing.full_name ?? 'This person'}</b> will lose access to this
             conversation. Their past messages stay in the thread, and you can add them back later.
           </div>
@@ -766,7 +842,7 @@ export default function MessagesPage() {
             </div>
           )}
         >
-          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+          <div style={s('padding:6px 24px 10px;font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
             It’ll be removed from everyone’s message list. The history is kept on the
             record, but no one will be able to open or post to it again.
           </div>
