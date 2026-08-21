@@ -6,7 +6,7 @@ module Api
         # Deleted messages stay in the thread as a tombstone ("message deleted")
         # rather than vanishing — the serializer hides the old body. This keeps
         # the conversation honest about what happened (audit over silent erase).
-        scope = conversation.messages.includes(:message_receipts).order(created_at: :desc)
+        scope = conversation.messages.includes(:message_receipts, :reply_to).order(created_at: :desc)
         scope = scope.where("created_at < ?", Time.zone.parse(params[:before])) if params[:before].present?
         render json: scope.limit(50).map { |m| MessageSerializer.call(m) }
       end
@@ -17,7 +17,7 @@ module Api
           conversation: conversation, sender: current_identity,
           body: params[:body], client_message_id: params.require(:client_message_id),
           broadcast: ActiveModel::Type::Boolean.new.cast(params[:broadcast]),
-          visit_id: params[:visit_id], files: params[:files]
+          visit_id: params[:visit_id], files: params[:files], reply_to_id: params[:reply_to_id]
         )
         render json: MessageSerializer.call(message), status: :created
       end

@@ -193,17 +193,18 @@ export const deleteDevice = (fingerprint) => api.delete(`/admin/devices/${finger
 
 export const listConversations = () => api.get('/conversations');
 export const listMessages = (conversationId) => api.get(`/conversations/${conversationId}/messages`);
-export const sendMessage = (conversationId, body, clientMessageId, broadcast = false, visitId = null, files = null) => {
+export const sendMessage = (conversationId, body, clientMessageId, broadcast = false, visitId = null, files = null, replyToId = null) => {
   if (files && files.length) {
     const fd = new FormData();
     fd.append('body', body ?? '');
     fd.append('client_message_id', clientMessageId);
     fd.append('broadcast', broadcast ? 'true' : 'false');
     if (visitId) fd.append('visit_id', visitId);
+    if (replyToId) fd.append('reply_to_id', replyToId);
     files.forEach((f) => fd.append('files[]', f));
     return apiUpload(`/conversations/${conversationId}/messages`, fd);
   }
-  return api.post(`/conversations/${conversationId}/messages`, { body, client_message_id: clientMessageId, broadcast, visit_id: visitId });
+  return api.post(`/conversations/${conversationId}/messages`, { body, client_message_id: clientMessageId, broadcast, visit_id: visitId, reply_to_id: replyToId });
 };
 // Mark a message read — stamps a receipt and advances the reader's
 // last_read_message_id, which is what clears the conversation's unread count.

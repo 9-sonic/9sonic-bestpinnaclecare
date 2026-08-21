@@ -20,7 +20,23 @@ class MessageSerializer
       attachments:       deleted ? [] : m.files.map { |f| { id: f.id, filename: f.filename.to_s, content_type: f.content_type, byte_size: f.byte_size, url: AttachmentUrl.for(f) } },
       created_at:        m.created_at&.iso8601,
       edited_at:         m.edited_at&.iso8601,
-      deleted_at:        m.deleted_at&.iso8601
+      deleted_at:        m.deleted_at&.iso8601,
+      reply_to:          reply_ref(m.reply_to)
+    }
+  end
+
+  # A compact reference to the message this one is replying to: who wrote it and
+  # a short snippet, enough for the UI to show a "replying to X" quote and link
+  # back. A deleted original shows as a tombstone, never its old body.
+  def self.reply_ref(original)
+    return nil unless original
+
+    {
+      id:          original.id,
+      sender_type: original.system? ? "System" : original.sender_type,
+      sender_id:   original.sender_id,
+      snippet:     original.deleted_at.present? ? nil : original.body&.truncate(120),
+      deleted:     original.deleted_at.present?
     }
   end
 

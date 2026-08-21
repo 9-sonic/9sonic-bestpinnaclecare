@@ -150,6 +150,7 @@ Rails.application.routes.draw do
         post "mfa",           to: "mfa#create"
         post "mfa/confirm",   to: "mfa#confirm"
         get  "me",            to: "me#show"
+        get  "office_contacts", to: "office_contacts#index"   # admins a carer may start a chat with
 
         # Biometric / passkey (WebAuthn)
         post "webauthn/registration/options",   to: "webauthn_registrations#create_options"

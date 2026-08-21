@@ -10,6 +10,39 @@ import { formatChatTime } from '../utils/format.js';
 import { tapFeedback, errorFeedback } from '../utils/haptics.js';
 import { useToast } from '../context/ToastContext.jsx';
 
+const humanFileSize = (n) =>
+  (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round((n ?? 0) / 1024))} KB`);
+const isImage = (ct) => (ct ?? '').startsWith('image/');
+const isVideo = (ct) => (ct ?? '').startsWith('video/');
+const isAudio = (ct) => (ct ?? '').startsWith('audio/');
+
+// One attachment inside a bubble. Photos and clips show inline; a voice note
+// gets an audio player; anything else is a tappable file with its name and size.
+function ChatAttachment({ a }) {
+  if (isImage(a.contentType)) {
+    return (
+      <a className="bubble__media" href={a.url} target="_blank" rel="noreferrer">
+        <img src={a.url} alt={a.filename} loading="lazy" />
+      </a>
+    );
+  }
+  if (isVideo(a.contentType)) {
+    return <video className="bubble__media" src={a.url} controls preload="metadata" />;
+  }
+  if (isAudio(a.contentType)) {
+    return <audio className="bubble__audio" src={a.url} controls preload="metadata" />;
+  }
+  return (
+    <a className="bubble__file" href={a.url} target="_blank" rel="noreferrer">
+      <Icon name="file" size={18} />
+      <span className="bubble__file-meta">
+        <span className="bubble__file-name">{a.filename}</span>
+        <span className="bubble__file-size">{humanFileSize(a.byteSize)}</span>
+      </span>
+    </a>
+  );
+}
+
 // A conversation with the office.
 //
 // Messages are grouped into runs by sender and by day, the way every messaging
@@ -261,7 +294,10 @@ export default function ChatPage() {
                   .filter(Boolean)
                   .join(' ')}
               >
-                {row.text}
+                {row.text && <span className="bubble__text">{row.text}</span>}
+                {(row.attachments ?? []).map((a) => (
+                  <ChatAttachment key={a.id} a={a} />
+                ))}
               </div>
 
               {row.last && (

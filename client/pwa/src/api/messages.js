@@ -84,3 +84,22 @@ export function createConversation({ participants, title, kind = 'direct' }) {
   if (env.useMock) return mock.createConversation({ participants, title, kind });
   return api.post('/conversations', { kind, title, participants });
 }
+
+// The office staff a carer can start a chat with — admins only. The server
+// decides who's listed (active office accounts), so the carer can only ever
+// reach the office, never other carers or clients.
+export async function listOfficeContacts() {
+  if (env.useMock) return mock.listOfficeContacts ? mock.listOfficeContacts() : [];
+  return api.get('/staff/office_contacts');
+}
+
+// Start (or reuse) a direct chat with an office admin, returning the thread id
+// to open. The backend dedupes to the existing DM if one already exists.
+export async function startOfficeChat(adminId) {
+  if (env.useMock) {
+    const c = await mock.createConversation({ kind: 'direct', participants: [{ type: 'Admin', id: adminId }] });
+    return String(c.id);
+  }
+  const c = await api.post('/conversations', { kind: 'direct', participant: { type: 'Admin', id: adminId } });
+  return String(c.id);
+}

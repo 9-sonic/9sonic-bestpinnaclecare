@@ -279,6 +279,16 @@ export function toMessage(m, { viewerType, viewerId, participants, nameFor } = {
     id: String(m.id),
     mine,
     text: m.body ?? '',
+    // Files the office (or a carer) attached: photos, docs, voice notes, clips.
+    // Carried straight through so the bubble can render them — without this an
+    // image-only message shows as an empty bubble.
+    attachments: (m.attachments ?? []).map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      contentType: a.content_type,
+      byteSize: a.byte_size,
+      url: a.url,
+    })),
     at: m.created_at,
     // Who said it, for the label above the bubble. It only gets drawn on
     // other people's messages, and it matters in a channel where several

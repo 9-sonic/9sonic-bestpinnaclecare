@@ -11,6 +11,15 @@ module Api
       #   direct: { kind: "direct", participant: { type, id } }
       #   group:  { kind: "group", title, participants: [{ type, id }, ...] }
       def create
+        # A carer (Employee) may only start a DIRECT message with an OFFICE admin —
+        # never a group/channel, and never a DM to another carer or a client. The
+        # office (Admin) is unrestricted. This is the server-side gate behind the
+        # PWA's office-contacts picker; the directory only lists admins, but a
+        # hand-crafted request must be refused here too.
+        if current_identity.is_a?(Employee) && !carer_direct_to_admin?
+          return render(json: { error: "carers_can_only_message_the_office" }, status: :forbidden)
+        end
+
         convo =
           case params[:kind]
           when "channel"
@@ -147,6 +156,14 @@ module Api
       end
 
       private
+
+      # True only when a carer's create request is a direct message to an Admin.
+      # Anything else from a carer (a group/channel, or a DM to a non-Admin) is
+      # refused. A direct's other party is in params[:participant] { type, id }.
+      def carer_direct_to_admin?
+        params[:kind].to_s.in?([ "", "direct" ]) &&
+          params.dig(:participant, :type).to_s == "Admin"
+      end
 
       # The caller's active participant row for a conversation, or 404.
       def my_participant(conversation_id)

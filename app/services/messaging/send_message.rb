@@ -3,15 +3,24 @@ module Messaging
   # writes delivery receipts for the other participants, and fans out an in-app
   # notification (chat produces a notification, never an alert — §7).
   class SendMessage
-    def self.call(conversation:, sender:, body:, client_message_id:, broadcast: false, visit_id: nil, files: nil)
+    def self.call(conversation:, sender:, body:, client_message_id:, broadcast: false, visit_id: nil, files: nil, reply_to_id: nil)
       existing = Message.find_by(client_message_id: client_message_id)
       return existing if existing
 
+      # Only allow replying to a message in THIS conversation (a reply can't point
+      # at a thread the sender may not even be in). Silently drops an invalid id
+      # rather than erroring — the message still sends, just without the link.
+      reply_to_id = nil unless reply_to_id.present? &&
+                               conversation.messages.where(id: reply_to_id).exists?
+
       message = nil
       Conversation.transaction do
-        message = conversation.messages.create!(sender: sender, body: body, client_message_id: client_message_id,
-                                                broadcast: broadcast || false, visit_id: visit_id)
+        message = conversation.messages.build(sender: sender, body: body, client_message_id: client_message_id,
+                                              broadcast: broadcast || false, visit_id: visit_id, reply_to_id: reply_to_id)
+        # Attach BEFORE save so the model's size validation sees the files — an
+        # oversize attachment then fails create! and rolls back the whole send.
         message.files.attach(files) if files.present?
+        message.save!
         others = conversation.conversation_participants.active
                              .where.not(participant_type: sender.class.name, participant_id: sender.id)
                              .map(&:participant)
