@@ -84,7 +84,7 @@ export default function ProfilePage() {
 
   return (
     <div className="page--flush">
-      <WaveHeader height={220} photo curve="profile">
+      <WaveHeader height={220} photo>
         <div className="profile__bar">
           <span className="profile__bar-spacer" />
           <span className="profile__bar-title">Profile</span>
@@ -187,6 +187,8 @@ export default function ProfilePage() {
         Best Pinnacle Care, version {__APP_VERSION__}
         <br />
         Signed in as {user?.email}
+        <br />
+        Developed by 9sonic Ltd.
       </div>
 
       <InfoSheet doc={sheet} onClose={() => setSheet(null)} />

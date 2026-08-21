@@ -217,6 +217,11 @@ body {
 }
 
 .page-actions {
+  display: flex;
+  flex-direction: column;
+  /* Stacked block buttons have no margin of their own, so with nothing here
+     they sat edge to edge with no visible gap between them. */
+  gap: var(--space-3);
   padding: var(--space-4) 0 var(--space-2);
 }
 
@@ -2812,7 +2817,14 @@ body {
   height: 100%;
   max-width: var(--app-max-width);
   margin: 0 auto;
-  background: var(--color-bg);
+  background: var(--chat-bg);
+  /* Containing block for the wallpaper below. It has to live here rather
+     than on .chat__body: that element scrolls (overflow-y: auto), and an
+     absolutely positioned box inside a scrolling ancestor scrolls with its
+     content, inset:0 is measured against the padding box, not the visible
+     viewport. .chat itself never scrolls, only its children do, so a
+     pattern anchored here stays put while the thread moves past it. */
+  position: relative;
 }
 
 .chat__header {
@@ -3798,6 +3810,21 @@ video.bubble__media {
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--space-6) 0;
+}
+
+.avatar-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+.avatar-preview__name {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .modal__text,
@@ -6451,7 +6478,9 @@ body:has(.drawer-backdrop) .app-content {
 
 /* Photo variant. object-position pins the crop to the bottom of the artwork so
    the header shows the dunes, not the sky — the same slice the board uses. The
-   file is the one the splash screen already loaded. */
+   file is the one the splash screen already loaded. Shown full width, full
+   height now — the bottom used to be cut out to a single wave curve; the
+   .onde band below sits over it instead. */
 .wave__photo {
   position: absolute;
   inset: 0;
@@ -6462,11 +6491,79 @@ body:has(.drawer-backdrop) .app-content {
   object-position: bottom;
 }
 
-/* Carries the clipPath definition only; nothing to paint. */
-.wave__clip {
+/* Layered, drifting waves along the header's bottom edge. One shape (#onda,
+   defined once in WaveHeader.jsx), repeated four times at different vertical
+   offsets and opacities, each sliding sideways on its own loop — the classic
+   parallax-ocean technique, not a library. Deliberately a full swap for the
+   single-curve clip-path this used to be, not a layer added on top of it: the
+   old version was tried, reported as not reading like a real wave, and
+   dropped rather than patched.
+   transform is the only thing animating, which is what makes four
+   simultaneous layers still cheap: it is a compositor-only property, so every
+   layer runs on the GPU with no per-frame repaint, unlike the clip-path
+   version this replaces, which had to repaint the clipped region on every
+   frame. prefers-reduced-motion is already handled globally (see the
+   @media (prefers-reduced-motion: reduce) block near the top of this file),
+   so nothing extra was needed here for that. */
+.onde {
   position: absolute;
-  width: 0;
-  height: 0;
+  left: 0;
+  right: 0;
+  bottom: -1px; /* Sealed against the header's edge, the same fix Safari's own gap needs. */
+  width: 100%;
+  height: 64px;
+}
+
+.onde__layer {
+  animation: onde-drift 25s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+}
+
+/* Four depths of the same wave: three translucent teal passes stacking into
+   each other, then one solid pass in the page's own background colour, which
+   is what actually seals the header into whatever the page shows underneath
+   it (var(--color-bg), so this stays correct in dark mode without a second
+   rule). Each layer's speed and start offset are different so the four never
+   fall into a visibly mechanical lockstep.
+   fill-opacity rather than color-mix() for the translucent three: same result
+   for a single flat fill with no stroke, but fill-opacity has been part of
+   SVG since 1.1 where color-mix() is recent enough that Safari support
+   shouldn't be assumed without checking, and an unsupported value here would
+   have silently fallen back to SVG's default fill (black), not to anything
+   reasonable. */
+.onde__layer--1 {
+  fill: var(--brand-deep);
+  fill-opacity: 0.55;
+  animation-delay: -2s;
+  animation-duration: 7s;
+}
+
+.onde__layer--2 {
+  fill: var(--brand-deep);
+  fill-opacity: 0.35;
+  animation-delay: -3s;
+  animation-duration: 10s;
+}
+
+.onde__layer--3 {
+  fill: var(--brand-deep);
+  fill-opacity: 0.15;
+  animation-delay: -4s;
+  animation-duration: 13s;
+}
+
+.onde__layer--4 {
+  fill: var(--color-bg);
+  animation-delay: -5s;
+  animation-duration: 20s;
+}
+
+@keyframes onde-drift {
+  0% {
+    transform: translate3d(-90px, 0, 0);
+  }
+  100% {
+    transform: translate3d(85px, 0, 0);
+  }
 }
 
 .wave__content {
@@ -9261,12 +9358,14 @@ body:has(.drawer-backdrop) .app-content {
    ovals on a tablet.
    =========================================================================== */
 
+/* No position/background of its own: it is transparent so .chat's wallpaper
+   shows through, and it is not the containing block for the pattern below
+   because it is the element that scrolls. */
 .chat__body {
-  position: relative;
-  background-color: var(--chat-bg);
+  background: transparent;
 }
 
-.chat__body::before {
+.chat::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -9275,11 +9374,14 @@ body:has(.drawer-backdrop) .app-content {
   background-repeat: repeat;
   opacity: var(--chat-pattern-opacity);
   pointer-events: none;
-  /* Behind the messages, above the flat colour. */
+  /* Behind the header, body and composer, all of which paint over it in
+     normal DOM order; header and composer are opaque anyway, and .chat__body
+     is transparent so this shows through in the gaps between bubbles. */
   z-index: 0;
 }
 
-/* Everything in the thread sits above the wallpaper. */
+/* Bubbles are opaque already; this only matters for the day-divider pill and
+   anything else in the thread that is not. */
 .chat__body > * {
   position: relative;
   z-index: 1;
@@ -9297,14 +9399,14 @@ body:has(.drawer-backdrop) .app-content {
   --chat-pattern-opacity: 0.07;
 }
 
-:root[data-theme='dark'] .chat__body::before {
+:root[data-theme='dark'] .chat::before {
   filter: invert(1);
 }
 
 /* Someone who has asked for more contrast does not want a patterned
    background behind their messages. */
 @media (prefers-contrast: more) {
-  .chat__body::before { display: none; }
+  .chat::before { display: none; }
 }
 
 /* The composer and header sit on a solid colour so the pattern never runs

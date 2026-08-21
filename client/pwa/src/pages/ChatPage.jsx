@@ -9,6 +9,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import { formatChatTime } from '../utils/format.js';
 import { tapFeedback, errorFeedback } from '../utils/haptics.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { OFFICE_CONTACT } from '../content/contact.js';
 
 const humanFileSize = (n) =>
   (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round((n ?? 0) / 1024))} KB`);
@@ -252,7 +253,7 @@ export default function ChatPage() {
           type="button"
           className="icon-btn"
           aria-label={`Call ${thread?.name ?? 'contact'}`}
-          onClick={() => window.open('tel:01134960000')}
+          onClick={() => window.open(`tel:${OFFICE_CONTACT.tel}`)}
         >
           <Icon name="phone" size={18} />
         </button>

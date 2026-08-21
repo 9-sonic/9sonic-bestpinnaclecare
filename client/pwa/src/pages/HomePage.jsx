@@ -173,6 +173,7 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const toast = useToast();
 
   // Back on home warns instead of retracing the carer's steps through every
@@ -270,7 +271,17 @@ export default function HomePage() {
             <Icon name="bell" size={20} />
             {unread > 0 && <span className="home2__badge">{unread > 9 ? '9+' : unread}</span>}
           </button>
-          <button type="button" className="home2__avatar" aria-label="Your profile" onClick={() => navigate('/profile')}>
+          {/* The bottom nav already has a Profile tab that navigates there in
+              one tap, so this one tap does something the nav can't: a closer
+              look at your own photo, with going to the full profile as a
+              clearly separate, deliberate second step rather than the only
+              thing tapping your own face can do. */}
+          <button
+            type="button"
+            className="home2__avatar"
+            aria-label="View your photo"
+            onClick={() => { tapFeedback(); setAvatarOpen(true); }}
+          >
             <Avatar name={user?.name ?? ''} src={user?.avatar} size={36} />
           </button>
         </div>
@@ -472,6 +483,22 @@ export default function HomePage() {
         <Icon name="pin" size={13} />
         Your location is only recorded when you clock in or out.
       </p>
+
+      <Modal
+        open={avatarOpen}
+        onClose={() => setAvatarOpen(false)}
+        title="Your photo"
+        footer={
+          <Button block onClick={() => { setAvatarOpen(false); navigate('/profile'); }}>
+            Go to my profile
+          </Button>
+        }
+      >
+        <div className="avatar-preview">
+          <Avatar name={user?.name ?? ''} src={user?.avatar} size={160} ring />
+          <p className="avatar-preview__name">{user?.name}</p>
+        </div>
+      </Modal>
 
       <Modal
         open={bellOpen}
