@@ -31,7 +31,38 @@ module Api
             aggregate: req, actor: current_admin, event_type: event_type,
             payload: { kind: req.kind, employee_id: req.employee_id }
           )
+
+          # Approving a "drop" actually hands the shift back: withdraw the carer
+          # from the visit so it becomes unfilled and lands in the Cover board,
+          # ready to reassign. Without this the drop was recorded but the visit
+          # stayed on the carer's rota and never surfaced for cover.
+          apply_drop(req) if state == "approved" && req.kind == "drop"
+
           render json: CarerRequestSerializer.call(req)
+        end
+
+        # Withdraw the requesting carer from the visit the drop names. Audited
+        # (assignment.withdrawn) — the original assignment row is preserved, its
+        # status flipped, mirroring the manual withdraw path. Guarded so an
+        # already-ended/withdrawn assignment is left untouched.
+        def apply_drop(req)
+          va_id = req.payload&.dig("visit_assignment_id") || req.payload&.dig(:visit_assignment_id)
+          return if va_id.blank?
+
+          va = VisitAssignment.find_by(id: va_id, employee_id: req.employee_id)
+          return if va.nil? || va.assignment_status != "assigned"
+          return if %w[completed missed cancelled].include?(va.lifecycle_state)
+          # Only withdraw from a PUBLISHED visit — Cover only surfaces published
+          # visits, so withdrawing from a draft would make the visit vanish (off
+          # the carer's rota AND absent from Cover). A draft is still the office's
+          # to plan; the approval is recorded, but the roster is left for them.
+          return unless va.visit.published?
+
+          va.update!(assignment_status: "withdrawn", lifecycle_state: :cancelled)
+          Events::Record.call(
+            aggregate: va, actor: current_admin, event_type: "assignment.withdrawn",
+            payload: { visit_id: va.visit_id, employee_id: va.employee_id, via: "drop_request", request_id: req.id }
+          )
         end
       end
     end

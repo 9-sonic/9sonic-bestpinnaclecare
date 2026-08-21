@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listConversations, listMessages, sendMessage, createChannel, createGroup, createDirect, addConversationParticipants, searchConversations, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead } from '../api/index.js';
+import { listConversations, listMessages, sendMessage, createChannel, createGroup, createDirect, addConversationParticipants, searchConversations, listEmployees, muteConversation, chaseUnread, pinMessage, unpinMessage, markMessageRead, editMessage, deleteMessage, updateConversation, deleteConversation, removeParticipant } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
 import InfoHint from '../components/common/InfoHint.jsx';
+import ContextMenu from '../components/common/ContextMenu.jsx';
 import { s } from '../lib/ui.jsx';
 import { subscribeInbox } from '../lib/cable.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -53,6 +54,18 @@ export default function MessagesPage() {
   const [autoPost, setAutoPost] = useState(false);
   const [members, setMembers] = useState([]);
   const [files, setFiles] = useState([]);
+  // Right-click menu on a message bubble: { x, y, msg } while open, null otherwise.
+  const [msgMenu, setMsgMenu] = useState(null);
+  // Inline edit: { id, text } while editing one of my own messages, else null.
+  const [editing, setEditing] = useState(null);
+  // Delete confirmation: the message pending deletion, or null.
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [busy, setBusy] = useState(false);
+  // Manage-conversation modal: { title, purpose } while open (rename/purpose/delete), else null.
+  const [manage, setManage] = useState(null);
+  // Member pending removal (confirm), and whether the manage modal is asking to delete the whole thread.
+  const [removing, setRemoving] = useState(null);
+  const [confirmDeleteConvo, setConfirmDeleteConvo] = useState(false);
   const scrollRef = useRef(null);
 
   const reload = useCallback(async () => {
@@ -101,18 +114,28 @@ export default function MessagesPage() {
       const fromMe = m.sender_type === 'Admin' && m.sender_id === admin?.id;
       const isOpen = m.conversation_id === activeIdRef.current;
       if (isOpen) {
-        setMessages((xs) => (xs.some((x) => x.id === m.id) ? xs : [...xs, m]));
+        // The same fan-out channel carries new messages AND edits/deletes of
+        // existing ones — so replace in place when we already have the id, append
+        // otherwise. (An edit/delete keeps the id; a new message brings a new one.)
+        setMessages((xs) => (xs.some((x) => x.id === m.id) ? xs.map((x) => (x.id === m.id ? m : x)) : [...xs, m]));
         // Thread is open on screen, so it's already been seen — mark it read
-        // and don't raise its badge.
-        if (!fromMe) markMessageRead(m.id).catch(() => {});
+        // and don't raise its badge. A tombstone has nothing to read.
+        if (!fromMe && !m.deleted_at) markMessageRead(m.id).catch(() => {});
       }
+      // An edit/delete of an existing message must NOT bump the thread to the top
+      // or raise its unread badge — only a genuinely new message does. A deleted
+      // message never becomes the preview; an edit refreshes the preview only if
+      // it's still the newest line, which the next full load settles anyway.
+      const isEditOrDelete = m.edited_at || m.deleted_at;
       setConvos((cs) => cs.map((c) => (c.id === m.conversation_id
-        ? {
-            ...c,
-            last_message_preview: m.body || 'Attachment',
-            last_message_at: m.created_at || new Date().toISOString(),
-            unread_count: isOpen ? 0 : (c.unread_count ?? 0) + (fromMe ? 0 : 1),
-          }
+        ? (isEditOrDelete
+            ? c
+            : {
+                ...c,
+                last_message_preview: m.body || 'Attachment',
+                last_message_at: m.created_at || new Date().toISOString(),
+                unread_count: isOpen ? 0 : (c.unread_count ?? 0) + (fromMe ? 0 : 1),
+              })
         : c)));
     });
     return off;
@@ -194,6 +217,44 @@ export default function MessagesPage() {
     try { const c = await muteConversation(active.id, !active.muted); setConvos((cs) => cs.map((x) => (x.id === c.id ? c : x))); toast.info(c.muted ? 'Muted' : 'Unmuted'); }
     catch (e) { toast.error(e.message || 'Could not update'); }
   }
+  // Save a rename / purpose edit from the Manage modal.
+  async function saveManage() {
+    if (!active || !manage) return;
+    const title = manage.title.trim();
+    if (!title) { toast.error('A name is needed.'); return; }
+    setBusy(true);
+    try {
+      const c = await updateConversation(active.id, { title, purpose: manage.purpose.trim() });
+      setConvos((cs) => cs.map((x) => (x.id === c.id ? c : x)));
+      setManage(null);
+      toast.success('Saved');
+    } catch (e) { toast.error(e.message || 'Could not save'); } finally { setBusy(false); }
+  }
+  // Delete (soft-archive) the whole channel/group. It drops from everyone's list.
+  async function deleteConvo() {
+    if (!active) return;
+    setBusy(true);
+    try {
+      await deleteConversation(active.id);
+      const id = active.id;
+      setConvos((cs) => cs.filter((c) => c.id !== id));
+      setActiveId(null);
+      setConfirmDeleteConvo(false);
+      setManage(null);
+      toast.success('Conversation deleted');
+    } catch (e) { toast.error(e.message || 'Could not delete'); } finally { setBusy(false); }
+  }
+  // Remove one member from the group/channel (soft). `removing` is the participant.
+  async function removeMember() {
+    if (!active || !removing) return;
+    setBusy(true);
+    try {
+      const c = await removeParticipant(active.id, removing.type, removing.id);
+      setConvos((cs) => cs.map((x) => (x.id === c.id ? c : x)));
+      setRemoving(null);
+      toast.success(`Removed ${removing.full_name ?? 'member'}`);
+    } catch (e) { toast.error(e.message || 'Could not remove'); } finally { setBusy(false); }
+  }
   async function doChase() {
     if (!active) return;
     try { const r = await chaseUnread(active.id); toast.success(r.chased > 0 ? `Reminder sent to ${r.chased} who haven't read it` : 'Everyone has already read it'); }
@@ -206,6 +267,67 @@ export default function MessagesPage() {
       setConvos((cs) => cs.map((c) => (c.id === active.id ? { ...c, pinned_message: updated.pinned_at ? updated : null } : c)));
     } catch (e) { toast.error(e.message || 'Could not pin'); }
   }
+  async function copyText(m) {
+    try {
+      await navigator.clipboard.writeText(m.body ?? '');
+      toast.success('Copied to clipboard');
+    } catch { toast.error('Could not copy'); }
+  }
+  // Quote the message into the composer as a reply. Non-destructive: it just
+  // seeds the draft, the office still types and sends normally.
+  function quoteReply(m) {
+    const who = nameFor(active.participants, m.sender_type, m.sender_id) || 'them';
+    const quoted = (m.body ?? '').split('\n').map((l) => `> ${l}`).join('\n');
+    setDraft((d) => `${quoted}\n\n${d}`.trimStart());
+    toast.success(`Replying to ${who}`);
+  }
+  // Save an inline edit to one of my own messages. Backend stamps edited_at and
+  // fans the new body out over the socket; we also patch it in locally so the
+  // change shows instantly without waiting for the echo.
+  async function saveEdit() {
+    if (!editing) return;
+    const text = editing.text.trim();
+    if (!text) { setConfirmDelete(messages.find((m) => m.id === editing.id)); setEditing(null); return; }
+    setBusy(true);
+    try {
+      const updated = await editMessage(active.id, editing.id, text);
+      setMessages((xs) => xs.map((x) => (x.id === updated.id ? { ...x, body: updated.body, edited_at: updated.edited_at } : x)));
+      setEditing(null);
+    } catch (e) { toast.error(e.message || 'Could not edit'); }
+    finally { setBusy(false); }
+  }
+  // Soft-delete my own message. It stays in the thread as a "message deleted"
+  // tombstone (the record that it existed stands) — the body just disappears.
+  async function doDelete() {
+    if (!confirmDelete) return;
+    setBusy(true);
+    try {
+      const updated = await deleteMessage(active.id, confirmDelete.id);
+      setMessages((xs) => xs.map((x) => (x.id === updated.id ? { ...x, body: null, deleted_at: updated.deleted_at, pinned_at: null, attachments: [], visit: null } : x)));
+      setConvos((cs) => cs.map((c) => (c.id === active.id && c.pinned_message?.id === updated.id ? { ...c, pinned_message: null } : c)));
+      setConfirmDelete(null);
+    } catch (e) { toast.error(e.message || 'Could not delete'); }
+    finally { setBusy(false); }
+  }
+  // Build the right-click menu for a message. Copy/reply are client-side; pin,
+  // edit and delete hit the backend. Edit and delete only appear on my OWN,
+  // not-yet-deleted messages — a tombstone or someone else's message offers
+  // neither. A deleted message has no actions worth showing at all.
+  function openMsgMenu(e, m) {
+    if (m.sender_type === 'System' || m.deleted_at) return;
+    e.preventDefault();
+    setMsgMenu({ x: e.clientX, y: e.clientY, msg: m });
+  }
+  const menuItems = (m) => {
+    const own = mine(m);
+    return [
+      m.body ? { label: 'Copy text', icon: 'copy', onClick: () => copyText(m) } : null,
+      { label: 'Reply', icon: 'reply', onClick: () => quoteReply(m) },
+      { label: m.pinned_at ? 'Unpin' : 'Pin', icon: 'pin', onClick: () => togglePin(m) },
+      own && m.body ? { label: 'Edit', icon: 'edit', onClick: () => setEditing({ id: m.id, text: m.body }) } : null,
+      own ? { label: 'Delete', icon: 'trash', danger: true, onClick: () => setConfirmDelete(m) } : null,
+    ].filter(Boolean);
+  };
 
   if (loading) return <Spinner fullscreen />;
 
@@ -297,6 +419,9 @@ export default function MessagesPage() {
               </div>
               {active.auto_post && <Tag tone="info">Auto-posts alerts</Tag>}
               {active.kind !== 'direct' && <Button size="sm" icon="bell" onClick={toggleMute}>{active.muted ? 'Unmute' : 'Mute'}</Button>}
+              {canManage && active.kind !== 'direct' && (
+                <Button size="sm" variant="ghost" icon="settings" onClick={() => setManage({ title: active.title ?? '', purpose: active.purpose ?? '' })}>Manage</Button>
+              )}
             </div>
 
             {active.pinned_message && (
@@ -317,32 +442,58 @@ export default function MessagesPage() {
                   const author = out ? (fullName(admin) || 'You') : (nameFor(active.participants, m.sender_type, m.sender_id) ?? 'Someone');
                   const rc = m.recipient_count ?? 0;
                   return (
-                    <div key={m.id} style={{ ...s('display:flex;gap:10px;max-width:82%'), flexDirection: out ? 'row-reverse' : 'row', alignSelf: out ? 'flex-end' : 'flex-start' }}>
+                    <div key={m.id} onContextMenu={(e) => openMsgMenu(e, m)} style={{ ...s('display:flex;gap:10px;max-width:82%;cursor:context-menu'), flexDirection: out ? 'row-reverse' : 'row', alignSelf: out ? 'flex-end' : 'flex-start' }}>
                       <Avatar initials={initials(author)} size="sm" src={out ? admin?.avatar_url : avatarFor(active.participants, m.sender_type, m.sender_id)} />
                       <div style={{ ...s('min-width:0'), textAlign: out ? 'right' : 'left' }}>
                         <div style={s('font-size:11px;font-weight:600;color:var(--d-muted);margin-bottom:3px')}>{author} · <span className="d-num">{formatTime(m.created_at)}</span></div>
-                        <div style={{ ...s('display:inline-block;padding:9px 13px;font-size:13px;font-weight:500;line-height:1.45;border-radius:15px;text-align:left'), background: out ? 'var(--d-primary)' : 'var(--d-panel)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}>
-                          {m.broadcast && <div style={{ ...s('display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px'), color: out ? 'var(--d-primary-ink)' : 'var(--d-primary)' }}><Icon name="send" size={11} />Broadcast</div>}
-                          {m.body}
-                          {m.visit && (
-                            <div style={{ ...s('display:flex;align-items:center;gap:6px;margin-top:7px;border-radius:9px;padding:6px 9px;font-size:11.5px;font-weight:600'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)' }}>
-                              <Icon name="calendar" size={13} />{m.visit.client} · {formatTime(m.visit.scheduled_start)}
+                        {m.deleted_at ? (
+                          <div style={{ ...s('display:inline-flex;align-items:center;gap:6px;padding:9px 13px;font-size:12.5px;font-weight:600;font-style:italic;line-height:1.45;border-radius:15px;border:1px dashed var(--d-border);color:var(--d-faint)') }}>
+                            <Icon name="trash" size={12} />Message deleted
+                          </div>
+                        ) : editing?.id === m.id ? (
+                          <div style={s('display:flex;flex-direction:column;gap:6px;align-items:stretch')}>
+                            <textarea
+                              autoFocus
+                              value={editing.text}
+                              onChange={(e) => setEditing((ed) => ({ ...ed, text: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                                if (e.key === 'Escape') setEditing(null);
+                              }}
+                              style={{ ...s('width:260px;max-width:100%;min-height:64px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:9px 12px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' }}
+                            />
+                            <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+                              <Button variant="ghost" onClick={() => setEditing(null)} disabled={busy}>Cancel</Button>
+                              <Button onClick={saveEdit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
                             </div>
-                          )}
-                          {(m.attachments ?? []).map((a) => (isImage(a.content_type) ? (
-                            <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.url} alt={a.filename} style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
-                          ) : (
-                            <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:7px;border-radius:9px;padding:8px 10px;font-size:11.5px;font-weight:700;text-decoration:none'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}><Icon name="file" size={14} /><span style={s('min-width:0')}>{a.filename}<span style={s('display:block;font-weight:500;opacity:0.7')}>{humanFileSize(a.byte_size)}</span></span></a>
-                          )))}
-                        </div>
-                        <div style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:3px'), justifyContent: out ? 'flex-end' : 'flex-start' }}>
-                          <span onClick={() => togglePin(m)} className="hv tip" data-tip={m.pinned_at ? 'Unpin' : 'Pin'} style={{ ...s('font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:1px 5px'), color: m.pinned_at ? 'var(--d-warn-ink)' : 'var(--d-faint)', '--hbg': 'var(--d-panel)' }}><Icon name="pin" size={11} />{m.pinned_at ? 'Pinned' : 'Pin'}</span>
-                          {out && rc > 0 && (
-                            <span style={{ ...s('display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600'), color: (m.read_count ?? 0) >= rc ? 'var(--d-ok-ink)' : 'var(--d-muted)' }}>
-                              <Icon name="check" size={12} />{rc <= 1 ? ((m.read_count ?? 0) > 0 ? 'Read' : 'Delivered') : `${m.read_count ?? 0} of ${rc} read`}
-                            </span>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div style={{ ...s('display:inline-block;padding:9px 13px;font-size:13px;font-weight:500;line-height:1.45;border-radius:15px;text-align:left'), background: out ? 'var(--d-primary)' : 'var(--d-panel)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}>
+                            {m.broadcast && <div style={{ ...s('display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px'), color: out ? 'var(--d-primary-ink)' : 'var(--d-primary)' }}><Icon name="send" size={11} />Broadcast</div>}
+                            {m.body}
+                            {m.visit && (
+                              <div style={{ ...s('display:flex;align-items:center;gap:6px;margin-top:7px;border-radius:9px;padding:6px 9px;font-size:11.5px;font-weight:600'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)' }}>
+                                <Icon name="calendar" size={13} />{m.visit.client} · {formatTime(m.visit.scheduled_start)}
+                              </div>
+                            )}
+                            {(m.attachments ?? []).map((a) => (isImage(a.content_type) ? (
+                              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.url} alt={a.filename} style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
+                            ) : (
+                              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:7px;border-radius:9px;padding:8px 10px;font-size:11.5px;font-weight:700;text-decoration:none'), background: out ? 'rgba(255,255,255,0.18)' : 'var(--d-card)', color: out ? 'var(--d-primary-ink)' : 'var(--d-ink)' }}><Icon name="file" size={14} /><span style={s('min-width:0')}>{a.filename}<span style={s('display:block;font-weight:500;opacity:0.7')}>{humanFileSize(a.byte_size)}</span></span></a>
+                            )))}
+                          </div>
+                        )}
+                        {!m.deleted_at && editing?.id !== m.id && (
+                          <div style={{ ...s('display:flex;align-items:center;gap:8px;margin-top:3px'), justifyContent: out ? 'flex-end' : 'flex-start' }}>
+                            {m.edited_at && <span style={s('font-size:10.5px;font-weight:600;color:var(--d-faint)')}>edited</span>}
+                            <span onClick={() => togglePin(m)} className="hv tip" data-tip={m.pinned_at ? 'Unpin' : 'Pin'} style={{ ...s('font-size:10.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:1px 5px'), color: m.pinned_at ? 'var(--d-warn-ink)' : 'var(--d-faint)', '--hbg': 'var(--d-panel)' }}><Icon name="pin" size={11} />{m.pinned_at ? 'Pinned' : 'Pin'}</span>
+                            {out && rc > 0 && (
+                              <span style={{ ...s('display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600'), color: (m.read_count ?? 0) >= rc ? 'var(--d-ok-ink)' : 'var(--d-muted)' }}>
+                                <Icon name="check" size={12} />{rc <= 1 ? ((m.read_count ?? 0) > 0 ? 'Read' : 'Delivered') : `${m.read_count ?? 0} of ${rc} read`}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -444,15 +595,22 @@ export default function MessagesPage() {
             )}
 
             <div style={s('display:flex;flex-direction:column;gap:8px')}>
-              {(active.participants ?? []).map((p) => (
-                <div key={`${p.type}:${p.id}`} style={s('display:flex;align-items:center;gap:10px')}>
-                  <Avatar initials={initials(p.full_name)} size="sm" src={p.avatar_url} />
-                  <div style={s('flex:1;min-width:0')}>
-                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{p.full_name ?? '—'}</div>
-                    <div style={s('font-size:11px;font-weight:500;color:var(--d-muted);text-transform:capitalize')}>{p.role ?? (p.type === 'Admin' ? 'Office' : 'Carer')}</div>
+              {(active.participants ?? []).map((p) => {
+                const isMe = p.type === 'Admin' && p.id === admin?.id;
+                const canRemove = canManage && active.kind !== 'direct' && !isMe;
+                return (
+                  <div key={`${p.type}:${p.id}`} className="hv-row" style={s('display:flex;align-items:center;gap:10px')}>
+                    <Avatar initials={initials(p.full_name)} size="sm" src={p.avatar_url} />
+                    <div style={s('flex:1;min-width:0')}>
+                      <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{p.full_name ?? '—'}{isMe && ' (you)'}</div>
+                      <div style={s('font-size:11px;font-weight:500;color:var(--d-muted);text-transform:capitalize')}>{p.role ?? (p.type === 'Admin' ? 'Office' : 'Carer')}</div>
+                    </div>
+                    {canRemove && (
+                      <span onClick={() => setRemoving(p)} className="hv tip" data-tip={`Remove ${p.full_name ?? ''}`.trim()} style={{ ...s('width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-faint)'), '--hbg': 'var(--d-danger-bg)' }}><Icon name="close" size={14} /></span>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Panel>
         )}
@@ -517,6 +675,100 @@ export default function MessagesPage() {
                 );
               })}
             </div>
+          </div>
+        </Modal>
+      )}
+      {msgMenu && (
+        <ContextMenu x={msgMenu.x} y={msgMenu.y} items={menuItems(msgMenu.msg)} onClose={() => setMsgMenu(null)} />
+      )}
+      {confirmDelete && (
+        <Modal
+          title="Delete this message?"
+          onClose={() => (busy ? null : setConfirmDelete(null))}
+          footer={(
+            <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+              <Button variant="ghost" onClick={() => setConfirmDelete(null)} disabled={busy}>Keep it</Button>
+              <Button variant="danger" onClick={doDelete} disabled={busy}>{busy ? 'Deleting…' : 'Delete'}</Button>
+            </div>
+          )}
+        >
+          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+            It’ll be removed for everyone and replaced with “Message deleted.” The
+            fact it was sent stays in the record — you just can’t bring the text back.
+          </div>
+          {confirmDelete.body && (
+            <div style={s('margin-top:12px;border-radius:12px;background:var(--d-panel);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);max-height:120px;overflow:auto')}>
+              {confirmDelete.body}
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {/* Manage a channel/group: rename, edit purpose, or delete it. */}
+      {manage && active && (
+        <Modal
+          title={`Manage ${active.kind === 'channel' ? 'channel' : 'group'}`}
+          onClose={() => (busy ? null : setManage(null))}
+          footer={(
+            <div style={s('display:flex;align-items:center;gap:8px;width:100%')}>
+              <Button variant="danger" icon="trash" onClick={() => setConfirmDeleteConvo(true)} disabled={busy}>Delete</Button>
+              <div style={s('flex:1')} />
+              <Button variant="ghost" onClick={() => setManage(null)} disabled={busy}>Cancel</Button>
+              <Button onClick={saveManage} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+            </div>
+          )}
+        >
+          <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin-bottom:6px')}>Name</label>
+          <input
+            value={manage.title}
+            onChange={(e) => setManage((m) => ({ ...m, title: e.target.value }))}
+            placeholder={active.kind === 'channel' ? 'e.g. Morning handover' : 'e.g. Weekend team'}
+            style={{ ...s('width:100%;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none'), fontFamily: 'inherit' }}
+          />
+          <label style={s('display:block;font-size:12px;font-weight:700;color:var(--d-ink2);margin:14px 0 6px')}>Purpose <span style={s('font-weight:500;color:var(--d-muted)')}>(optional)</span></label>
+          <textarea
+            value={manage.purpose}
+            onChange={(e) => setManage((m) => ({ ...m, purpose: e.target.value }))}
+            placeholder="What is this conversation for?"
+            style={{ ...s('width:100%;min-height:70px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' }}
+          />
+        </Modal>
+      )}
+
+      {/* Confirm removing one member. */}
+      {removing && (
+        <Modal
+          title="Remove from conversation?"
+          onClose={() => (busy ? null : setRemoving(null))}
+          footer={(
+            <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+              <Button variant="ghost" onClick={() => setRemoving(null)} disabled={busy}>Cancel</Button>
+              <Button variant="danger" onClick={removeMember} disabled={busy}>{busy ? 'Removing…' : 'Remove'}</Button>
+            </div>
+          )}
+        >
+          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+            <b style={s('color:var(--d-ink)')}>{removing.full_name ?? 'This person'}</b> will lose access to this
+            conversation. Their past messages stay in the thread, and you can add them back later.
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirm deleting the whole channel/group. */}
+      {confirmDeleteConvo && active && (
+        <Modal
+          title={`Delete this ${active.kind === 'channel' ? 'channel' : 'group'}?`}
+          onClose={() => (busy ? null : setConfirmDeleteConvo(false))}
+          footer={(
+            <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+              <Button variant="ghost" onClick={() => setConfirmDeleteConvo(false)} disabled={busy}>Keep it</Button>
+              <Button variant="danger" onClick={deleteConvo} disabled={busy}>{busy ? 'Deleting…' : 'Delete'}</Button>
+            </div>
+          )}
+        >
+          <div style={s('font-size:13.5px;font-weight:500;line-height:1.5;color:var(--d-ink2)')}>
+            It’ll be removed from everyone’s message list. The history is kept on the
+            record, but no one will be able to open or post to it again.
           </div>
         </Modal>
       )}

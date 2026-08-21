@@ -49,4 +49,28 @@ RSpec.describe "Admin carer requests", type: :request do
     expect(response).to have_http_status(:created)
     expect(employee.carer_requests.count).to eq(1)
   end
+
+  it "approving a drop withdraws the carer so the visit surfaces in Cover" do
+    su = create(:service_user, lat: 53.4808, lng: -2.2426)
+    # Cover only surfaces PUBLISHED visits (a carer can only drop a shift they can
+    # see, which is a published one).
+    visit = create(:visit, service_user: su, status: :published, published_at: Time.current,
+                   scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+    va = create(:visit_assignment, visit: visit, employee: employee)
+    req = CarerRequest.create!(employee: employee, kind: "drop", state: "pending",
+                               summary: "Please cover Friday", payload: { "visit_assignment_id" => va.id })
+
+    post "/api/v1/admin/requests/#{req.id}/approve", headers: auth, as: :json
+    expect(response).to have_http_status(:ok)
+
+    # The carer is withdrawn — the assignment history is preserved, its status flipped.
+    va.reload
+    expect(va.assignment_status).to eq("withdrawn")
+    expect(va.lifecycle_state).to eq("cancelled")
+
+    # The now-unfilled visit shows up on the Cover board.
+    get "/api/v1/admin/cover", headers: auth
+    visit_ids = response.parsed_body["open_shifts"].map { |s| s["visit"]["id"] }
+    expect(visit_ids).to include(visit.id)
+  end
 end

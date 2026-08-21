@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
@@ -9,6 +9,7 @@ import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
 import InfoHint from '../components/common/InfoHint.jsx';
+import ContextMenu from '../components/common/ContextMenu.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -65,56 +66,6 @@ const LEGEND = [
   ['Missed', CHIP.danger.dot], ['Completed', CHIP.success.dot],
   ['Unfilled', 'var(--d-unfilled-ink)'], ['Cancelled', 'var(--d-faint)'],
 ];
-
-/* ---------- right-click quick-action menu ---------- */
-// Rendered at the cursor. Closes on any outside click, scroll, or Escape.
-// `items` is [{ label, icon, danger, onClick }]; a null item is a divider.
-function ContextMenu({ x, y, items, onClose }) {
-  const ref = useRef(null);
-  // Start at the cursor; after render, measure the real menu box and nudge it
-  // back inside the viewport so it never runs off the bottom or right edge.
-  const [pos, setPos] = useState({ left: x, top: y });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    const M = 8; // keep a small gap from the edge
-    setPos({
-      left: Math.max(M, Math.min(x, window.innerWidth - width - M)),
-      top: Math.max(M, Math.min(y, window.innerHeight - height - M)),
-    });
-  }, [x, y, items]);
-
-  useEffect(() => {
-    const close = () => onClose();
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    window.addEventListener('click', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
-
-  const { left, top } = pos;
-
-  return (
-    <div ref={ref} data-tour="rota-menu" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
-      style={{ ...s('position:fixed;z-index:200;width:200px;background:var(--d-card);border:1px solid var(--d-border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,0.26);padding:6px'), left, top, fontFamily: "'Figtree', system-ui, sans-serif" }}>
-      {items.map((it, i) => (it === null ? (
-        <div key={`d-${i}`} style={s('height:1px;background:var(--d-border);margin:5px 8px')} />
-      ) : (
-        <div key={it.label} className="hv"
-          onClick={() => { onClose(); it.onClick(); }}
-          style={{ ...s('display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600'), color: it.danger ? 'var(--d-danger-ink)' : 'var(--d-ink)', '--hbg': it.danger ? 'var(--d-danger-bg)' : 'var(--d-panel)' }}>
-          <Icon name={it.icon} size={16} />{it.label}
-        </div>
-      )))}
-    </div>
-  );
-}
 
 /* ---------- confirm / reason dialog (replaces window.prompt/confirm) ---------- */
 // dialog = { title, body, confirmLabel, danger, needReason, reasonLabel, onConfirm(reason) }
@@ -175,11 +126,15 @@ function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
         <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}{cancelled ? ' · cancelled' : ''}</span>
         <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</span>
       </div>
-      <div onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="Select visit"
+      {/* Selection dot — click to select a visit for a bulk action. Kept clearly
+          visible (not a faint ghost) with a checkmark when selected. */}
+      <div onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="Select visit" title="Select for bulk action" className="rota-seldot"
         style={{
-          ...s('position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;border:1px solid var(--d-border);cursor:pointer;transition:opacity .12s'),
-          background: selected ? 'var(--d-primary)' : 'var(--d-card)', opacity: selected ? 1 : 0.35,
-        }} />
+          ...s('position:absolute;top:-6px;right:-6px;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--d-border);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.15);transition:transform .1s ease,background .12s ease'),
+          background: selected ? 'var(--d-primary)' : 'var(--d-card)', color: selected ? '#fff' : 'var(--d-muted)',
+        }}>
+        {selected && <Icon name="check" size={11} />}
+      </div>
     </div>
   );
 }

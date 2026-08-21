@@ -143,6 +143,12 @@ body {
 .rota-add:focus-visible {
   opacity: 1 !important;
 }
+/* Selection dot on a visit block — scale up slightly on hover so it reads as a
+   clickable target, not decoration. */
+.rota-seldot:hover {
+  transform: scale(1.2);
+  border-color: var(--d-primary) !important;
+}
 
 /* Outfit for display numerals / titles opt-in */
 .d-num {

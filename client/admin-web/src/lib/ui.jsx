@@ -34,3 +34,11 @@ export function s(css) {
   });
   return o;
 }
+
+// Reject an oversized image before it's uploaded (the server also enforces 5MB;
+// this gives instant feedback). Returns an error string, or null when OK.
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+export function imageTooLarge(file) {
+  if (file && file.size > MAX_IMAGE_BYTES) return 'That image is over 5 MB. Please choose a smaller one.';
+  return null;
+}

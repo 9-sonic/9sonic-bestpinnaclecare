@@ -89,6 +89,63 @@ module Api
         render json: ConversationSerializer.call(convo.reload, viewer: current_identity)
       end
 
+      # PATCH /api/v1/conversations/:id { title?, purpose? }
+      # Rename a channel/group or edit its purpose. A direct thread has no name to
+      # set (it's the other person), so 422. Only a member may edit. A rename is
+      # announced in the thread so the change is visible and audited.
+      def update
+        convo = my_participant(params[:id]).conversation
+        return render(json: { error: "cannot_rename_direct" }, status: :unprocessable_entity) if convo.direct?
+
+        old_title = convo.title
+        attrs = {}
+        attrs[:title]   = params[:title].to_s.strip   if params.key?(:title)
+        attrs[:purpose] = params[:purpose].to_s.strip if params.key?(:purpose)
+        return render(json: { error: "title_required" }, status: :unprocessable_entity) if attrs[:title] == ""
+
+        convo.update!(attrs)
+        if attrs[:title].present? && attrs[:title] != old_title
+          Messaging::PostSystemMessage.call(
+            conversation: convo, body: "#{current_identity.full_name} renamed this to “#{attrs[:title]}”."
+          )
+        end
+        render json: ConversationSerializer.call(convo.reload, viewer: current_identity)
+      end
+
+      # DELETE /api/v1/conversations/:id
+      # Delete a channel/group: soft-archive (stamp archived_at) so its history is
+      # kept, and drop it from everyone's list. A direct thread can't be deleted
+      # this way — you leave a DM, you don't erase it for the other person.
+      def destroy
+        convo = my_participant(params[:id]).conversation
+        return render(json: { error: "cannot_delete_direct" }, status: :unprocessable_entity) if convo.direct?
+
+        convo.update!(archived_at: Time.current) if convo.archived_at.nil?
+        head :no_content
+      end
+
+      # DELETE /api/v1/conversations/:id/participants/:participant_type/:participant_id
+      # Remove one person from a group/channel. Soft: stamps their left_at (the
+      # row stays, so their past messages and read history are preserved). Removing
+      # yourself is "leave"; a direct thread rejects removal (422). Announced in
+      # the thread for the audit trail.
+      def remove_participant
+        convo = my_participant(params[:id]).conversation
+        return render(json: { error: "cannot_leave_direct" }, status: :unprocessable_entity) if convo.direct?
+
+        target = convo.conversation_participants.active.find_by(
+          participant_type: params[:participant_type], participant_id: params[:participant_id]
+        )
+        return head(:not_found) unless target
+
+        person = target.participant
+        target.update!(left_at: Time.current)
+        removed_self = target.participant_type == current_identity.class.name && target.participant_id == current_identity.id
+        body = removed_self ? "#{person&.full_name} left." : "#{current_identity.full_name} removed #{person&.full_name}."
+        Messaging::PostSystemMessage.call(conversation: convo, body: body)
+        render json: ConversationSerializer.call(convo.reload, viewer: current_identity)
+      end
+
       private
 
       # The caller's active participant row for a conversation, or 404.
@@ -102,15 +159,16 @@ module Api
       # Subquery (not joins+where) so the eager-loaded participant list isn't
       # filtered down to just the viewer's own row.
       def participating_scope
-        Conversation.where(id: my_conversation_ids)
+        Conversation.where(id: my_conversation_ids, archived_at: nil)
       end
 
-      # The ids of conversations the caller is an active participant of — the
-      # security boundary for anything that reads across conversations (search).
+      # The ids of conversations the caller is an active participant of, excluding
+      # archived (deleted) ones — the security boundary for anything that reads
+      # across conversations (search), so a deleted thread never surfaces.
       def my_conversation_ids
         ConversationParticipant.where(
           participant_type: current_identity.class.name, participant_id: current_identity.id, left_at: nil
-        ).select(:conversation_id)
+        ).where(conversation_id: Conversation.where(archived_at: nil)).select(:conversation_id)
       end
 
       def resolve_person(p)

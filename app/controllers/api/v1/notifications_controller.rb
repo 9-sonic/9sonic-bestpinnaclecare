@@ -3,7 +3,11 @@ module Api
     class NotificationsController < SharedController
       # GET /api/v1/notifications?unseen=true&before=<iso8601>&limit=50
       def index
-        scope = current_identity.notifications.order(created_at: :desc)
+        # Only the in_app rows are the inbox. Deliver writes one row PER channel
+        # (in_app + push + email), so listing all of them showed each event two or
+        # three times in the bell. push/email rows belong to their delivery jobs,
+        # not the bell.
+        scope = current_identity.notifications.where(channel: "in_app").order(created_at: :desc)
         scope = scope.where(seen_at: nil) if params[:unseen].present?
         if (before = parse_time(params[:before]))
           scope = scope.where("created_at < ?", before)

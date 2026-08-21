@@ -21,9 +21,10 @@ const inits = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).jo
 function Field({ label, hint, children, full, bold }) {
   return (
     <label style={{ ...s('display:flex;flex-direction:column;gap:7px'), gridColumn: full ? '1 / -1' : undefined }}>
-      <span style={s(`font-size:12.5px;font-weight:${bold ? 700 : 600};color:var(--d-ink2)`)}>{label}</span>
+      <span style={s(`display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:${bold ? 700 : 600};color:var(--d-ink2)`)}>
+        {label}{hint && <InfoHint text={hint} label={`About ${label}`} />}
+      </span>
       {children}
-      {hint && <span style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>{hint}</span>}
     </label>
   );
 }
@@ -230,22 +231,27 @@ export default function ServiceUsersPage() {
         >
           <div data-tour="clients-modal" style={s('flex:1;overflow-y:auto;padding:8px 24px 4px;display:flex;flex-direction:column;gap:16px')}>
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-              <Field label="First name"><input style={inputStyle} value={form.first_name} onChange={set('first_name')} /></Field>
-              <Field label="Last name"><input style={inputStyle} value={form.last_name} onChange={set('last_name')} /></Field>
-              <Field label="Reference"><input style={inputStyle} value={form.reference} onChange={set('reference')} /></Field>
-              <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={set('phone')} /></Field>
-              <Field label="Address" full><input style={inputStyle} value={form.address_line1} onChange={set('address_line1')} placeholder="Line 1" /></Field>
-              <Field label="Town or city"><input style={inputStyle} value={form.city} onChange={set('city')} /></Field>
-              <Field label="Postcode"><input style={inputStyle} value={form.postcode} onChange={set('postcode')} /></Field>
+              <Field label="First name" hint="The client's first name, as carers will see it in the app."><input style={inputStyle} value={form.first_name} onChange={set('first_name')} /></Field>
+              <Field label="Last name" hint="The client's surname."><input style={inputStyle} value={form.last_name} onChange={set('last_name')} /></Field>
+              {/* Reference is auto-generated (SU-xxxx) on save, so it's not asked here.
+              <Field label="Reference" hint="Your own reference/ID for this client (e.g. their care-management number). Optional."><input style={inputStyle} value={form.reference} onChange={set('reference')} /></Field> */}
+              <Field label="Phone" hint="A contact number for the client or their household. Optional."><input style={inputStyle} value={form.phone} onChange={set('phone')} /></Field>
+              <Field label="Address" full hint="The client's home address — where visits happen and where the geofence is centred."><input style={inputStyle} value={form.address_line1} onChange={set('address_line1')} placeholder="Line 1" /></Field>
+              <Field label="Town or city" hint="Town or city of the client's address."><input style={inputStyle} value={form.city} onChange={set('city')} /></Field>
+              <Field label="Postcode" hint="Used to locate the address on the map and place the clock-in geofence."><input style={inputStyle} value={form.postcode} onChange={set('postcode')} /></Field>
             </div>
+            {/* Geofence coordinates are auto-located from the address on save; the
+                manual lat/long overrides are hidden here and can be set later on the
+                client's edit page if the pin needs correcting.
             <div style={s('height:1px;background:var(--d-panel2);margin:2px 0')} />
             <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>Geofence</div>
             <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers clock in at this address, within 150 m. The coordinates are found from the address automatically — leave these blank unless you need to correct where the pin lands.</div>
             <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:14px')}>
-              <Field label="Latitude (optional)"><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="Auto from address" /></Field>
-              <Field label="Longitude (optional)"><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="Auto from address" /></Field>
+              <Field label="Latitude (optional)" hint="North–south coordinate of the clock-in point. Leave blank to use the address; set it only to correct where the pin lands."><input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="Auto from address" /></Field>
+              <Field label="Longitude (optional)" hint="East–west coordinate of the clock-in point. Leave blank to use the address; set it only to correct the pin."><input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="Auto from address" /></Field>
             </div>
-            <Field label="Carer's notes" bold>
+            */}
+            <Field label="Carer's notes" bold hint="Practical notes shown to carers on the visit — key-safe code, parking, who's usually in, access quirks.">
               <textarea rows={3} value={form.access_notes} onChange={set('access_notes')} placeholder="Key safe code, parking, who is usually in." style={{ ...inputStyle, height: 'auto', padding: '12px 16px', resize: 'vertical', lineHeight: 1.5 }} />
             </Field>
 

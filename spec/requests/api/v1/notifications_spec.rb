@@ -23,6 +23,16 @@ RSpec.describe "Notifications", type: :request do
       .not_to change { admin.notifications.count }
   end
 
+  it "lists an alert once even though it writes a row per channel (no bell doubles)" do
+    admin
+    raise_alert("missed_visit") # Deliver writes in_app + push rows for the same event
+    expect(admin.notifications.count).to be > 1        # multiple channel rows exist
+    get "/api/v1/notifications", headers: auth
+    # …but the bell shows only the single in_app row.
+    expect(response.parsed_body.size).to eq(1)
+    expect(response.parsed_body.first["channel"]).to eq("in_app")
+  end
+
   it "lists notifications and marks one seen" do
     admin
     raise_alert("missed_visit")

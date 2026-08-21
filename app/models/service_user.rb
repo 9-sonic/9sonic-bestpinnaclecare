@@ -10,6 +10,10 @@ class ServiceUser < ApplicationRecord
 
   scope :active, -> { where(active: true) }
 
+  # Give every client a stable reference when one isn't supplied — SU- plus a
+  # short unique suffix (e.g. SU-A1B2C3D4), matching the existing SU- convention.
+  before_create :assign_reference
+
   def full_name = "#{first_name} #{last_name}"
 
   def geocoding_address
@@ -17,6 +21,12 @@ class ServiceUser < ApplicationRecord
   end
 
   private
+
+  def assign_reference
+    return if reference.present?
+
+    self.reference = "SU-#{SecureRandom.hex(4).upcase}"
+  end
 
   # Only geocode when we have an address, are missing coordinates, and the
   # address just changed — so admin-provided coords are never overwritten.

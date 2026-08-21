@@ -7,7 +7,7 @@ import { fullName, addressOf } from '../api/format.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, Tag, Avatar, Button, SegTabs, FilterBar, SearchBox, SelectField, DateField, Pager, TableWrap, Th, Td, Row } from '../ds/console.jsx';
-import { getServiceUser, updateServiceUser, listServiceUserNotes, listServiceUserVisits, listCarePackages } from '../api/index.js';
+import { getServiceUser, updateServiceUser, listServiceUserNotes, listServiceUserVisits, listCarePackages, listCarePlanItems, createCarePlanItem, updateCarePlanItem, deleteCarePlanItem } from '../api/index.js';
 
 const TABS = [
   { key: 'schedule', label: 'Schedule' },
@@ -175,9 +175,18 @@ export default function ClientDetailPage() {
             </div>
             <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);line-height:1.45')}>Carers can only clock in at these coordinates, within 150&nbsp;m. Keep them accurate so the fence enforces correctly.</div>
             <L label="Access notes for carers"><textarea rows={2} style={{ ...inp, height: 'auto', padding: '10px 13px' }} value={form.access_notes} onChange={setField('access_notes')} /></L>
+
+            {/* Care plan — add / edit / remove the client's care tasks in place.
+                Saves immediately (each row is its own resource), separate from the
+                profile-detail Save below. */}
+            <div style={s('padding-top:14px;border-top:1px solid var(--d-border)')}>
+              <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink2);margin-bottom:10px')}>Care plan</div>
+              <CarePlanEditor clientId={client.id} />
+            </div>
+
             <div style={s('display:flex;gap:8px')}>
-              <Button variant="primary" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Save'}</Button>
-              <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button variant="primary" onClick={saving ? undefined : save}>{saving ? 'Saving…' : 'Save details'}</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Done</Button>
             </div>
           </div>
         )}
@@ -394,3 +403,77 @@ function L({ label, children }) {
   return <label style={s('display:flex;flex-direction:column;gap:6px')}><span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>{label}</span>{children}</label>;
 }
 function Muted({ children }) { return <div style={s('padding:30px 8px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>{children}</div>; }
+
+// Inline care-plan editor for the client Edit section: add / edit / remove the
+// client's care tasks. Each change saves immediately (each item is its own
+// nested resource), so there's no separate "save the plan" step.
+function CarePlanEditor({ clientId }) {
+  const toast = useToast();
+  const [items, setItems] = useState(null);
+  const [newLabel, setNewLabel] = useState('');
+  const [newDetail, setNewDetail] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editDetail, setEditDetail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(() => { listCarePlanItems(clientId).then(setItems).catch(() => setItems([])); }, [clientId]);
+  useEffect(() => { reload(); }, [reload]);
+
+  async function add() {
+    if (!newLabel.trim()) { toast.error('Give the care task a short label.'); return; }
+    setBusy(true);
+    try { await createCarePlanItem(clientId, { label: newLabel.trim(), detail: newDetail.trim() || null }); setNewLabel(''); setNewDetail(''); reload(); toast.success('Care task added'); }
+    catch (e) { toast.error(e.message || 'Could not add'); } finally { setBusy(false); }
+  }
+  function startEdit(it) { setEditId(it.id); setEditLabel(it.label); setEditDetail(it.detail ?? ''); }
+  async function saveEdit() {
+    if (!editLabel.trim()) { toast.error('Give the care task a short label.'); return; }
+    setBusy(true);
+    try { await updateCarePlanItem(clientId, editId, { label: editLabel.trim(), detail: editDetail.trim() || null }); setEditId(null); reload(); toast.success('Care task updated'); }
+    catch (e) { toast.error(e.message || 'Could not update'); } finally { setBusy(false); }
+  }
+  async function remove(id) {
+    setBusy(true);
+    try { await deleteCarePlanItem(clientId, id); reload(); toast.info('Care task removed'); }
+    catch (e) { toast.error(e.message || 'Could not remove'); } finally { setBusy(false); }
+  }
+
+  const small = { ...inp, height: 36, fontSize: 13 };
+
+  return (
+    <div style={s('display:flex;flex-direction:column;gap:8px')}>
+      {items == null ? <span style={s('font-size:12px;color:var(--d-muted)')}>Loading…</span>
+        : items.length === 0 ? <span style={s('font-size:12px;color:var(--d-muted)')}>No care tasks yet — add the first below.</span>
+        : items.map((it) => (
+          <div key={it.id} style={s('background:var(--d-panel);border-radius:11px;padding:9px 11px')}>
+            {editId === it.id ? (
+              <div style={s('display:flex;flex-direction:column;gap:7px')}>
+                <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="Care task" style={small} />
+                <input value={editDetail} onChange={(e) => setEditDetail(e.target.value)} placeholder="Detail (optional)" style={small} />
+                <div style={s('display:flex;gap:6px')}>
+                  <Button size="sm" variant="primary" onClick={busy ? undefined : saveEdit}>Save</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div style={s('display:flex;align-items:flex-start;gap:10px')}>
+                <div style={s('flex:1;min-width:0')}>
+                  <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{it.label}</div>
+                  {it.detail && <div style={s('font-size:12px;font-weight:500;color:var(--d-ink2);margin-top:2px;line-height:1.5')}>{it.detail}</div>}
+                </div>
+                <button type="button" onClick={() => startEdit(it)} title="Edit" style={{ ...s('background:transparent;border:0;cursor:pointer;color:var(--d-muted);padding:2px'), fontFamily: 'inherit' }}><Icon name="edit" size={14} /></button>
+                <button type="button" onClick={() => remove(it.id)} title="Remove" style={{ ...s('background:transparent;border:0;cursor:pointer;color:var(--d-muted);padding:2px'), fontFamily: 'inherit' }}><Icon name="close" size={15} /></button>
+              </div>
+            )}
+          </div>
+        ))}
+      {/* Add row */}
+      <div style={s('display:flex;flex-direction:column;gap:7px;margin-top:2px')}>
+        <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} placeholder="Add a care task (e.g. Prompt morning medication)" style={small} />
+        <input value={newDetail} onChange={(e) => setNewDetail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} placeholder="Detail (optional)" style={small} />
+        <div><Button size="sm" icon="plus" onClick={busy ? undefined : add}>Add task</Button></div>
+      </div>
+    </div>
+  );
+}

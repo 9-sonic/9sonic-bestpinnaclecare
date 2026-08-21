@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { uploadMyAvatar, removeMyAvatar, updateMyProfile } from '../api/index.js';
 import { Panel, PanelTitle, Button, Tag, fieldStyle as dsFieldStyle } from '../ds/console.jsx';
-import { s } from '../lib/ui.jsx';
+import { s, imageTooLarge } from '../lib/ui.jsx';
 import { enablePush, disablePush, pushPermission, isSubscribed } from '../lib/push.js';
 
 // The admin's own profile: photo + personal details, wired to /admin/me and
@@ -123,6 +123,8 @@ export default function ProfilePage({ embedded = false }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    const tooBig = imageTooLarge(file);
+    if (tooBig) { toast.error(tooBig); return; }
     setAvatarBusy(true);
     try { await uploadMyAvatar(file); await refreshAdmin?.(); toast.success('Photo updated'); }
     catch (err) { toast.error(err.message || 'Could not upload that image'); }
