@@ -38,7 +38,23 @@ module Api
           # stayed on the carer's rota and never surfaced for cover.
           apply_drop(req) if state == "approved" && req.kind == "drop"
 
+          notify_carer(req, state)
+
           render json: CarerRequestSerializer.call(req)
+        end
+
+        # Tell the carer their request was decided, and carry the manager's note
+        # (their reply) so the office answer actually reaches the person who
+        # asked. Without this the decision — and any note the manager wrote — sat
+        # on the record and the carer was never told.
+        def notify_carer(req, state)
+          verb  = state == "approved" ? "approved" : "declined"
+          title = "Your #{req.kind} request was #{verb}"
+          body  = [ req.summary, req.decision_note.presence ].compact.join(" — ")
+          Notifications::Deliver.call(
+            recipients: req.employee, category: "request", kind: "request_#{verb}",
+            title: title, body: body, subject: req, channels: %w[in_app push]
+          )
         end
 
         # Withdraw the requesting carer from the visit the drop names. Audited

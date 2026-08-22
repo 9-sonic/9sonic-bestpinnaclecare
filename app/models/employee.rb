@@ -8,6 +8,7 @@ class Employee < ApplicationRecord
   has_many :visits, through: :visit_assignments
   has_many :employee_availabilities, dependent: :destroy
   has_many :carer_requests, dependent: :destroy
+  has_many :cover_offers, dependent: :destroy
   has_many :mileage_claims, dependent: :restrict_with_error
 
   # Give every carer a stable staff reference when one isn't supplied — EMP- plus

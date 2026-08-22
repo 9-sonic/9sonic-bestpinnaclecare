@@ -115,6 +115,9 @@ Rails.application.routes.draw do
         get  "reports",           to: "reports#index"        # clocking performance aggregates
         get  "cover",             to: "cover#index"          # unfilled visits + offers
         resources :cover_offers, only: %i[create] do
+          collection do
+            post :broadcast   # advertise an unfilled visit to all eligible carers at once
+          end
           member do
             post :accept
             post :decline
@@ -151,6 +154,14 @@ Rails.application.routes.draw do
         post "mfa/confirm",   to: "mfa#confirm"
         get  "me",            to: "me#show"
         get  "office_contacts", to: "office_contacts#index"   # admins a carer may start a chat with
+
+        # Cover offers advertised to this carer — accept fills the visit (first-come).
+        resources :cover_offers, only: %i[index] do
+          member do
+            post :accept
+            post :decline
+          end
+        end
 
         # Biometric / passkey (WebAuthn)
         post "webauthn/registration/options",   to: "webauthn_registrations#create_options"
