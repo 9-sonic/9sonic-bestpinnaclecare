@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
 } from '../api/format.js';
-import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row } from '../ds/console.jsx';
+import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
 
 // A cancelled visit is not "short-staffed" — it's cancelled. Only a live visit
 // with fewer active carers than required counts as unfilled.
@@ -520,9 +520,20 @@ export default function RotaPage() {
   // List layout: every visit in the week, one row each, earliest first — an
   // agenda rather than a grid. Independent of `view` (carer/client grouping
   // only matters to the grid's rows/columns).
+  // Most recent first — the list reads newest-to-oldest so today's and upcoming
+  // visits sit at the top rather than being buried under the start of the week.
   const listRows = useMemo(
-    () => [...visits].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)),
+    () => [...visits].sort((a, b) => new Date(b.scheduled_start) - new Date(a.scheduled_start)),
     [visits],
+  );
+  // Client-side pagination for the list layout so a long range doesn't render
+  // every row at once. Back to page 1 whenever the underlying set changes.
+  const LIST_PER_PAGE = 25;
+  const [listPage, setListPage] = useState(1);
+  useEffect(() => { setListPage(1); }, [listRows.length]);
+  const pagedRows = useMemo(
+    () => listRows.slice((listPage - 1) * LIST_PER_PAGE, listPage * LIST_PER_PAGE),
+    [listRows, listPage],
   );
 
   const drafts = useMemo(() => visits.filter((v) => v.status === 'draft'), [visits]);
@@ -700,7 +711,7 @@ export default function RotaPage() {
             <TableWrap minWidth={880}>
               <thead><tr><Th>{' '}</Th><Th>Day</Th><Th>Time</Th><Th>Client</Th><Th>Carer</Th><Th align="right">Status</Th></tr></thead>
               <tbody>
-                {listRows.map((v) => {
+                {pagedRows.map((v) => {
                   const short = isShort(v);
                   const cancelled = v.status === 'cancelled';
                   const carer = v.assignments?.[0]?.employee;
@@ -726,6 +737,11 @@ export default function RotaPage() {
                 })}
               </tbody>
             </TableWrap>
+          )}
+          {listRows.length > LIST_PER_PAGE && (
+            <div style={s('display:flex;justify-content:flex-end;padding:10px 2px 2px')}>
+              <Pager page={listPage} perPage={LIST_PER_PAGE} total={listRows.length} onPage={setListPage} />
+            </div>
           )}
         </div>
       ) : (

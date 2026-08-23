@@ -8,13 +8,12 @@ import Spinner from '../components/common/Spinner.jsx';
 import { formatDate } from '../api/format.js';
 import { Panel, PanelTitle, StatCard, Tag, Avatar, Button, SegTabs } from '../ds/console.jsx';
 
+// "drop" is the only request a carer can raise in the app. Kept as a map (with a
+// fallback below) so any legacy record with another kind still renders safely.
 const KIND = {
-  swap: { label: 'Swap', tone: 'info' },
   drop: { label: 'Drop', tone: 'danger' },
-  overtime: { label: 'Overtime', tone: 'success' },
-  availability: { label: 'Availability', tone: 'warning' },
-  leave: { label: 'Leave', tone: 'warning' },
 };
+const kindMeta = (k) => KIND[k] ?? { label: (k ?? 'Request').replace(/^\w/, (c) => c.toUpperCase()), tone: 'muted' };
 const inits = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const STATE_TONE = { pending: 'warning', approved: 'success', declined: 'danger' };
 const STATE_LABEL = { pending: 'Pending', approved: 'Approved', declined: 'Declined' };
@@ -33,11 +32,7 @@ function ago(iso) {
 // step, it does not invent an automated rota impact.
 const IMPACT_TONE = { ok: { icon: 'check', color: 'var(--d-ok-ink)' }, warn: { icon: 'alert', color: 'var(--d-warn-ink)' }, risk: { icon: 'alert', color: 'var(--d-danger-ink)' } };
 const CONSEQUENCE = {
-  swap: [['ok', 'Records the swap and notifies both carers.'], ['warn', 'You then move the visits on the rota — the swap is not applied automatically.']],
-  drop: [['risk', 'Frees the carer from the visit, which will need re-covering.'], ['warn', 'Offer it on the cover board so it does not become a missed visit.']],
-  overtime: [['ok', 'Records the overtime approval and notifies the carer.'], ['ok', 'Assign them to the extra visit on the rota to make it live.']],
-  availability: [['warn', 'Nothing moves automatically — reflect the new availability when you build the rota.']],
-  leave: [['risk', 'Any visits already scheduled in that period will need re-covering.'], ['warn', 'Records the leave decision against the carer.']],
+  drop: [['risk', 'Approving withdraws the carer — the visit becomes unfilled and needs re-covering.'], ['warn', 'Broadcast it on the cover board so it does not become a missed visit.']],
 };
 
 export default function RequestsPage() {
@@ -80,10 +75,10 @@ export default function RequestsPage() {
 
   if (!rows) return <Spinner fullscreen />;
 
+  // Carers only ever raise a "drop" (declining a visit for cover) — the other
+  // kinds have no carer-facing flow — so the queue is simply pending vs decided.
   const filterTabs = [
     { key: 'pending', label: 'Pending', count: pending.length },
-    { key: 'swap', label: 'Swaps' }, { key: 'drop', label: 'Drops' },
-    { key: 'overtime', label: 'Overtime' }, { key: 'availability', label: 'Availability' },
     { key: 'decided', label: 'Decided' },
   ];
 
@@ -91,17 +86,16 @@ export default function RequestsPage() {
     <div style={s('display:flex;flex-direction:column;gap:16px')}>
       {/* Stat cards */}
       <div style={s('display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px')}>
-        <StatCard label="Awaiting your decision" value={pending.length} hint="Carer requests to action" tone="warning" icon="note" live />
-        <StatCard label="Swaps" value={byKind('swap')} hint="Shift exchanges" tone="primary" icon="sync" />
-        <StatCard label="Drops needing cover" value={byKind('drop')} hint="Will need re-covering" tone="danger" icon="alert" />
-        <StatCard label="Overtime offered" value={byKind('overtime')} hint="Carers volunteering for extra" tone="success" icon="clock" />
+        <StatCard label="Awaiting your decision" value={pending.length} hint="Drop requests to action" tone="warning" icon="note" live />
+        <StatCard label="Drops needing cover" value={byKind('drop')} hint="Approving frees the visit for cover" tone="danger" icon="alert" />
+        <StatCard label="Decided" value={all.length - pending.length} hint="Approved or declined" tone="primary" icon="check" />
       </div>
 
       {all.length === 0 ? (
         <Panel><div style={s('display:flex;flex-direction:column;align-items:center;gap:10px;padding:52px 20px')}>
           <div style={s('width:56px;height:56px;border-radius:18px;background:var(--d-sage);display:flex;align-items:center;justify-content:center;color:var(--d-muted)')}><Icon name="note" size={26} /></div>
           <div style={s('font-size:15px;font-weight:700;color:var(--d-ink)')}>Nothing here</div>
-          <div style={s('font-size:13px;font-weight:500;color:var(--d-muted)')}>Swaps, drops, overtime and availability changes from the carer app land here.</div>
+          <div style={s('font-size:13px;font-weight:500;color:var(--d-muted)')}>Visits carers have handed back for cover land here.</div>
         </div></Panel>
       ) : (
         <div style={{ ...s('display:grid;gap:16px;align-items:start'), gridTemplateColumns: 'minmax(0,400px) minmax(0,1fr)' }}>
@@ -115,7 +109,7 @@ export default function RequestsPage() {
             ) : (
               <div style={s('display:flex;flex-direction:column;gap:9px')}>
                 {list.map((r) => {
-                  const k = KIND[r.kind] ?? { label: r.kind, tone: 'muted' };
+                  const k = kindMeta(r.kind);
                   const on = r.id === selectedId;
                   return (
                     <button key={r.id} type="button" onClick={() => { setSelectedId(r.id); setReply(''); }}
@@ -152,7 +146,7 @@ export default function RequestsPage() {
                       <div style={s('font-size:12.5px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{selected.employee_name} · submitted {formatDate(selected.created_at)}</div>
                     </div>
                   </div>
-                  <Tag tone={(KIND[selected.kind] ?? {}).tone ?? 'muted'}>{(KIND[selected.kind] ?? {}).label ?? selected.kind}</Tag>
+                  <Tag tone={kindMeta(selected.kind).tone}>{kindMeta(selected.kind).label}</Tag>
                 </div>
                 {selected.detail && <div style={s('margin-top:14px;background:var(--d-panel);border-radius:14px;padding:13px 15px;font-size:12.5px;font-weight:500;color:var(--d-ink2);line-height:1.6')}>{selected.detail}</div>}
               </Panel>

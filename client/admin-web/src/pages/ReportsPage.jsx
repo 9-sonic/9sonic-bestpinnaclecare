@@ -236,7 +236,7 @@ export default function OverviewTab({ range, setRange }) {
 
       <div style={s('display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start')}>
         <Panel padded={false} style={{ padding: '20px 22px' }}>
-          <PanelTitle hint="Swaps, drops, overtime and availability changes — how responsive the office is">Requests</PanelTitle>
+          <PanelTitle hint="Visits handed back for cover — how responsive the office is at deciding them">Requests</PanelTitle>
           {(() => {
             const rq = data?.requests ?? {};
             if (!rq.total) return <Empty label="No requests raised in this period." />;
@@ -262,7 +262,7 @@ export default function OverviewTab({ range, setRange }) {
         </Panel>
 
         <Panel>
-          <PanelTitle hint="Who's raising the most swap/drop/overtime requests">Requests by carer</PanelTitle>
+          <PanelTitle hint="Who's handing back the most visits for cover">Requests by carer</PanelTitle>
           {requestsByCarer.length === 0 ? <Empty /> : (
             <div style={s('display:flex;flex-direction:column;gap:9px')}>
               {requestsByCarer.map((r) => (

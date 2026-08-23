@@ -8,7 +8,19 @@ module Api
       # Jesse before treating as signed off): any active carer may be offered a
       # shift, and offers do not auto-expire. There is no eligibility gate here.
       class CoverOffersController < BaseController
-        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create accept decline]
+        before_action -> { authorize_role!(:registered_manager, :manager, :coordinator) }, only: %i[create broadcast accept decline]
+
+        # POST /api/v1/admin/cover_offers/broadcast { visit_id, note? }
+        # Advertise an unfilled visit to every eligible carer at once (first-come).
+        def broadcast
+          visit  = Visit.find(params.require(:visit_id))
+          result = Cover::Broadcast.call(visit: visit, actor: current_admin, note: params[:note])
+          return render(json: { error: result.error }, status: :unprocessable_entity) unless result.ok
+
+          render json: { visit_id: visit.id, offered: result.offers.size,
+                         offers: result.offers.map { |o| CoverOfferSerializer.call(o) } }, status: :created
+        end
+
         def create
           visit    = Visit.find(params.require(:visit_id))
           employee = Employee.find(params.require(:employee_id))

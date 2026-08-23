@@ -9,19 +9,15 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import { SkeletonList } from '../components/common/Skeleton.jsx';
 import { formatDayLabel, formatTime } from '../utils/format.js';
 
-// Everything the carer has asked the office — cover, swaps, overtime, leave —
-// with the office's decision alongside it.
+// Everything the carer has asked the office — a visit they've handed back for
+// cover, plus any clock-in help — with the office's decision alongside it.
 //
 // The admin console approves and declines these from its Requests queue, and
 // its reply ("decision_note") is meant for the carer: without this screen the
 // answer was written into the record and never shown to the person it was for.
 
 const KINDS = {
-  swap: { icon: 'sync', tone: 'info', label: 'Shift swap' },
   drop: { icon: 'users', tone: 'warn', label: 'Cover' },
-  overtime: { icon: 'clock', tone: 'teal', label: 'Overtime' },
-  availability: { icon: 'calendar', tone: 'purple', label: 'Availability' },
-  leave: { icon: 'coffee', tone: 'grey', label: 'Leave' },
   clock_assistance: { icon: 'alert', tone: 'danger', label: 'Clock-in help' },
 };
 
@@ -72,7 +68,7 @@ export default function RequestsPage() {
         <EmptyState
           icon="send"
           title="No requests yet"
-          text="When you ask for cover, a swap, overtime or leave, the request and the office's reply appear here."
+          text="When you hand a visit back for cover, the request and the office's reply appear here."
         />
       ) : (
         <div className="notif-list">

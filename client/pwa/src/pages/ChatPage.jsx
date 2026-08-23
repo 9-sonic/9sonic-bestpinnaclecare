@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getThread, getThreadMessages, sendMessage, markRead } from '../api/messages.js';
+import { getThread, getThreadMessages, sendMessage, markRead, attachmentTooLarge } from '../api/messages.js';
 import { subscribeInbox } from '../api/cable.js';
 import { useAuth } from '../hooks/useAuth.js';
 import Avatar from '../components/common/Avatar.jsx';
@@ -20,6 +20,19 @@ const isAudio = (ct) => (ct ?? '').startsWith('audio/');
 // One attachment inside a bubble. Photos and clips show inline; a voice note
 // gets an audio player; anything else is a tappable file with its name and size.
 function ChatAttachment({ a }) {
+  // Optimistic (pending) attachment has no URL yet — show a plain chip so it
+  // doesn't render a broken image while the upload is in flight.
+  if (!a.url) {
+    return (
+      <span className="bubble__file bubble__file--pending">
+        <Icon name="file" size={18} />
+        <span className="bubble__file-meta">
+          <span className="bubble__file-name">{a.filename}</span>
+          <span className="bubble__file-size">Uploading…</span>
+        </span>
+      </span>
+    );
+  }
   if (isImage(a.contentType)) {
     return (
       <a className="bubble__media" href={a.url} target="_blank" rel="noreferrer">
@@ -87,8 +100,10 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showQuick, setShowQuick] = useState(true);
+  const [files, setFiles] = useState([]);
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   // Read by the socket effect below, which intentionally does not depend on
   // `thread` itself (that would tear the subscription down and rebuild it on
   // every message). A ref keeps it seeing the current participant list anyway.
@@ -167,6 +182,21 @@ export default function ChatPage() {
     await send(text);
   }
 
+  // Queue picked files onto the composer. Any type; each checked against the
+  // 25 MB limit (the backend enforces it too) so an oversize file is refused
+  // with a clear message before upload.
+  function addFiles(fileList) {
+    const picked = Array.from(fileList ?? []);
+    if (picked.length === 0) return;
+    const ok = [];
+    for (const f of picked) {
+      const tooBig = attachmentTooLarge(f);
+      if (tooBig) { toast.error(tooBig); continue; }
+      ok.push(f);
+    }
+    if (ok.length) setFiles((xs) => [...xs, ...ok]);
+  }
+
   // Appends the template to whatever is already typed, then puts the cursor at
   // the end so the carer can keep writing. Existing text is kept: someone who
   // has started a sentence should not lose it by tapping a suggestion.
@@ -190,38 +220,44 @@ export default function ChatPage() {
 
   async function send(raw) {
     const body = raw.trim();
-    if (!body || sending) return;
+    const outFiles = files;
+    // Nothing to send unless there's text OR at least one attachment.
+    if ((!body && outFiles.length === 0) || sending) return;
 
     setText('');
+    setFiles([]);
     tapFeedback();
     setSending(true);
 
     // Show it straight away. A carer on a slow connection should see their
-    // message land, not watch a spinner.
+    // message land, not watch a spinner. Attachments show as a placeholder note
+    // until the server returns the real, viewable attachment.
     const optimistic = {
       id: `pending-${Date.now()}`,
       mine: true,
       text: body,
       at: new Date().toISOString(),
       pending: true,
+      attachments: outFiles.map((f, i) => ({ id: `pf-${i}`, filename: f.name, contentType: f.type, byteSize: f.size, url: null })),
     };
     setThread((t) => ({ ...t, messages: [...(t?.messages ?? []), optimistic] }));
 
     try {
-      const saved = await sendMessage({ threadId, text: body });
+      const saved = await sendMessage({ threadId, text: body, files: outFiles });
       setThread((t) => ({
         ...t,
         messages: t.messages.map((m) => (m.id === optimistic.id ? saved : m)),
       }));
     } catch (err) {
       errorFeedback();
-      // Roll the optimistic message back and give the text back to the carer
-      // so nothing they typed is lost.
+      // Roll the optimistic message back and give the text (and files) back so
+      // nothing the carer prepared is lost.
       setThread((t) => ({
         ...t,
         messages: t.messages.filter((m) => m.id !== optimistic.id),
       }));
       setText(body);
+      setFiles(outFiles);
       toast.error(err.message || 'Message not sent. Try again.');
     } finally {
       setSending(false);
@@ -339,7 +375,42 @@ export default function ChatPage() {
         </div>
       )}
 
+      {files.length > 0 && (
+        <div className="chat__pending" data-no-swipe>
+          {files.map((f, i) => (
+            <span key={i} className="chat__pending-chip">
+              <Icon name={f.type?.startsWith('image/') ? 'camera' : 'file'} size={13} />
+              <span className="chat__pending-name">{f.name}</span>
+              <button
+                type="button"
+                className="chat__pending-remove"
+                aria-label={`Remove ${f.name}`}
+                onClick={() => setFiles((xs) => xs.filter((_, j) => j !== i))}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       <form className="chat__composer" onSubmit={handleSend}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+        />
+        <button
+          type="button"
+          className="chat__attach"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={sending}
+          aria-label="Attach a file or photo"
+        >
+          <Icon name="paperclip" size={19} />
+        </button>
         <input
           ref={inputRef}
           className="chat__input"
@@ -352,7 +423,7 @@ export default function ChatPage() {
         <button
           type="submit"
           className="chat__send"
-          disabled={!text.trim() || sending}
+          disabled={(!text.trim() && files.length === 0) || sending}
           aria-label="Send message"
         >
           <Icon name="send" size={18} />

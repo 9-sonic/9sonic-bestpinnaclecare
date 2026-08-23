@@ -10,13 +10,14 @@
 //
 // 1. `id` on the flat shift is the VISIT ASSIGNMENT id, not the visit id. Every
 //    clock call is keyed on the assignment, so this is the id that matters.
-// 2. The API has ten lifecycle states. The UI has three. The mapping below is
-//    deliberate: anything the carer has not started yet reads as upcoming, and
-//    anything that needs the office to look at it reads as completed, because
-//    the carer's work on it is done either way.
+// 2. The API has ten lifecycle states; the UI draws five. Not-yet-started reads
+//    as `upcoming`; a shift in progress reads as `active`; a genuinely finished
+//    shift reads as `completed`. A visit the carer never attended is `missed`
+//    and one the office pulled is `cancelled` — these are NOT "completed" and
+//    must read as themselves, or the carer's day looks done when it wasn't.
 // ---------------------------------------------------------------------------
 
-// lifecycle_state -> the three states the UI draws.
+// lifecycle_state -> the five states the UI draws.
 const UI_STATUS = {
   scheduled: 'upcoming',
   check_in_window: 'upcoming',
@@ -26,8 +27,8 @@ const UI_STATUS = {
   overdue: 'active',
   pending_review: 'completed',
   completed: 'completed',
-  missed: 'completed',
-  cancelled: 'completed',
+  missed: 'missed',
+  cancelled: 'cancelled',
 };
 
 // States the carer should be nudged about, surfaced as a flag on the shift.

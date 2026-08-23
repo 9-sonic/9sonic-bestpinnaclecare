@@ -171,14 +171,20 @@ module Clocking
         was_missed = @va.lifecycle_state == "missed"
         start = @va.visit.scheduled_start
         grace_end = start + Setting.instance.late_grace_minutes.minutes
+        # "Late" means at least one FULL minute after the scheduled start — the
+        # same whole-minute definition the attendance report uses (minutes_after
+        # floors seconds). Without this, a tap a few seconds past the minute
+        # (19:00:01 vs a 19:00 start) read as late, which is just clock precision,
+        # not lateness.
+        late_by_a_minute = @occurred_at >= start + 1.minute
         state = if anomaly
           :pending_review
         elsif @occurred_at > grace_end
           # Turned up properly late — past the grace window. Flag it so the office
           # reviews and the carer gives a reason (an admin can amend the record).
           :pending_review
-        elsif @occurred_at > start
-          :late            # after the scheduled start but within grace
+        elsif late_by_a_minute
+          :late            # a minute or more after the scheduled start, within grace
         else
           :in_progress
         end

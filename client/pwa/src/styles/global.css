@@ -3067,6 +3067,64 @@ video.bubble__media {
   cursor: not-allowed;
 }
 
+/* Attach button — same footprint as send, quiet until tapped. */
+.chat__attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur) var(--ease);
+}
+.chat__attach:active:not(:disabled) { transform: scale(0.92); }
+.chat__attach:disabled { color: var(--color-text-faint); cursor: not-allowed; }
+
+/* Pending attachments waiting to be sent, above the composer. */
+.chat__pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) 0;
+}
+.chat__pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.chat__pending-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat__pending-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.bubble__file--pending { opacity: 0.7; text-decoration: none; }
+
 /* ------------------------------- Profile --------------------------------- */
 
 .profile__bar {
@@ -6323,6 +6381,10 @@ body:has(.drawer-backdrop) .app-content {
 .badge--completed { background: var(--pill-done-bg); color: var(--pill-done-fg); }
 .badge--later { background: var(--pill-later-bg); color: var(--pill-later-fg); }
 .badge--neutral { background: var(--color-surface-alt); color: var(--color-text-muted); }
+/* A missed visit reads red (it did not happen); a cancelled one reads muted
+   grey (the office pulled it) — never the green "done" of a completed visit. */
+.badge--missed { background: var(--danger-bg); color: var(--danger-text); }
+.badge--cancelled { background: var(--color-surface-alt); color: var(--color-text-muted); }
 
 /* --------------------------- Segmented control --------------------------- */
 
@@ -10508,6 +10570,68 @@ body:has(.drawer-backdrop) .app-content {
   background: rgba(255, 255, 255, 0.9);
 }
 
+/* Cover-available card on the Home screen: an unfilled visit the office has
+   broadcast, with accept/decline. A left accent marks it as an offer to act on,
+   distinct from the carer's own visits. */
+.cover-offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+}
+.cover-offer__time {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.cover-offer__name {
+  margin: 2px 0 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
+}
+.cover-offer__addr {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.cover-offer__note {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+.cover-offer__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.cover-offer__btn {
+  min-height: 42px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.cover-offer__btn:active {
+  transform: scale(0.98);
+}
+.cover-offer__btn--solid {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+.cover-offer__btn:disabled {
+  opacity: 0.6;
+}
+
 /* -- the week ------------------------------------------------------------- */
 
 .home-stats {
@@ -10643,6 +10767,22 @@ body:has(.drawer-backdrop) .app-content {
   background: var(--color-surface-alt);
   box-shadow: none;
   border: 1px solid var(--color-border);
+}
+
+/* Missed and cancelled are terminal too — settled like completed, but marked so
+   they don't read as a normal done visit. Missed gets a red edge (it didn't
+   happen); cancelled is muted (the office pulled it). */
+.vcard--missed {
+  background: var(--color-surface-alt);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--danger);
+}
+.vcard--cancelled {
+  background: var(--color-surface-alt);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+  opacity: 0.72;
 }
 
 .vcard__head {

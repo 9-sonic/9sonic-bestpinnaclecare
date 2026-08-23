@@ -24,8 +24,8 @@ const SECTIONS = {
   },
   '/requests': {
     icon: 'note', phase: 'needs backend',
-    blurb: 'A carer-initiated queue: shift swaps, drops, overtime opt-ins, availability changes, and leave. Approve or decline, with the rota kept honest.',
-    points: ['New: request + absence/leave model (Ian)', 'Leave policy and entitlements (Jesse ↔ Best Pinnacle)', 'Rota warns when assigning someone who is off'],
+    blurb: 'A carer-initiated queue: visits handed back for cover. Approve or decline, with the rota kept honest.',
+    points: ['Live now under Staffing → Requests', 'Approving a drop frees the visit for the cover board'],
   },
   '/messages': {
     icon: 'chat', phase: 'partly wired',

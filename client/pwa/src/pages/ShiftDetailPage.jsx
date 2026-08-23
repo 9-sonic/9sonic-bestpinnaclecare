@@ -21,6 +21,8 @@ const STATUS_LABEL = {
   upcoming: 'Upcoming',
   active: 'On shift',
   completed: 'Completed',
+  missed: 'Missed',
+  cancelled: 'Cancelled',
   cover_requested: 'Cover requested',
 };
 
@@ -174,6 +176,11 @@ export default function ShiftDetailPage() {
   // Visit notes stay editable — writing up what happened is normal after the
   // fact, and the note has its own audited save path.
   const isCompleted = shift.status === 'completed';
+  // Terminal = nothing left to do on this visit: it's finished, was missed, or
+  // was cancelled. Clocking in, routing to it, and declining it are all off for
+  // these — you can only clock into a live visit, and you can't hand back one
+  // that's already gone.
+  const isTerminal = isCompleted || shift.status === 'missed' || shift.status === 'cancelled';
 
   return (
     <div className="page--flush">
@@ -219,7 +226,7 @@ export default function ShiftDetailPage() {
         {/* Structured Info Tiles */}
         <div className="detail-hero__tiles">
           {shift.address &&
-            (isCompleted ? (
+            (isTerminal ? (
               // Still shown — where the visit was is part of the record — but
               // inert, with no chevron promising a route that is over.
               <div className="detail-hero__tile detail-hero__tile--static">
@@ -285,7 +292,7 @@ export default function ShiftDetailPage() {
             >
               <Icon name="clock" size={14} /> Cover requested
             </Button>
-          ) : !isCompleted ? (
+          ) : !isTerminal ? (
             <Button
               variant="white"
               size="sm"
@@ -301,7 +308,7 @@ export default function ShiftDetailPage() {
           <Button
             size="sm"
             pill
-            disabled={isCompleted}
+            disabled={isTerminal}
             onClick={() => {
               tapFeedback();
               navigate(`/clock?shift=${shift.id}`);

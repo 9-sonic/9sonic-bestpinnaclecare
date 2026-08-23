@@ -5,6 +5,7 @@ import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
 import { getSummary } from '../api/stats.js';
 import { getClockStatus } from '../api/clock.js';
 import { listShifts } from '../api/shifts.js';
+import { listCoverOffers, acceptCoverOffer, declineCoverOffer } from '../api/cover.js';
 import { listNotifications, markAllRead } from '../api/notifications.js';
 import { useMenu } from '../components/layout/MenuContext.js';
 import Icon from '../components/common/Icon.jsx';
@@ -170,6 +171,8 @@ export default function HomePage() {
   const [summary, setSummary] = useState(null);
   const [clock, setClock] = useState({ clockedIn: false, shift: null });
   const [shifts, setShifts] = useState([]);
+  const [coverOffers, setCoverOffers] = useState([]);
+  const [coverBusy, setCoverBusy] = useState(null); // offer id being accepted/declined
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
@@ -183,13 +186,14 @@ export default function HomePage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([getSummary(), getClockStatus(), listShifts(), listNotifications()])
-      .then(([s, c, sh, n]) => {
+    Promise.all([getSummary(), getClockStatus(), listShifts(), listNotifications(), listCoverOffers()])
+      .then(([s, c, sh, n, co]) => {
         if (!active) return;
         setSummary(s);
         setClock(c);
         setShifts(sh);
         setNotifications(n);
+        setCoverOffers(co);
       })
       .catch(() => {})
       .finally(() => active && setLoading(false));
@@ -205,6 +209,42 @@ export default function HomePage() {
     []
   );
   useInboxNotifications(refreshNotifications);
+
+  // Accept a cover offer. Online-only: it's confirmed live or it fails clearly
+  // (someone else took it, or a clash). On success the shift joins the carer's
+  // list, so refresh it and drop the offer.
+  async function onAcceptCover(offer) {
+    if (coverBusy) return;
+    setCoverBusy(offer.id);
+    try {
+      await acceptCoverOffer(offer.id);
+      setCoverOffers((list) => list.filter((o) => o.id !== offer.id));
+      listShifts().then(setShifts).catch(() => {});
+      toast.success(`You're covering ${offer.client}`);
+    } catch (e) {
+      const msg = e?.message === 'visit_already_filled' ? 'That visit was just taken by someone else.'
+        : e?.message === 'carer_unavailable' ? 'This clashes with a visit you already have.'
+          : 'Could not accept — please try again.';
+      toast.error(msg);
+      // Either way it's no longer acceptable by this carer — clear it.
+      setCoverOffers((list) => list.filter((o) => o.id !== offer.id));
+    } finally {
+      setCoverBusy(null);
+    }
+  }
+
+  async function onDeclineCover(offer) {
+    if (coverBusy) return;
+    setCoverBusy(offer.id);
+    try {
+      await declineCoverOffer(offer.id);
+      setCoverOffers((list) => list.filter((o) => o.id !== offer.id));
+    } catch {
+      toast.error('Could not decline — please try again.');
+    } finally {
+      setCoverBusy(null);
+    }
+  }
 
   const week = summary?.week;
   const unread = notifications.filter((n) => !n.read).length;
@@ -416,6 +456,45 @@ export default function HomePage() {
       {loading && (
         <section className="home-sec">
           <SkeletonList count={2} />
+        </section>
+      )}
+
+      {!loading && coverOffers.length > 0 && (
+        <section className="home-sec">
+          <div className="section-head section-head--inset">
+            <span className="section-head__title">Cover available</span>
+            <span className="today__count">{coverOffers.length} open</span>
+          </div>
+          <div className="vlist">
+            {coverOffers.map((o) => (
+              <article key={o.id} className="cover-offer">
+                <div className="cover-offer__body">
+                  <span className="cover-offer__time">{formatTimeRange(o.startsAt, o.endsAt)}</span>
+                  <h3 className="cover-offer__name">{o.client}</h3>
+                  {o.address && <p className="cover-offer__addr">{o.address}</p>}
+                  {o.note && <p className="cover-offer__note">“{o.note}”</p>}
+                </div>
+                <div className="cover-offer__actions">
+                  <button
+                    type="button"
+                    className="cover-offer__btn"
+                    disabled={coverBusy === o.id}
+                    onClick={() => onDeclineCover(o)}
+                  >
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    className="cover-offer__btn cover-offer__btn--solid"
+                    disabled={coverBusy === o.id}
+                    onClick={() => onAcceptCover(o)}
+                  >
+                    {coverBusy === o.id ? 'Accepting…' : 'Accept'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
       )}
 

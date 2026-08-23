@@ -60,8 +60,8 @@ RSpec.describe "Admin carer 360", type: :request do
   end
 
   it "GET requests returns all of this carer's requests" do
-    carer.carer_requests.create!(kind: "leave", summary: "Annual leave", state: "pending")
-    carer.carer_requests.create!(kind: "swap", summary: "Swap Tuesday", state: "approved")
+    carer.carer_requests.create!(kind: "drop", summary: "Please cover Monday", state: "pending")
+    carer.carer_requests.create!(kind: "drop", summary: "Please cover Tuesday", state: "approved")
     get "/api/v1/admin/employees/#{carer.id}/requests", headers: auth
     expect(response.parsed_body["total"]).to eq(2)
   end

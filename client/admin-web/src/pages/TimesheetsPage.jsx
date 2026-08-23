@@ -231,7 +231,14 @@ export default function TimesheetsPage() {
         </Panel>
       )}
 
-      {total > ATT_PER_PAGE && <Pager page={page} perPage={ATT_PER_PAGE} total={total} onPage={setPage} />}
+      {/* Always show the count so the table reads as paginated; the Pager's
+          Prev/Next appear once there's more than one page. */}
+      {rows !== null && total > 0 && (
+        <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px')}>
+          <span className="d-num" style={s('font-size:12px;font-weight:600;color:var(--d-muted)')}>{total} record{total === 1 ? '' : 's'} in range</span>
+          <Pager page={page} perPage={ATT_PER_PAGE} total={total} onPage={setPage} />
+        </div>
+      )}
 
       {amending && <AmendModal row={amending} onClose={() => setAmending(null)} onDone={load} />}
     </div>

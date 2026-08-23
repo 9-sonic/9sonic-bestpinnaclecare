@@ -91,7 +91,7 @@ RSpec.describe "Office — management", type: :request do
     post("Approve a carer request") do
       tags "Office — Requests"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
       parameter name: :body, in: :body, required: false, schema: { type: :object, properties: { note: { type: :string } } }
-      let(:id) { CarerRequest.create!(employee: employee, kind: "swap", summary: "swap Friday").id }
+      let(:id) { CarerRequest.create!(employee: employee, kind: "drop", summary: "swap Friday").id }
       let(:body) { { note: "cover arranged" } }
       response(200, "approved") { run_test! }
     end
@@ -101,7 +101,7 @@ RSpec.describe "Office — management", type: :request do
     parameter name: :id, in: :path, type: :integer
     post("Decline a carer request") do
       tags "Office — Requests"; produces "application/json"; security [ bearerAuth: [] ]
-      let(:id) { CarerRequest.create!(employee: employee, kind: "swap", summary: "swap Friday").id }
+      let(:id) { CarerRequest.create!(employee: employee, kind: "drop", summary: "swap Friday").id }
       response(200, "declined") { run_test! }
     end
   end
