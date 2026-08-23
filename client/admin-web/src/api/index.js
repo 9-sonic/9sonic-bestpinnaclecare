@@ -61,7 +61,7 @@ export const resendAdminInvite = (id) => api.post(`/admin/admins/${id}/resend_in
 
 export const getDashboard = () => api.get('/admin/dashboard');
 export const getLiveBoard = () => api.get('/admin/live_board');
-export const getExceptions = () => api.get('/admin/exceptions');
+export const getExceptions = ({ page = 1, perPage = 50 } = {}) => api.get('/admin/exceptions', { page, per_page: perPage });
 
 // Append-only Event audit log (read-only): who did what, when and why.
 // Filters: event_type, aggregate_type, aggregate_id, actor_type, actor_id,
