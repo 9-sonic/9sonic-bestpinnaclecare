@@ -7,7 +7,7 @@ import Modal from '../components/common/Modal.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs } from '../ds/console.jsx';
+import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs, Pager } from '../ds/console.jsx';
 import AlertsPage from './AlertsPage.jsx';
 import LifecyclePage from './LifecyclePage.jsx';
 import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.js';
@@ -140,12 +140,18 @@ function ExceptionsInner() {
   const [checked, setChecked] = useState([]);
   const [selected, setSelected] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [page, setPage] = useState(1);
   const navigate = useNavigate();
+  const EX_PER_PAGE = 50;
 
   const load = useCallback(async () => {
-    const [ex, audit] = await Promise.all([getExceptions(), listAudit({ limit: 30 }).catch(() => [])]);
-    setData(ex); setResolved(audit ?? []);
-  }, []);
+    const [ex, audit] = await Promise.all([getExceptions({ page, perPage: EX_PER_PAGE }), listAudit({ limit: 60 }).catch(() => [])]);
+    setData(ex);
+    // The audit feed carries every event (invites, client creation…); only the
+    // ones that actually clear or action an exception belong under "Recently
+    // resolved" — those are exactly the keys in ACTION_LABEL.
+    setResolved((audit ?? []).filter((ev) => ACTION_LABEL[ev.event_type]));
+  }, [page]);
   useEffect(() => { let a = true; load().finally(() => a && setLoading(false)); return () => { a = false; }; }, [load]);
 
   const exceptions = useMemo(() => {
@@ -216,7 +222,7 @@ function ExceptionsInner() {
             ) : (
               <TableWrap minWidth={860}>
                 <thead><tr>
-                  <Th>{' '}</Th><Th>Carer</Th><Th>Exception</Th><Th>Client</Th><Th>Raised</Th><Th>Carer reason</Th><Th>Tier</Th><Th align="right">Severity</Th>
+                  <Th>{' '}</Th><Th>Carer</Th><Th>Exception</Th><Th>Client</Th><Th>Raised</Th><Th>Carer reason</Th><Th align="right">Severity</Th>
                 </tr></thead>
                 <tbody>
                   {rows.map((e) => (
@@ -229,13 +235,19 @@ function ExceptionsInner() {
                       </Td>
                       <Td>{e.client}</Td>
                       <Td mono>{e.raised ? formatTime(e.raised) : '—'}</Td>
-                      <Td><span style={s('font-size:12px;font-weight:500;color:var(--d-muted);font-style:italic')}>No reason given</span></Td>
-                      <Td><span style={s('color:var(--d-muted)')}>—</span></Td>
+                      <Td><span style={s('font-size:12px;font-weight:500;color:var(--d-muted);font-style:italic')}>{e.reason || 'No reason given'}</span></Td>
                       <Td align="right"><SeverityPill severity={e.severity} /></Td>
                     </Row>
                   ))}
                 </tbody>
               </TableWrap>
+            )}
+            {/* Review queue is server-paginated; alerts (few) come whole. */}
+            {(data?.pending_total ?? 0) > 0 && (
+              <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 0')}>
+                <span className="d-num" style={s('font-size:12px;font-weight:600;color:var(--d-muted)')}>{data.pending_total} to review</span>
+                <Pager page={page} perPage={EX_PER_PAGE} total={data.pending_total} onPage={setPage} />
+              </div>
             )}
           </div>
         </div>
@@ -251,7 +263,7 @@ function ExceptionsInner() {
                 {resolved.slice(0, 5).map((ev) => (
                   <div key={ev.id} style={s('background:var(--d-panel);border-radius:12px;padding:11px 13px')}>
                     <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink)')}>{ACTION_LABEL[ev.event_type] ?? (ev.event_type ?? '').replace(/[._]/g, ' ')}</div>
-                    <div className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{ev.actor_name ?? 'System'} · {formatTime(ev.occurred_at)}</div>
+                    <div className="d-num" style={s('font-size:11px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{ev.actor_name ?? 'System'} · {formatDate(ev.occurred_at)} {formatTime(ev.occurred_at)}</div>
                   </div>
                 ))}
               </div>

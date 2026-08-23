@@ -622,7 +622,7 @@ export default function MessagesPage() {
               </div>
             </div>
             <div style={s('display:flex;flex-direction:column;gap:7px;margin-top:12px')}>
-              {carerCtx.hours_this_week != null && <div style={s('display:flex;justify-content:space-between;font-size:12.5px')}><span style={s('color:var(--d-muted);font-weight:500')}>Hours this week</span><b className="d-num" style={s('font-weight:700;color:var(--d-ink)')}>{carerCtx.hours_this_week}h</b></div>}
+              <div style={s('display:flex;justify-content:space-between;font-size:12.5px')}><span style={s('color:var(--d-muted);font-weight:500')}>Hours this week</span><b className="d-num" style={s('font-weight:700;color:var(--d-ink)')}>{Number.isFinite(Number(carerCtx.hours_this_week)) ? `${Number(carerCtx.hours_this_week)}h` : '—'}</b></div>
               {carerCtx.punctuality != null && <div style={s('display:flex;justify-content:space-between;font-size:12.5px')}><span style={s('color:var(--d-muted);font-weight:500')}>Punctuality</span><b className="d-num" style={s('font-weight:700;color:var(--d-ink)')}>{carerCtx.punctuality}%</b></div>}
             </div>
             <div style={s('margin-top:12px')}><Button size="sm" icon="calendar" onClick={() => navigate('/rota')}>View rota</Button></div>
