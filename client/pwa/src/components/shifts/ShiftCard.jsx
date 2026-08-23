@@ -15,6 +15,8 @@ const LABELS = {
   upcoming: 'Upcoming',
   active: 'On shift',
   completed: 'Completed',
+  missed: 'Missed',
+  cancelled: 'Cancelled',
 };
 
 // A visit in a list.
