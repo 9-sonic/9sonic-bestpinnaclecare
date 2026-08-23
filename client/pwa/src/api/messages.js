@@ -65,12 +65,42 @@ export async function getThread(id, viewer) {
 }
 
 // client_message_id makes the send idempotent, the same idea as clock events.
-export async function sendMessage({ threadId, text }) {
-  const body = { body: text, client_message_id: newUuid() };
-  const res = env.useMock
-    ? await mock.sendMessage({ threadId, ...body })
-    : await api.post(`/conversations/${threadId}/messages`, body);
-  return { id: String(res.id), mine: true, text: res.body, at: res.created_at };
+// Attachments (docs, images, audio, video): 25 MB per file, matching the
+// backend's Message::MESSAGE_FILE_MAX_BYTES. Checked before upload for instant,
+// clear feedback.
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+export function attachmentTooLarge(file) {
+  if (file && file.size > MAX_ATTACHMENT_BYTES) return `“${file.name}” is over 25 MB. Please choose a smaller file.`;
+  return null;
+}
+
+// Flatten a message's attachments into the shape ChatPage's bubble reads.
+function toAttachments(list) {
+  return (list ?? []).map((a) => ({
+    id: a.id, filename: a.filename, contentType: a.content_type, byteSize: a.byte_size, url: a.url,
+  }));
+}
+
+export async function sendMessage({ threadId, text, files }) {
+  const clientMessageId = newUuid();
+  let res;
+  if (files && files.length) {
+    // Multipart: the api client detects FormData and lets the browser set the
+    // multipart boundary. Body may be empty when it's an attachment-only message.
+    const fd = new FormData();
+    fd.append('body', text ?? '');
+    fd.append('client_message_id', clientMessageId);
+    files.forEach((f) => fd.append('files[]', f));
+    res = env.useMock
+      ? await mock.sendMessage({ threadId, body: text, client_message_id: clientMessageId })
+      : await api.post(`/conversations/${threadId}/messages`, fd);
+  } else {
+    const body = { body: text, client_message_id: clientMessageId };
+    res = env.useMock
+      ? await mock.sendMessage({ threadId, ...body })
+      : await api.post(`/conversations/${threadId}/messages`, body);
+  }
+  return { id: String(res.id), mine: true, text: res.body, at: res.created_at, attachments: toAttachments(res.attachments) };
 }
 
 // Read receipts are per message, so the UI marks the newest one on open.

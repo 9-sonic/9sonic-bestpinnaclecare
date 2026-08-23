@@ -3067,6 +3067,64 @@ video.bubble__media {
   cursor: not-allowed;
 }
 
+/* Attach button — same footprint as send, quiet until tapped. */
+.chat__attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur) var(--ease);
+}
+.chat__attach:active:not(:disabled) { transform: scale(0.92); }
+.chat__attach:disabled { color: var(--color-text-faint); cursor: not-allowed; }
+
+/* Pending attachments waiting to be sent, above the composer. */
+.chat__pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) 0;
+}
+.chat__pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.chat__pending-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat__pending-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.bubble__file--pending { opacity: 0.7; text-decoration: none; }
+
 /* ------------------------------- Profile --------------------------------- */
 
 .profile__bar {
@@ -6323,6 +6381,10 @@ body:has(.drawer-backdrop) .app-content {
 .badge--completed { background: var(--pill-done-bg); color: var(--pill-done-fg); }
 .badge--later { background: var(--pill-later-bg); color: var(--pill-later-fg); }
 .badge--neutral { background: var(--color-surface-alt); color: var(--color-text-muted); }
+/* A missed visit reads red (it did not happen); a cancelled one reads muted
+   grey (the office pulled it) — never the green "done" of a completed visit. */
+.badge--missed { background: var(--danger-bg); color: var(--danger-text); }
+.badge--cancelled { background: var(--color-surface-alt); color: var(--color-text-muted); }
 
 /* --------------------------- Segmented control --------------------------- */
 
@@ -10705,6 +10767,22 @@ body:has(.drawer-backdrop) .app-content {
   background: var(--color-surface-alt);
   box-shadow: none;
   border: 1px solid var(--color-border);
+}
+
+/* Missed and cancelled are terminal too — settled like completed, but marked so
+   they don't read as a normal done visit. Missed gets a red edge (it didn't
+   happen); cancelled is muted (the office pulled it). */
+.vcard--missed {
+  background: var(--color-surface-alt);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--danger);
+}
+.vcard--cancelled {
+  background: var(--color-surface-alt);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+  opacity: 0.72;
 }
 
 .vcard__head {
