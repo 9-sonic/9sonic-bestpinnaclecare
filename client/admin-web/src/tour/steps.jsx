@@ -80,7 +80,7 @@ export const TOUR_PAGES = [
       {
         anchor: 'staffing-tabs',
         content:
-          'Staffing has two tabs. Cover is for visits with no carer — you assign or offer them. Requests is where carers ask to swap, drop, do overtime or take leave, for you to approve.',
+          'Staffing has two tabs. Cover is for visits with no carer — you assign or offer them. Requests is where carers hand a visit back for cover, for you to approve or decline.',
       },
       {
         anchor: 'cover-tabs',
@@ -101,7 +101,7 @@ export const TOUR_PAGES = [
       {
         anchor: 'requests-queue',
         content:
-          'This is where carers ask for things — to swap or drop a shift, do overtime, change availability, or take leave. Click a request to open it.',
+          'This is where carers hand a visit back for cover when they can\'t make it. Click a request to open it, then approve or decline.',
       },
       {
         anchor: 'requests-filters',

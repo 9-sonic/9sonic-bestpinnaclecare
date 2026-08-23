@@ -6,7 +6,7 @@ import RequestsPage from './RequestsPage.jsx';
 
 // Staffing — one home for the two "who's on shift" workflows that used to be
 // separate nav items: Cover (visits with no carer, which you assign or offer)
-// and Requests (carer-raised swaps, drops, overtime and leave to approve). They
+// and Requests (carer-raised drops to approve). They
 // are related — a carer dropping a shift creates an unfilled visit — so a
 // coordinator manages both here. Same tabbed pattern as Exceptions.
 //

@@ -5,7 +5,7 @@ RSpec.describe "Admin carer requests", type: :request do
   let(:auth)     { { "Authorization" => "Bearer #{jwt_for(admin, :admin)}" } }
   let(:employee) { create(:employee) }
 
-  def request_record(kind: "swap", state: "pending")
+  def request_record(kind: "drop", state: "pending")
     CarerRequest.create!(employee: employee, kind: kind, state: state, summary: "#{kind} request")
   end
 
@@ -19,10 +19,10 @@ RSpec.describe "Admin carer requests", type: :request do
   end
 
   it "filters by kind" do
-    request_record(kind: "leave")
-    request_record(kind: "swap")
-    get "/api/v1/admin/requests", params: { kind: "leave" }, headers: auth
-    expect(response.parsed_body["items"].map { |r| r["kind"] }.uniq).to eq([ "leave" ])
+    request_record(kind: "drop")
+    request_record(kind: "drop")
+    get "/api/v1/admin/requests", params: { kind: "drop" }, headers: auth
+    expect(response.parsed_body["items"].map { |r| r["kind"] }.uniq).to eq([ "drop" ])
   end
 
   it "approves a request and audits it" do
@@ -64,7 +64,7 @@ RSpec.describe "Admin carer requests", type: :request do
   it "lets a carer raise a request from the staff API" do
     emp_auth = { "Authorization" => "Bearer #{jwt_for(employee, :employee)}" }
     post "/api/v1/staff/requests",
-         params: { kind: "overtime", summary: "Available for weekend hours" }, headers: emp_auth, as: :json
+         params: { kind: "drop", summary: "Available for weekend hours" }, headers: emp_auth, as: :json
     expect(response).to have_http_status(:created)
     expect(employee.carer_requests.count).to eq(1)
   end

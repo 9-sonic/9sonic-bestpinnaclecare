@@ -296,7 +296,7 @@ module Reports
       @alerts_in_range ||= Alert.where(raised_at: @from..@to).to_a
     end
 
-    # Requests raised in the range (swap/drop/overtime/availability/leave),
+    # Requests raised in the range (drop),
     # keyed by when the carer raised them — not when they were decided, so a
     # request raised at the end of one period and decided in the next still
     # shows up in the period it was actually asked in.
@@ -330,7 +330,7 @@ module Reports
     end
 
     # Which carers are raising the most requests — useful both as "who needs
-    # support" and "who's asking to swap/drop most often."
+    # support" and "who's asking to drop most often."
     def requests_by_carer
       requests_in_range.group_by(&:employee).map { |emp, list|
         { carer: emp&.full_name || "—", total: list.size, pending: list.count { |r| r.state == "pending" } }

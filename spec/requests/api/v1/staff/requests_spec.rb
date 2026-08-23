@@ -33,11 +33,13 @@ RSpec.describe "Staff carer requests", type: :request do
     expect(response.parsed_body["error"]).to eq("assignment_not_found")
   end
 
-  it "still allows non-drop requests (e.g. leave) unaffected by the visit-state check" do
+  it "forces every carer request to be a drop — the only kind the app supports" do
     expect do
+      # Even if the client sends a different kind, it's recorded as a drop.
       post "/api/v1/staff/requests",
-           params: { kind: "leave", summary: "Annual leave" }, headers: auth, as: :json
+           params: { kind: "leave", summary: "Please cover this visit" }, headers: auth, as: :json
     end.to change(CarerRequest, :count).by(1)
     expect(response).to have_http_status(:created)
+    expect(CarerRequest.last.kind).to eq("drop")
   end
 end

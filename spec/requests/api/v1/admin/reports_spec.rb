@@ -143,7 +143,7 @@ RSpec.describe "Admin reports", type: :request do
     end
   end
 
-  describe "carer requests (swap/drop/overtime/availability/leave)" do
+  describe "carer requests (drop)" do
     let(:carer) { create(:employee) }
 
     def raise_request(kind:, created_at: 1.hour.ago, state: "pending", decided_at: nil, employee: carer)
@@ -153,9 +153,9 @@ RSpec.describe "Admin reports", type: :request do
     end
 
     it "counts requests raised in range by outcome and kind" do
-      raise_request(kind: "leave", state: "pending")
-      raise_request(kind: "swap", state: "approved", decided_at: 30.minutes.ago)
-      raise_request(kind: "swap", state: "declined", decided_at: 20.minutes.ago)
+      raise_request(kind: "drop", state: "pending")
+      raise_request(kind: "drop", state: "approved", decided_at: 30.minutes.ago)
+      raise_request(kind: "drop", state: "declined", decided_at: 20.minutes.ago)
 
       get "/api/v1/admin/reports", headers: auth
       rq = response.parsed_body["requests"]
@@ -166,20 +166,18 @@ RSpec.describe "Admin reports", type: :request do
       expect(rq["approval_rate_pct"]).to eq(50) # 1 of 2 decided
 
       by_kind = rq["by_kind"].index_by { |k| k["kind"] }
-      expect(by_kind["swap"]["count"]).to eq(2)
-      expect(by_kind["leave"]["count"]).to eq(1)
-      expect(by_kind["drop"]["count"]).to eq(0)
+      expect(by_kind["drop"]["count"]).to eq(3) # drop is the only kind carers raise
     end
 
     it "computes average turnaround from raised to decided" do
-      raise_request(kind: "overtime", created_at: 2.hours.ago, state: "approved", decided_at: 1.hour.ago)
+      raise_request(kind: "drop", created_at: 2.hours.ago, state: "approved", decided_at: 1.hour.ago)
 
       get "/api/v1/admin/reports", headers: auth
       expect(response.parsed_body["requests"]["avg_turnaround_hours"]).to eq(1.0)
     end
 
     it "excludes a request raised outside the range" do
-      raise_request(kind: "leave", created_at: 30.days.ago, state: "pending")
+      raise_request(kind: "drop", created_at: 30.days.ago, state: "pending")
 
       get "/api/v1/admin/reports", headers: auth
       expect(response.parsed_body["requests"]["total"]).to eq(0)
@@ -187,7 +185,7 @@ RSpec.describe "Admin reports", type: :request do
 
     it "surfaces which carers are raising the most requests" do
       busy = create(:employee, first_name: "Busy", last_name: "Carer")
-      raise_request(kind: "swap", employee: busy)
+      raise_request(kind: "drop", employee: busy)
       raise_request(kind: "drop", employee: busy)
 
       get "/api/v1/admin/reports", headers: auth

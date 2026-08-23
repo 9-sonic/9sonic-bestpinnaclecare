@@ -5,16 +5,11 @@ import { newUuid } from '../utils/ids.js';
 
 // Carer requests. POST /api/v1/staff/requests and GET /api/v1/staff/requests.
 //
-// KIND WARNING: the server validates `kind` against CarerRequest::KINDS, which
-// is swap / drop / overtime / availability / leave. `clock_assistance` is NOT
-// in that list, so AssistanceRequestDialog's request is refused with 422
-// validation_failed against a real API. The Playwright suite does not catch it
-// because it runs in mock mode. Either the backend adds the kind or the dialog
-// picks an existing one — raised with Ian, not worked around here, because
-// silently relabelling an urgent "I cannot clock in" as a shift `drop` would
-// tell the office something untrue.
+// KIND: `drop` is the only kind a carer raises — declining a visit for cover.
+// The server records every request as a drop regardless of what's sent, so the
+// other historic kinds (swap/overtime/availability/leave) are gone from the app.
 //
-// Declining a visit (ShiftDetailPage) uses `drop`, which is a real kind.
+// Declining a visit (ShiftDetailPage) is the drop path.
 // Clock-assistance context (visit, attempted_at, error_code, distance, lat/lng,
 // device_fingerprint) travels in the flexible `payload` jsonb, and every request
 // carries a `client_request_id` for idempotency — the PWA offline queue keys on

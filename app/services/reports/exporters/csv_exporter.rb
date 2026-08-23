@@ -94,7 +94,7 @@ module Reports
           end
           csv << []
 
-          # Carer requests (swap/drop/overtime/availability/leave)
+          # Carer requests (drop)
           csv << %w[metric value]
           rq = data[:requests] || {}
           csv << [ "total", rq[:total] ]
