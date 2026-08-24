@@ -36,7 +36,7 @@
   # artwork changes it never updates (purging the CDN doesn't touch the device
   # cache). Serve these with a short, revalidating cache so a new icon propagates
   # on the next visit. Listed after the immutable block so it wins for these paths.
-  <FilesMatch "^(icon.*|maskable-.*|apple-touch-icon|favicon|logo)\.(png|svg|ico)$">
+  <FilesMatch "^(icon.*|maskable-.*|apple-touch-icon.*|android-chrome-.*|favicon.*|mstile-.*|logo)\.(png|svg|ico)$">
     Header set Cache-Control "public, max-age=3600, must-revalidate"
   </FilesMatch>
   # Never HTTP-cache the shell or the worker — these must always revalidate so a
