@@ -30,6 +30,15 @@
   <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp|ico|wav)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
+  # The PWA icons live in public/ with STABLE names (icon-192.png, apple-touch-
+  # icon.png, maskable-512.png, favicon.svg…) — not content-hashed. The immutable
+  # rule above would pin an old icon on every device for a year, so when the icon
+  # artwork changes it never updates (purging the CDN doesn't touch the device
+  # cache). Serve these with a short, revalidating cache so a new icon propagates
+  # on the next visit. Listed after the immutable block so it wins for these paths.
+  <FilesMatch "^(icon.*|maskable-.*|apple-touch-icon|favicon|logo)\.(png|svg|ico)$">
+    Header set Cache-Control "public, max-age=3600, must-revalidate"
+  </FilesMatch>
   # Never HTTP-cache the shell or the worker — these must always revalidate so a
   # deploy is seen. This block is last, so it overrides the asset rule for sw.js.
   <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
