@@ -63,20 +63,27 @@ export default defineConfig({
         // 2667x1611 landscape logo while claiming to be 512x512.
         //
         // Regenerate with scripts/make-icons.mjs after changing the logo.
+        //
+        // ICON_REV: bump this whenever the icon ARTWORK changes. The filenames
+        // stay the same, so Android's Chrome sees identical manifest icon URLs
+        // and will NOT regenerate the installed WebAPK icon — the old icon
+        // survives reinstalls and cache purges. Appending ?v=<rev> changes the
+        // URLs, which forces Chrome to re-fetch and rebuild the icon. (The query
+        // is ignored by the file server; it still serves the same PNG.)
         icons: [
-          { src: '/pwa-icons/icon-48.png', sizes: '48x48', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-72.png', sizes: '72x72', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-96.png', sizes: '96x96', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-256.png', sizes: '256x256', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-48.png?v=2', sizes: '48x48', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-72.png?v=2', sizes: '72x72', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-96.png?v=2', sizes: '96x96', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-128.png?v=2', sizes: '128x128', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-144.png?v=2', sizes: '144x144', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-192.png?v=2', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-256.png?v=2', sizes: '256x256', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-384.png?v=2', sizes: '384x384', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icons/icon-512.png?v=2', sizes: '512x512', type: 'image/png', purpose: 'any' },
           // Separate artwork with the logo pulled well inside the safe zone,
           // because Android crops maskable icons to a circle or a squircle.
-          { src: '/pwa-icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/pwa-icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-icons/maskable-192.png?v=2', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-icons/maskable-512.png?v=2', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         // Long-press the installed icon to jump straight to a task.
         shortcuts: [
