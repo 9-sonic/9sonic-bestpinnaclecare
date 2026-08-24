@@ -37,7 +37,7 @@
   # Stable-named icons/logos (not content-hashed) must not be pinned immutably, or
   # a changed favicon/logo never updates on a device for a year. Short revalidating
   # cache instead. Listed after the immutable block so it wins for these paths.
-  <FilesMatch "^(icon.*|maskable-.*|apple-touch-icon|favicon|logo)\.(png|svg|ico)$">
+  <FilesMatch "^(icon.*|maskable-.*|apple-touch-icon.*|android-chrome-.*|favicon.*|mstile-.*|logo)\.(png|svg|ico)$">
     Header set Cache-Control "public, max-age=3600, must-revalidate"
   </FilesMatch>
   # Never trust a cached shell or worker — always revalidate. Last, so it
