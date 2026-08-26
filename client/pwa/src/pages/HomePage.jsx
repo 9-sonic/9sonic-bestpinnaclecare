@@ -280,6 +280,7 @@ export default function HomePage() {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    year: 'numeric',
   });
 
   // Worked vs scheduled hours this week, shown as a ring under the metrics.
