@@ -8,6 +8,7 @@ import Badge from '../components/common/Badge.jsx';
 import Button from '../components/common/Button.jsx';
 import Spinner from '../components/common/Spinner.jsx';
 import Modal from '../components/common/Modal.jsx';
+import EmptyState from '../components/common/EmptyState.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { getShift, saveVisitNote } from '../api/shifts.js';
 import { createRequest } from '../api/requests.js';
@@ -40,6 +41,7 @@ export default function ShiftDetailPage() {
   const toast = useToast();
   const online = useOnline();
   const [shift, setShift] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [note, setNote] = useState('');
   const [tasks, setTasks] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -50,12 +52,25 @@ export default function ShiftDetailPage() {
 
   useEffect(() => {
     let active = true;
-    getShift(shiftId).then((s) => {
-      if (!active) return;
-      setShift(s);
-      setTasks(s.tasks ?? []);
-      setNote(s.visitNote ?? '');
-    });
+    setShift(null);
+    setLoadFailed(false);
+    getShift(shiftId)
+      .then((s) => {
+        if (!active) return;
+        // getShift falls back to a not-found visit resolving to null rather
+        // than rejecting (see api/shifts.js), so a missing shift has to be
+        // checked here too, not just caught below.
+        if (!s) {
+          setLoadFailed(true);
+          return;
+        }
+        setShift(s);
+        setTasks(s.tasks ?? []);
+        setNote(s.visitNote ?? '');
+      })
+      .catch(() => {
+        if (active) setLoadFailed(true);
+      });
     return () => {
       active = false;
     };
@@ -143,6 +158,21 @@ export default function ShiftDetailPage() {
     } finally {
       setSubmittingCover(false);
     }
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="page--flush">
+        <ScreenHeader title="Visit details" back onBack={() => navigate(-1)} />
+        <EmptyState
+          icon="calendar"
+          title="Visit not found"
+          text="This visit may have been removed, or the link is out of date."
+          action="Back to shifts"
+          onAction={() => navigate('/shifts')}
+        />
+      </div>
+    );
   }
 
   if (!shift) return <Spinner fullscreen />;
