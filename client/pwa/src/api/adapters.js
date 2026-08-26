@@ -289,6 +289,7 @@ export function toMessage(m, { viewerType, viewerId, participants, nameFor } = {
       contentType: a.content_type,
       byteSize: a.byte_size,
       url: a.url,
+      thumbnailUrl: a.thumbnail_url ?? null,
     })),
     at: m.created_at,
     // Who said it, for the label above the bubble. It only gets drawn on

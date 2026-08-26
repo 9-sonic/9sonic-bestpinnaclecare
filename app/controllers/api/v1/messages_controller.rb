@@ -6,7 +6,7 @@ module Api
         # Deleted messages stay in the thread as a tombstone ("message deleted")
         # rather than vanishing — the serializer hides the old body. This keeps
         # the conversation honest about what happened (audit over silent erase).
-        scope = conversation.messages.includes(:message_receipts, :reply_to).order(created_at: :desc)
+        scope = conversation.messages.includes(:message_receipts, :reply_to).with_attached_files.order(created_at: :desc)
         scope = scope.where("created_at < ?", Time.zone.parse(params[:before])) if params[:before].present?
         render json: scope.limit(50).map { |m| MessageSerializer.call(m) }
       end

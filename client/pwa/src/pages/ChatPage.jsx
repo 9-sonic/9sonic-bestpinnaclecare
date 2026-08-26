@@ -36,7 +36,7 @@ function ChatAttachment({ a }) {
   if (isImage(a.contentType)) {
     return (
       <a className="bubble__media" href={a.url} target="_blank" rel="noreferrer">
-        <img src={a.url} alt={a.filename} loading="lazy" />
+        <img src={a.thumbnailUrl || a.url} alt={a.filename} loading="lazy" />
       </a>
     );
   }

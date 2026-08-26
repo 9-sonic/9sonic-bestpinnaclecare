@@ -11,6 +11,17 @@ class Message < ApplicationRecord
   has_many   :message_receipts, dependent: :destroy
   has_many_attached :files
 
+  # Pre-defined image variants so the chat never serves raw multi-megabyte
+  # originals. The serializer picks the right one:
+  #   • thumb   — 200×200  for the message bubble inline preview
+  #   • display — 800×800  for a click-to-expand lightbox view
+  # Non-image files (docs, audio, video) ignore these; the variant is only
+  # generated on first request and then cached by Active Storage.
+  IMAGE_VARIANTS = {
+    thumb:   { resize_to_limit: [ 200, 200 ], saver: { quality: 80 } },
+    display: { resize_to_limit: [ 800, 800 ], saver: { quality: 85 } }
+  }.freeze
+
   # Cap each attachment at 25 MB. Enforced on the model so it holds however the
   # file arrives (any client, the API directly) — the composer also checks before
   # upload for a friendlier message, but this is the real gate. Any file type is

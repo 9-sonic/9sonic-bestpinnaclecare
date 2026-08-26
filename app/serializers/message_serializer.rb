@@ -17,7 +17,7 @@ class MessageSerializer
       read_count:        receipts.count { |r| r.read_at.present? },
       pinned_at:         deleted ? nil : m.pinned_at&.iso8601,
       visit:             deleted ? nil : visit_ref(m.visit),
-      attachments:       deleted ? [] : m.files.map { |f| { id: f.id, filename: f.filename.to_s, content_type: f.content_type, byte_size: f.byte_size, url: AttachmentUrl.for(f) } },
+      attachments:       deleted ? [] : m.files.map { |f| serialize_attachment(f) },
       created_at:        m.created_at&.iso8601,
       edited_at:         m.edited_at&.iso8601,
       deleted_at:        m.deleted_at&.iso8601,
@@ -50,5 +50,40 @@ class MessageSerializer
       scheduled_start: visit.scheduled_start&.iso8601,
       scheduled_end:   visit.scheduled_end&.iso8601
     }
+  end
+
+  # Serialize one Active Storage attachment. Images get resized variant URLs so
+  # the chat bubble loads a ~50 KB thumbnail instead of a 5 MB raw original:
+  #   • thumbnail_url — 200px, shown inline in the bubble
+  #   • url           — 800px display variant for click-to-expand
+  # Non-image files (docs, audio, video) skip variants and serve the original.
+  def self.serialize_attachment(f)
+    base = {
+      id:           f.id,
+      filename:     f.filename.to_s,
+      content_type: f.content_type,
+      byte_size:    f.byte_size
+    }
+
+    if f.content_type&.start_with?("image/") && f.variable?
+      base[:thumbnail_url] = variant_url(f, Message::IMAGE_VARIANTS[:thumb])
+      base[:url]           = variant_url(f, Message::IMAGE_VARIANTS[:display])
+    else
+      base[:url] = AttachmentUrl.for(f)
+    end
+
+    base
+  end
+
+  # Build an absolute URL for a variant, using the same host logic as
+  # AttachmentUrl so the frontend (on a different origin) can reach it.
+  def self.variant_url(file, transformations)
+    uri = URI.parse(ENV.fetch("APP_URL", "http://localhost:3002"))
+    Rails.application.routes.url_helpers.rails_representation_url(
+      file.variant(transformations),
+      host: uri.host, port: uri.port, protocol: uri.scheme
+    )
+  rescue StandardError
+    AttachmentUrl.for(file)
   end
 end

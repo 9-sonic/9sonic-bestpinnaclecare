@@ -34,6 +34,17 @@ gem "geocoder"
 gem "csv"
 gem "caxlsx"
 
+# Care-notes exports — pure-Ruby so they install with a plain `bundle` on the
+# Virtualmin box and in CI, no system binaries (prawn = PDF). The .docx is
+# written directly as an OOXML zip via the rubyzip already in the tree — every
+# maintained Word gem pins rubyzip ~> 1.x and would drag caxlsx/rubyzip
+# backwards, so we don't add one. See Notes::Exporters::DocxExporter.
+gem "prawn"
+gem "prawn-table"
+# prawn's transformation stack needs the `matrix` stdlib, which is a bundled gem
+# that must be declared explicitly on Ruby 4.0 (same reason `csv` is above).
+gem "matrix"
+
 # Request throttling / rate limiting
 gem "rack-attack"
 

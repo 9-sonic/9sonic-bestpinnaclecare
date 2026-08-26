@@ -137,12 +137,16 @@ Rails.application.routes.draw do
           end
         end
 
+        # Office-wide visit-note journal — filter by carer AND client together.
+        get "notes",                 to: "notes#index"
+
         # Exports
         get "report_exports",        to: "report_exports#show"
         get "audit_exports",         to: "audit_exports#show"
         get "attendance_audit_exports", to: "attendance_audit_exports#show" # CQC visit-attendance CSV/XLSX
         get "attendance_audit_exports/rows", to: "attendance_audit_exports#rows" # same rows as JSON, for the on-screen table
         get "rota_exports",          to: "rota_exports#show"
+        get "notes_exports",         to: "notes_exports#show" # filtered care notes as PDF / DOCX
       end
 
       # Carer PWA (Employee)

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import RequireAdmin from './routes/RequireAdmin.jsx';
 import AdminLayout from './components/layout/AdminLayout.jsx';
 import Spinner from './components/common/Spinner.jsx';
@@ -15,6 +15,7 @@ const ClientDetailPage = lazy(() => import('./pages/ClientDetailPage.jsx'));
 const VisitDetailPage = lazy(() => import('./pages/VisitDetailPage.jsx'));
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage.jsx'));
 const TimesheetsPage = lazy(() => import('./pages/TimesheetsPage.jsx'));
+const NotesPage = lazy(() => import('./pages/NotesPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const LifecyclePage = lazy(() => import('./pages/LifecyclePage.jsx'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage.jsx'));
@@ -24,6 +25,14 @@ const ReportsHub = lazy(() => import('./pages/ReportsHub.jsx'));
 const GuidePage = lazy(() => import('./pages/GuidePage.jsx'));
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
+
+// Redirect the old /service-users/:id path to the current /clients/:id, carrying
+// the real id through (a plain <Navigate to="/clients/:id"> would take the param
+// literally).
+function RedirectToClient() {
+  const { id } = useParams();
+  return <Navigate to={`/clients/${id}`} replace />;
+}
 
 export default function App() {
   return (
@@ -51,8 +60,12 @@ export default function App() {
           <Route path="/clients/:id" element={<ClientDetailPage />} />
           <Route path="/visits/:id" element={<VisitDetailPage />} />
           <Route path="/service-users" element={<ServiceUsersPage />} />
+          {/* Old client path kept as a redirect so a /service-users/:id bookmark or
+              deep-link lands on the client detail instead of falling through to Home. */}
+          <Route path="/service-users/:id" element={<RedirectToClient />} />
           <Route path="/exceptions" element={<ExceptionsPage />} />
           <Route path="/attendance" element={<TimesheetsPage />} />
+          <Route path="/notes" element={<NotesPage />} />
           {/* Old path kept as a redirect so bookmarks/links don't break. */}
           <Route path="/timesheets" element={<Navigate to="/attendance" replace />} />
           <Route path="/settings" element={<SettingsPage />} />

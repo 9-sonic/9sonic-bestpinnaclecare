@@ -520,7 +520,7 @@ export default function MessagesPage() {
                             )}
                             {(m.attachments ?? []).map((a) => {
                               if (isImage(a.content_type)) return (
-                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.url} alt={a.filename} style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
+                                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={s('display:block;margin-top:7px')}><img src={a.thumbnail_url || a.url} alt={a.filename} loading="lazy" style={s('max-width:220px;max-height:200px;border-radius:10px;display:block')} /></a>
                               );
                               if (isVideo(a.content_type)) return (
                                 <video key={a.id} src={a.url} controls preload="metadata" style={s('margin-top:7px;max-width:260px;max-height:220px;border-radius:10px;display:block;background:#000')} />
