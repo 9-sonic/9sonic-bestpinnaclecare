@@ -119,16 +119,6 @@ jobs:
              cd ${{ env.API_DIR }}
              set -a; . ${{ env.API_DIR }}/.env; set +a
              export RAILS_ENV=production
-             # Active Storage resizes chat-image thumbnails through libvips (the
-             # Rails 8 default processor via the image_processing gem). Without
-             # the system library, ruby-vips can't load and every image variant
-             # 500s. Install it here so the server always has it; apt no-ops fast
-             # when it's already present. set -e aborts the deploy if this fails,
-             # so we never ship a box that crashes on images.
-             if ! ldconfig -p | grep -q 'libvips\.so\.42'; then
-               sudo apt-get update
-               sudo apt-get install -y --no-install-recommends libvips42
-             fi
              bundle config set --local deployment true
              bundle config set --local without 'development test'
              bundle install
