@@ -123,7 +123,7 @@ jobs:
              bundle config set --local without 'development test'
              bundle install
              bin/rails db:migrate
-             SEED_CARER_PASSWORD='${{ vars.SEED_CARER_PASSWORD || 'Password123!' }}' bin/rails carer:bootstrap
+             FORCE_SEED=1 bin/rails db:seed
              sudo install -m 0644 ${{ env.API_DIR }}/deploy/systemd/${{ env.BACKEND_SERVICE }}.service /etc/systemd/system/${{ env.BACKEND_SERVICE }}.service
              sudo systemctl daemon-reload
              sudo systemctl enable ${{ env.BACKEND_SERVICE }}
