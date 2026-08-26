@@ -101,7 +101,7 @@ function ConfirmDialog({ dialog, onClose }) {
 }
 
 /* ---------- one visit block inside a grid cell ---------- */
-function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
+function VisitBlock({ v, view, selected, onOpen, onMenu }) {
   const short = isShort(v);
   const cancelled = v.status === 'cancelled';
   const c = chipFor(v);
@@ -115,9 +115,12 @@ function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
   const bg = cancelled ? 'var(--d-panel)' : short ? 'var(--d-unfilled-bg)' : c.bg;
   const ink = cancelled ? 'var(--d-faint)' : short ? 'var(--d-unfilled-ink)' : c.ink;
   const border = '1px solid transparent';
+  // Open the action menu anchored to the circle itself (not the mouse) so it
+  // works the same for touch and mouse — there is no right-click on the rota.
+  const openMenu = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); onMenu({ x: r.right, y: r.bottom, visit: v }); };
   return (
     <div style={s('position:relative')}>
-      <div data-visit-block onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onContext?.(e); }} draggable className="pressable"
+      <div data-visit-block onClick={onOpen} draggable className="pressable"
         style={{
           ...s('border-radius:9px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:1px'),
           background: bg, color: ink, border, opacity: cancelled ? 0.7 : 1,
@@ -126,14 +129,16 @@ function VisitBlock({ v, view, selected, onToggle, onOpen, onContext }) {
         <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}{cancelled ? ' · cancelled' : ''}</span>
         <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</span>
       </div>
-      {/* Selection dot — click to select a visit for a bulk action. Kept clearly
-          visible (not a faint ghost) with a checkmark when selected. */}
-      <div onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="Select visit" title="Select for bulk action" className="rota-seldot"
+      {/* Action circle — the single control for this visit. Click it to open the
+          menu (edit, assign, cancel, select for bulk action…). It also shows a
+          check when the visit is selected for a bulk action. Replaces the old
+          right-click menu, which nothing on touch could reach. */}
+      <div onClick={openMenu} aria-label="Visit actions" title="Visit actions" className="rota-seldot"
         style={{
           ...s('position:absolute;top:-6px;right:-6px;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--d-border);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.15);transition:transform .1s ease,background .12s ease'),
           background: selected ? 'var(--d-primary)' : 'var(--d-card)', color: selected ? '#fff' : 'var(--d-muted)',
         }}>
-        {selected && <Icon name="check" size={11} />}
+        {selected ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
       </div>
     </div>
   );
@@ -261,18 +266,27 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
 }
 
 /* ---------- create-visit drawer (real fields only) ---------- */
-function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose, onCreated }) {
+function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, weekMonday, onClose, onCreated }) {
   const toast = useToast();
+  // The modal takes its shape from the tab you're on. On the carer grouping it's
+  // carer-first: pick the carer, then the client to visit, and it creates + assigns
+  // in one go. On the client grouping it's client-first and leaves the visit
+  // unfilled (draft) for a carer to be assigned later.
+  const byCarer = view === 'carer';
+  const activeCarers = (employees ?? []).filter((e) => e.active);
   const [clientId, setClientId] = useState(preset?.clientId ?? serviceUsers[0]?.id ?? '');
+  const [carerId, setCarerId] = useState(preset?.carerId ?? '');
   const [day, setDay] = useState(preset?.day ?? 0);
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('10:00');
   const [busy, setBusy] = useState(false);
   if (!preset) return null;
   const client = serviceUsers.find((c) => c.id === Number(clientId));
+  const carer = activeCarers.find((e) => e.id === Number(carerId));
 
   async function save() {
     if (!clientId) { toast.error('Pick a client'); return; }
+    if (byCarer && !carerId) { toast.error('Pick a carer'); return; }
     const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
     const mkDate = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
     const startDate = mkDate(start);
@@ -281,8 +295,20 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
     const mk = (t) => mkDate(t).toISOString();
     setBusy(true);
     try {
-      await createVisit({ service_user_id: Number(clientId), scheduled_start: mk(start), scheduled_end: mk(end) });
-      toast.success(`Visit created for ${fullName(client)}`);
+      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: mk(start), scheduled_end: mk(end) });
+      // Carer grouping: assign the chosen carer straight away so the block lands
+      // in their row, not the Unassigned one. Creation succeeded either way — if
+      // the assign fails, keep the draft and say what happened.
+      if (byCarer && carer) {
+        try {
+          await assignEmployee({ visitId: created.id, employeeId: carer.id });
+          toast.success(`Visit created for ${fullName(client)} — ${fullName(carer)} assigned`);
+        } catch (assignErr) {
+          toast.error(`Visit created, but ${fullName(carer)} couldn't be assigned: ${assignErr.message || 'try from the visit'}`);
+        }
+      } else {
+        toast.success(`Visit created for ${fullName(client)}`);
+      }
       onCreated(); onClose();
     } catch (err) {
       const msg = err.message === 'client_overlap' ? `${fullName(client)} already has a visit at that time — one client, one visit at a time.`
@@ -298,9 +324,19 @@ function CreateVisitDrawer({ preset, serviceUsers, settings, weekMonday, onClose
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   return (
-    <Modal title="New visit" subtitle="Add a one-off visit to the rota. It starts as a draft until you publish." onClose={onClose}
+    <Modal title={byCarer ? 'New visit for a carer' : 'New visit'}
+      subtitle={byCarer ? 'Pick the carer and the client to visit — it goes straight onto their rota as a draft.' : 'Add a one-off visit to the rota. It starts as a draft until you publish.'} onClose={onClose}
       footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><span data-tour="rota-create-cancel"><Button variant="ghost" onClick={onClose}>Cancel</Button></span><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
       <div data-tour="rota-create-fields" style={s('padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
+        {/* Carer grouping puts the carer first — that's the row you're adding to. */}
+        {byCarer && (
+          <div style={field}><span style={label}>Carer</span>
+            <select value={carerId} onChange={(e) => setCarerId(e.target.value)} style={control}>
+              <option value="">Select a carer…</option>
+              {activeCarers.map((e) => <option key={e.id} value={e.id}>{fullName(e)}</option>)}
+            </select>
+          </div>
+        )}
         <div style={field}><span style={label}>Client</span>
           <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={control}>
             {serviceUsers.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
@@ -543,8 +579,9 @@ export default function RotaPage() {
 
   const openBlock = (v) => (isShort(v) ? setAssigning(v) : setDetail(v));
 
-  // Right-click quick actions. Left-click still opens the drawer; these are the
-  // fast one-tap actions (reassign / cancel / delete / remove carer) without it.
+  // Visit action menu, opened from the block's action circle. Left-click the
+  // block still opens the drawer; the circle opens these fast actions (assign /
+  // reassign / cancel / delete / remove carer / select for bulk).
   const [menu, setMenu] = useState(null); // { x, y, visit }
   const [confirm, setConfirm] = useState(null); // ConfirmDialog config
 
@@ -577,19 +614,23 @@ export default function RotaPage() {
     catch (e) { toast.error(e.message || 'Could not remove the carer'); }
   }
 
-  // Menu items for a visit, gated by editability. A past/started/cancelled visit
-  // only offers "View details" — its record is read-only.
+  // Menu items for a visit, opened from the block's action circle (there is no
+  // right-click on the rota — this is the single control). A past/started/
+  // cancelled visit only offers "View details" — its record is read-only.
   function menuItems(v) {
     const a = v.assignments?.[0];
+    const isSel = selected.includes(v.id);
     const view = { label: 'View details', icon: 'note', onClick: () => (isShort(v) ? setAssigning(v) : setDetail(v)) };
-    if (!canManage || !isEditable(v)) return [view];
+    // Select for bulk action lives here now that the circle is the menu trigger.
+    const select = { label: isSel ? 'Deselect' : 'Select for bulk action', icon: 'check', onClick: () => toggleSel(v.id) };
+    if (!canManage || !isEditable(v)) return [view, null, select];
     const items = [view, null];
     if (a) items.push({ label: 'Reassign carer', icon: 'user', onClick: () => setReassigning({ visit: v, assignmentId: a.id }) });
     else items.push({ label: 'Assign carer', icon: 'user', onClick: () => setAssigning(v) });
     if (a) items.push({ label: 'Remove carer', icon: 'close', onClick: () => quickWithdraw(v) });
     // Cover — send an unfilled visit to the cover board for carers to claim.
     if (isShort(v)) items.push({ label: 'Find cover', icon: 'refresh', onClick: () => navigate('/cover') });
-    items.push(null);
+    items.push(null, select, null);
     items.push({ label: 'Cancel visit', icon: 'close', danger: true, onClick: () => quickCancel(v) });
     items.push({ label: 'Delete visit', icon: 'close', danger: true, onClick: () => quickDelete(v) });
     return items;
@@ -658,7 +699,7 @@ export default function RotaPage() {
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
           <ExportButton label="Export rota" title="Export rota" subtitle="Choose a file format. The week on screen is exported."
             onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />
-          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint text="Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can't be double-booked at the same time." /></span>
+          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint text={view === 'carer' ? 'Add a one-off visit for a carer: choose the carer, the client to visit, the day and the time, then Create. It goes onto their rota as a draft until you publish.' : 'Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can\'t be double-booked at the same time.'} /></span>
         </div>
       )}
 
@@ -701,9 +742,9 @@ export default function RotaPage() {
 
       {loading ? <Spinner /> : layout === 'list' ? (
         /* List — every visit in the week, one row each, earliest first. Same
-           click/right-click/select behaviour as a grid block, just as a table
-           row: left-click opens the drawer, right-click the quick-action menu,
-           the checkbox feeds the same bulk bar. */
+           behaviour as a grid block, just as a table row: click the row to open
+           the drawer, click the action circle for the menu (which also holds
+           "select for bulk action", feeding the same bulk bar). */
         <div data-tour="rota-list" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden;padding:12px 14px')}>
           {listRows.length === 0 ? (
             <div style={s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)')}>No visits this week.</div>
@@ -718,19 +759,22 @@ export default function RotaPage() {
                   return (
                     <Row key={v.id} onClick={() => openBlock(v)} selected={selected.includes(v.id)}>
                       <Td>
-                        <span onClick={(e) => { e.stopPropagation(); toggleSel(v.id); }} aria-label="Select visit"
-                          style={{ ...s('display:inline-block;width:15px;height:15px;border-radius:50%;border:1px solid var(--d-border);cursor:pointer'), background: selected.includes(v.id) ? 'var(--d-primary)' : 'transparent' }} />
+                        {/* Action circle — same control as the grid block: click to
+                            open the menu (edit, assign, select for bulk, cancel…). */}
+                        <span onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.right, y: r.bottom, visit: v }); }}
+                          aria-label="Visit actions" title="Visit actions"
+                          style={{ ...s('display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;border:1px solid var(--d-border);cursor:pointer'), background: selected.includes(v.id) ? 'var(--d-primary)' : 'transparent', color: selected.includes(v.id) ? '#fff' : 'var(--d-muted)' }}>
+                          {selected.includes(v.id) ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
+                        </span>
                       </Td>
                       <Td mono>{new Date(v.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</Td>
                       <Td mono>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</Td>
                       <Td><span style={{ ...s('font-weight:700;color:var(--d-ink)'), textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>{fullName(v.service_user)}</span></Td>
                       <Td>{carer ? fullName(carer) : <span style={s('color:var(--d-faint)')}>Unassigned</span>}</Td>
                       <Td align="right">
-                        <span onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, visit: v }); }}>
-                          {cancelled ? <Tag tone="muted">Cancelled</Tag>
-                            : short ? <Tag tone="warning">Unfilled</Tag>
-                              : <Tag tone={L2TAG[LIFECYCLE_TONE[stateOf(v)]] ?? 'muted'}>{LIFECYCLE_LABELS[stateOf(v)]}</Tag>}
-                        </span>
+                        {cancelled ? <Tag tone="muted">Cancelled</Tag>
+                          : short ? <Tag tone="warning">Unfilled</Tag>
+                            : <Tag tone={L2TAG[LIFECYCLE_TONE[stateOf(v)]] ?? 'muted'}>{LIFECYCLE_LABELS[stateOf(v)]}</Tag>}
                       </Td>
                     </Row>
                   );
@@ -772,9 +816,15 @@ export default function RotaPage() {
                     const cell = row.cell(d.date);
                     return (
                       <div key={d.num} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column;gap:5px')}>
-                        {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onToggle={() => toggleSel(v.id)} onOpen={() => openBlock(v)} onContext={(e) => setMenu({ x: e.clientX, y: e.clientY, visit: v })} />)}
-                        {canManage && view === 'client' && (
-                          <button type="button" aria-label="Add visit" onClick={() => setCreating({ day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
+                        {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onOpen={() => openBlock(v)} onMenu={setMenu} />)}
+                        {/* Per-row quick-add. On the client grouping it prefills the
+                            client for this row; on the carer grouping it prefills the
+                            carer (skip the "Unassigned" pseudo-row, which has no id). */}
+                        {canManage && (view === 'client' || (view === 'carer' && row.id.startsWith('e'))) && (
+                          <button type="button" aria-label="Add visit"
+                            onClick={() => setCreating(view === 'carer'
+                              ? { day: weekDays.indexOf(d), carerId: Number(row.id.slice(1)) }
+                              : { day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
                             className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
                         )}
                       </div>
@@ -801,7 +851,7 @@ export default function RotaPage() {
 
       {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
       {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
-      {creating && <CreateVisitDrawer preset={creating} serviceUsers={serviceUsers} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
+      {creating && <CreateVisitDrawer preset={creating} view={view} serviceUsers={serviceUsers} employees={employees} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
       {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} />}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.visit)} onClose={() => setMenu(null)} />}

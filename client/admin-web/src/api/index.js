@@ -308,6 +308,40 @@ export async function exportRota(from, to, type = 'csv') {
   URL.revokeObjectURL(url);
 }
 
+/* -------------------------------- Notes ----------------------------------- */
+
+// The office-wide visit-note journal, filterable by carer AND client together
+// (plus date range + free text), newest first. Returns the shared paginated
+// { items, page, per_page, total } shape.
+export const listNotes = ({ employeeId, serviceUserId, from, to, q, page = 1, perPage = 50 } = {}) =>
+  api.get('/admin/notes', {
+    employee_id: employeeId || undefined, service_user_id: serviceUserId || undefined,
+    from: from || undefined, to: to || undefined, q: q || undefined,
+    page, per_page: perPage,
+  });
+
+// Streams the filtered notes as a PDF or Word .docx and triggers a download.
+// Same filters as listNotes — the export is exactly the filtered set on screen.
+export async function exportNotes({ employeeId, serviceUserId, from, to, q } = {}, format = 'pdf') {
+  const params = { format };
+  if (employeeId) params.employee_id = employeeId;
+  if (serviceUserId) params.service_user_id = serviceUserId;
+  if (from) params.from = from;
+  if (to) params.to = to;
+  if (q) params.q = q;
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${env.apiBaseUrl}/admin/notes_exports?${qs}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error('Could not generate the notes export');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `care-notes.${format === 'docx' ? 'docx' : 'pdf'}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /* ------------------------------- Settings --------------------------------- */
 
 export const getSettings = () => api.get('/admin/settings');
