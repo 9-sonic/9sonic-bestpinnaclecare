@@ -3,7 +3,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listAttendanceAudit, exportAttendanceAudit, listServiceUsers, listEmployees, correctClock } from '../api/index.js';
-import { fullName, formatDate, formatTime } from '../api/format.js';
+import { fullName, formatDate, formatTime, ukTime } from '../api/format.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
@@ -39,7 +39,11 @@ function AmendModal({ row, onClose, onDone }) {
   const reconciling = !row.clocked_in;
 
   // HH:MM -> ISO anchored to the visit's scheduled day (shift_began from the row).
-  const mk = (t) => { const base = new Date(row.shift_began ?? Date.now()); const [h, m] = t.split(':').map(Number); base.setHours(h, m, 0, 0); return base.toISOString(); };
+  // Corrected clock time = UK wall-clock on the shift's UK calendar day.
+  const mk = (t) => {
+    const [y, mo, d] = new Date(row.shift_began ?? Date.now()).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
+    return ukTime(new Date(y, mo - 1, d), t).toISOString();
+  };
 
   async function save() {
     if (!reason.trim()) { toast.error('A reason is required — it goes in the audit trail'); return; }

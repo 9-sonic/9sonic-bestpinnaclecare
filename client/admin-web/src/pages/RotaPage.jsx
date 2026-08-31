@@ -14,7 +14,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
+  LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, formatDateFull, fullName, weekOf, isoDate, ukTime,
 } from '../api/format.js';
 import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
 
@@ -210,7 +210,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
       onAssigned(); onClose();
     } catch (err) {
       const c = err.data?.conflict;
-      const when = c ? `${new Date(c.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
+      const when = c ? `${formatDateFull(c.scheduled_start, { weekday: 'short', year: undefined })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
       if (err.message === 'carer_unavailable') {
         setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
       } else if (err.message === 'client_unavailable') {
@@ -223,7 +223,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
 
   return (
     <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
-      subtitle={`${new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
+      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
         {error && (
@@ -299,15 +299,21 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
   // clock wraps) is the NEXT calendar day — 22:00 -> 02:00 is a 4h overnight
   // visit, not a negative one. The end date rolls forward a day automatically.
   const resolveWindow = () => {
+    // The picked time is UK wall-clock time — care happens in the UK, so "09:00"
+    // means 09:00 in London no matter where the admin is (e.g. Kenya). ukTime
+    // interprets the picked time as Europe/London and returns the correct UTC
+    // instant. Overnight: end at/before start -> next day.
     const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
-    const mkDate = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
-    const startDate = mkDate(start);
-    const endDate = mkDate(end);
-    if (endDate.getTime() <= startDate.getTime()) endDate.setDate(endDate.getDate() + 1);
-    return { startDate, endDate, overnight: endDate.getDate() !== startDate.getDate() };
+    const startDate = ukTime(base, start);
+    let endDate = ukTime(base, end);
+    if (endDate.getTime() <= startDate.getTime()) endDate = ukTime(base, end, 1);
+    const overnight = end <= start;
+    return { startDate, endDate, overnight };
   };
   const { startDate: previewStart, endDate: previewEnd, overnight } = resolveWindow();
-  const fmtDateTime = (d) => d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  // Show the preview in UK time (with a UK/GMT/BST hint) so what the admin sees
+  // matches what's saved — not their own local zone.
+  const fmtDateTime = (d) => d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London', timeZoneName: 'short' });
   const durationMin = Math.round((previewEnd - previewStart) / 60000);
   const durationLabel = `${Math.floor(durationMin / 60)}h${durationMin % 60 ? ` ${durationMin % 60}m` : ''}`;
 
@@ -457,8 +463,12 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
   async function save() {
     if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
-    const base = new Date(visit.scheduled_start);
-    const mk = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d.toISOString(); };
+    // Keep the visit's original UK calendar day, and set the picked times as UK
+    // wall-clock (not the admin's local zone). The day parts come from the visit's
+    // UK date so a Kenya admin editing near midnight doesn't shift the day.
+    const ukParts = new Date(visit.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
+    const base = new Date(ukParts[0], ukParts[1] - 1, ukParts[2]);
+    const mk = (t) => ukTime(base, t).toISOString();
     setBusy(true);
     try {
       await editVisit(visit.id, { scheduled_start: mk(start), scheduled_end: mk(end), reason: reason.trim() });
@@ -476,7 +486,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   const editable = isEditable(visit);
 
   return (
-    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
+    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} onClose={onClose}
       footer={editable ? (
         <div style={s('display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap')}>
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
@@ -805,7 +815,7 @@ export default function RotaPage() {
                           {selected.includes(v.id) ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
                         </span>
                       </Td>
-                      <Td mono>{new Date(v.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</Td>
+                      <Td mono>{formatDateFull(v.scheduled_start, { weekday: 'short', year: undefined })}</Td>
                       <Td mono>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</Td>
                       <Td><span style={{ ...s('font-weight:700;color:var(--d-ink)'), textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>{fullName(v.service_user)}</span></Td>
                       <Td>{carer ? fullName(carer) : <span style={s('color:var(--d-faint)')}>Unassigned</span>}</Td>

@@ -45,7 +45,7 @@ const EMPTY = {
 };
 const fmtNoteDate = (iso) => {
   if (!iso) return '';
-  try { return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }); }
   catch { return iso; }
 };
 
@@ -313,7 +313,7 @@ function ClientVisitsTab({ clientId, onOpen }) {
                 {rows.map((v) => {
                   const c0 = v.carers?.[0];
                   const st = v.status === 'cancelled' ? 'cancelled' : (c0?.lifecycle_state ?? 'scheduled');
-                  const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null);
+                  const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : null);
                   const actual = c0?.actual_start
                     ? `${hhmm(c0.actual_start)}–${c0.actual_end ? hhmm(c0.actual_end) : 'open'}${c0.worked_minutes != null ? ` · ${Math.round(c0.worked_minutes / 60 * 10) / 10}h` : ''}`
                     : '—';

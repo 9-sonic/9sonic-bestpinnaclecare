@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Panel, PanelTitle, StatCard, Avatar, Button, TableWrap, Th, Td, Row, SeverityPill, SegTabs, Pager } from '../ds/console.jsx';
 import AlertsPage from './AlertsPage.jsx';
 import LifecyclePage from './LifecyclePage.jsx';
-import { LIFECYCLE_TONE, formatTime, formatDate, fullName } from '../api/format.js';
+import { LIFECYCLE_TONE, formatTime, formatDate, fullName, ukTime } from '../api/format.js';
 
 const SEV = { danger: 'high', warn: 'medium', neutral: 'low', info: 'low', active: 'low', success: 'low' };
 const initsName = (name) => (name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
@@ -39,7 +39,12 @@ function ExceptionModal({ ex, onClose, onDone }) {
   const canAmend = Boolean(ex.vaId);
   const meta = TYPE[ex.type] ?? {};
 
-  const mk = (t) => { const base = new Date(ex.scheduledStart ?? Date.now()); const [h, m] = t.split(':').map(Number); base.setHours(h, m, 0, 0); return base.toISOString(); };
+  // A corrected clock time is UK wall-clock on the visit's UK calendar day, not
+  // the admin's local zone (see ukTime).
+  const mk = (t) => {
+    const [y, mo, d] = new Date(ex.scheduledStart ?? Date.now()).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
+    return ukTime(new Date(y, mo - 1, d), t).toISOString();
+  };
 
   async function save() {
     if (!reason.trim()) { toast.error('A reason is required — it goes in the audit trail'); return; }
