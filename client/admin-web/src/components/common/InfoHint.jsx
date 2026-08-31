@@ -1,25 +1,44 @@
+import { useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { s } from '../../lib/ui.jsx';
 
 // A small ⓘ icon that reveals a short explanation on hover/focus. Used next to
-// action buttons so a control is self-documenting — e.g. "Add visit ⓘ" explains
-// what the button does without a tour needing to open and drive the modal.
+// action buttons so a control is self-documenting.
 //
-// Pure CSS hover (see .info-hint in admin.css), so it works without any state and
-// never mispositions. Keyboard-accessible: it's focusable and shows on focus.
-// `below` opens the bubble downward instead of upward — use it when the ⓘ sits
-// near the top of a panel (e.g. a header), where an upward bubble would clip off
-// the top edge. `align` sets which edge the bubble is anchored by:
-//   'right'  (default) — bubble's right edge at the icon, text flows LEFT.
-//   'left'             — bubble's left edge at the icon, text flows RIGHT.
-// Pick the one that keeps the bubble inside the panel: in a narrow left column
-// where the icon is near the left, use 'left' so it doesn't spill off-screen.
-// `maxWidth` caps the bubble so it fits a narrow panel.
-export default function InfoHint({ text, label = 'More info', below = false, align = 'right', maxWidth = 240 }) {
-  const vertical = below ? 'top:calc(100% + 8px)' : 'bottom:calc(100% + 8px)';
-  const horizontal = align === 'left' ? 'left:0' : 'right:0';
+// The bubble AUTO-FLIPS to stay on-screen: on hover/focus it measures the icon's
+// position and opens toward whichever side has room — text flows left when the
+// icon is near the right edge, right when near the left edge, and downward when
+// near the top. This is why a hint on the left of the screen (or inside a modal)
+// no longer clips off the edge. `below`/`align` still let a caller force a side,
+// but they're rarely needed now. `maxWidth` caps the bubble for a narrow panel.
+export default function InfoHint({ text, label = 'More info', below, align, maxWidth = 240 }) {
+  const ref = useRef(null);
+  // Resolved placement, decided when the hint is opened. Defaults match the old
+  // behaviour until measured.
+  const [place, setPlace] = useState({ vertical: below ? 'below' : 'above', horizontal: align || 'right' });
+
+  // Measure and choose the side with room, so the bubble never runs off-screen.
+  const decide = () => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const room = maxWidth + 24; // width the bubble needs plus a gutter
+    // Horizontal: flow right (left:0) when the icon is in the left ~40% of the
+    // screen or too close to the left edge to flow left; otherwise flow left.
+    const horizontal = align || ((r.left < room || r.left < vw * 0.4) ? 'left' : 'right');
+    // Vertical: open downward when there isn't ~120px above the icon.
+    const vertical = below != null ? (below ? 'below' : 'above') : (r.top < 120 ? 'below' : 'above');
+    setPlace({ vertical, horizontal });
+  };
+
+  const vertical = place.vertical === 'below' ? 'top:calc(100% + 8px)' : 'bottom:calc(100% + 8px)';
+  const horizontal = place.horizontal === 'left' ? 'left:0' : 'right:0';
+
   return (
-    <span className="info-hint" tabIndex={0} role="note" aria-label={label}
+    <span ref={ref} className="info-hint" tabIndex={0} role="note" aria-label={label}
+      onMouseEnter={decide} onFocus={decide}
       style={s('position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--d-muted);cursor:help;flex:none;outline:none')}>
       <Icon name="info" size={14} />
       <span className="info-hint__bubble"

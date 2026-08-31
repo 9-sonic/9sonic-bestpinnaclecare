@@ -6,6 +6,7 @@ class ServiceUserSerializer
       last_name:         su.last_name,
       full_name:         su.full_name,
       reference:         su.reference,
+      council_id:        su.council_id,
       phone:             su.phone,
       address_line1:     su.address_line1,
       address_line2:     su.address_line2,

@@ -15,30 +15,46 @@ const SEEN_KEY = 'bpc.admin.tourSeen';
 
 // Popover styling mapped to the app's design tokens (theme-aware for free).
 const tourStyles = {
+  // The popover is PINNED to a fixed spot at the bottom-centre of the viewport,
+  // NOT floated against the anchor. This is the one change that kills every tour
+  // positioning bug at once: reactour otherwise positions the popover next to the
+  // highlighted element and scrolls to it, so on a long page it lands below the
+  // fold, on a small/empty anchor it pins to the 0,0 corner, and the step badge
+  // that hangs off its corner clips off-screen. Fixed to the viewport, the
+  // popover is always in the same visible place; the mask still spotlights the
+  // element wherever it is on the page. (`!important` because reactour writes the
+  // computed top/left inline.)
   popover: (base) => ({
     ...base,
+    zIndex: 10001,
     background: 'var(--d-card)',
     color: 'var(--d-ink)',
     borderRadius: 18,
-    padding: '22px 24px 18px',
-    boxShadow: '0 18px 50px rgba(0,0,0,0.28)',
+    padding: '24px 24px 18px',
+    boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
     fontFamily: "'Figtree', system-ui, sans-serif",
     fontSize: 15,
     lineHeight: 1.55,
     fontWeight: 500,
-    // Never exceed the viewport: the library positions the popover against its
-    // anchor but does not clamp it, so a 360px box next to a right-edge or
-    // bottom-edge anchor used to spill off-screen. Cap width to the viewport
-    // (with a gutter) and cap height with internal scroll so long descriptions
-    // stay on-screen too.
     width: 'max-content',
-    maxWidth: 'min(340px, calc(100vw - 32px))',
-    maxHeight: 'calc(100vh - 32px)',
-    overflowY: 'auto',
+    maxWidth: 'min(420px, calc(100vw - 32px))',
+    // No overflow clipping — the step badge hangs off the top-left corner and any
+    // overflow would cut it. The popover is kept on-screen by the `position` prop.
+    overflow: 'visible',
     boxSizing: 'border-box',
   }),
   maskArea: (base) => ({ ...base, rx: 16 }),
-  maskWrapper: (base) => ({ ...base, color: 'rgba(15,23,30,0.55)' }),
+  // reactour's full-window "clickArea" rect has pointerEvents:auto so a click
+  // outside the highlight can advance/close the tour. But it sits UNDER the
+  // popover too, and swallows clicks on the popover's own Next/Back/Close
+  // buttons — so the tour gets stuck (you literally can't advance). Turn its
+  // pointer capture off; the popover buttons drive the tour, we don't need
+  // click-outside-to-advance.
+  clickArea: (base) => ({ ...base, pointerEvents: 'none' }),
+  // The dim overlay must sit ABOVE the app content or there's no spotlight — the
+  // page just stays bright (the SVG defaulted to z-index:auto and lost to the
+  // top bar / panels' own stacking contexts). Just below the popover.
+  maskWrapper: (base) => ({ ...base, color: 'rgba(15,23,30,0.55)', zIndex: 10000 }),
   badge: (base) => ({ ...base, background: 'var(--d-primary)', color: 'var(--d-primary-ink)', fontFamily: "'Figtree', system-ui, sans-serif", fontWeight: 700 }),
   dot: (base, { current } = {}) => ({ ...base, background: current ? 'var(--d-primary)' : 'var(--d-border)', borderColor: 'transparent' }),
   controls: (base) => ({ ...base, marginTop: 18 }),
@@ -78,10 +94,18 @@ export default function TourRoot({ children }) {
       showDots
       showCloseButton
       disableInteraction
-      // Keep the popover on-screen: a larger in-view threshold makes the library
-      // treat an anchor near an edge as needing the popover flipped/centred to
-      // stay visible, instead of drawing it off the side of the screen.
-      inViewThreshold={{ x: 180, y: 120 }}
+      // Pin the popover to a fixed spot near the bottom-centre of the viewport,
+      // regardless of where the highlighted element is. reactour calls this to
+      // place the popover; returning constant viewport coordinates (not anchor-
+      // relative) means it can never land off-screen, in a corner, or below the
+      // fold on a long page — the recurring tour bugs. The mask still spotlights
+      // the element wherever it sits. `sizes` is the measured popover box, so we
+      // centre it horizontally and keep a 32px gap from the bottom.
+      position={({ windowWidth, windowHeight }, sizes = {}) => {
+        const w = sizes.width || 380;
+        const h = sizes.height || 180;
+        return [Math.max(16, (windowWidth - w) / 2), Math.max(16, windowHeight - h - 32)];
+      }}
       padding={{ mask: 6, popover: [12, 12] }}
       scrollSmooth
       prevButton={({ currentStep, setCurrentStep }) =>

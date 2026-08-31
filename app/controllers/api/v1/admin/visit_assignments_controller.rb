@@ -18,6 +18,12 @@ module Api
             aggregate: va, actor: current_admin, event_type: "assignment.created",
             payload: { visit_id: visit.id, employee_id: employee.id, employee_name: employee.full_name }
           )
+          # If the visit is already published, there's no later publish to carry
+          # the news — tell the carer now. (Draft assignments are announced at
+          # publish, so ShiftAssigned no-ops for a draft.)
+          Notifications::ShiftAssigned.call(visit: visit, employee: employee)
+          # Live-refresh the carer's PWA calendar regardless of draft/published.
+          Notifications::ShiftChanged.call(employee)
           warnings = Assignments::Validate.call(visit: visit, employee: employee)
           render json: VisitAssignmentSerializer.call(va).merge(warnings: warnings), status: :created
         end
@@ -51,6 +57,11 @@ module Api
               to_employee_id: employee.id, to_employee_name: employee.full_name
             }
           )
+          # The new carer inherits a published visit with no later publish to
+          # announce it — tell them now (no-ops if the visit is still a draft).
+          Notifications::ShiftAssigned.call(visit: visit, employee: employee)
+          # Both calendars change: the old carer loses the shift, the new one gains it.
+          Notifications::ShiftChanged.call([ current.employee, employee ])
           warnings = Assignments::Validate.call(visit: visit, employee: employee)
 
           render json: VisitAssignmentSerializer.call(new_va).merge(warnings: warnings), status: :created
@@ -64,6 +75,8 @@ module Api
             aggregate: va, actor: current_admin, event_type: "assignment.withdrawn",
             payload: { visit_id: va.visit_id, employee_id: va.employee_id }
           )
+          # The carer just lost this shift — refresh their calendar so it drops off.
+          Notifications::ShiftChanged.call(va.employee)
           head :no_content
         end
       end

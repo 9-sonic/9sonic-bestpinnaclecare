@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { useInboxNotifications } from '../hooks/useInboxNotifications.js';
+import { useShiftUpdates } from '../hooks/useShiftUpdates.js';
 import { getSummary } from '../api/stats.js';
 import { getClockStatus } from '../api/clock.js';
 import { listShifts } from '../api/shifts.js';
@@ -209,6 +210,14 @@ export default function HomePage() {
     []
   );
   useInboxNotifications(refreshNotifications);
+
+  // Keep the home screen's shift list (next/today) live when the office changes
+  // the carer's rota, matching the calendar page.
+  const refreshShifts = useCallback(
+    () => listShifts().then(setShifts).catch(() => {}),
+    []
+  );
+  useShiftUpdates(refreshShifts);
 
   // Accept a cover offer. Online-only: it's confirmed live or it fails clearly
   // (someone else took it, or a clash). On success the shift joins the carer's

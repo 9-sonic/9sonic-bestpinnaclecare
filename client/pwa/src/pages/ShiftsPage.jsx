@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listShifts } from '../api/shifts.js';
+import { useShiftUpdates } from '../hooks/useShiftUpdates.js';
 import Calendar from '../components/shifts/Calendar.jsx';
 import ShiftCard from '../components/shifts/ShiftCard.jsx';
 import ScreenHeader from '../components/common/ScreenHeader.jsx';
@@ -14,15 +15,17 @@ export default function ShiftsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(() => new Date());
 
-  useEffect(() => {
-    let active = true;
+  // Refetch the carer's shifts. Runs on mount, and again live whenever the
+  // office changes their rota (see useShiftUpdates) so the calendar stays current
+  // without the carer reopening the app.
+  const load = useCallback(() => {
     listShifts()
-      .then((data) => active && setShifts(data))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
+      .then(setShifts)
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useShiftUpdates(load);
 
   // Only show shifts for the selected calendar day.
   const forDay = useMemo(
