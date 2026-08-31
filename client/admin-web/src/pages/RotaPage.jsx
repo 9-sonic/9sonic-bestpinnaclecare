@@ -14,7 +14,7 @@ import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, fullName, weekOf, isoDate,
+  LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, formatDateFull, fullName, weekOf, isoDate, ukTime,
 } from '../api/format.js';
 import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
 
@@ -23,7 +23,6 @@ import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row, Pag
 const isShort = (v) => v.status !== 'cancelled' && (v.assignments ?? []).length < v.staff_required;
 const sameDay = (iso, d) => new Date(iso).toDateString() === d.toDateString();
 const inits = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || '—';
-const toMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 
 // Lifecycle state -> chip colour, mirroring the design's lifecycleMeta.
 // The six shared tones, but with a DISTINCT colour each — previously `info` and
@@ -127,7 +126,14 @@ function VisitBlock({ v, view, selected, onOpen, onMenu }) {
           textDecoration: cancelled ? 'line-through' : 'none',
         }}>
         <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}{cancelled ? ' · cancelled' : ''}</span>
-        <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</span>
+        <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>
+          {formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}
+          {/* Overnight visit: the end is the next day. Mark it (+1) so a block that
+              reads e.g. "23:30–01:00" isn't mistaken for a same-day slot. */}
+          {new Date(v.scheduled_end).toDateString() !== new Date(v.scheduled_start).toDateString() && (
+            <span title="Ends the next day" style={s('margin-left:3px;opacity:0.9')}>⁺¹</span>
+          )}
+        </span>
       </div>
       {/* Action circle — the single control for this visit. Click it to open the
           menu (edit, assign, cancel, select for bulk action…). It also shows a
@@ -168,18 +174,21 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
   // different carer (atomic withdraw + assign); null for a fresh assignment.
   const isReassign = reassignFrom != null;
 
-  const day = new Date(visit.scheduled_start);
-  const start = toMin(formatTime(visit.scheduled_start).replace(':', ':'));
-  const end = toMin(formatTime(visit.scheduled_end));
   const client = serviceUsers.find((c) => c.id === visit.service_user?.id);
   const regulars = new Set((client?.carers ?? []).map((n) => n.toLowerCase()));
 
-  // Real conflict: does this carer already have a visit that overlaps, same day?
+  // Real conflict: does this carer already have a visit that overlaps in time?
+  // Compared on ABSOLUTE timestamps, not minute-of-day — a minute-of-day compare
+  // breaks across midnight (23:30 reads as "after" a 01:00 that's really the next
+  // day), so an overnight visit could hide a genuine double-booking. Standard
+  // interval overlap: aStart < bEnd && bStart < aEnd.
+  const start = new Date(visit.scheduled_start).getTime();
+  const end = new Date(visit.scheduled_end).getTime();
   const conflictFor = (empId) => {
     const clash = weekVisits.find((o) => o.id !== visit.id
-      && sameDay(o.scheduled_start, day)
       && (o.assignments ?? []).some((a) => a.employee?.id === empId)
-      && toMin(formatTime(o.scheduled_start)) < end && start < toMin(formatTime(o.scheduled_end)));
+      && new Date(o.scheduled_start).getTime() < end
+      && start < new Date(o.scheduled_end).getTime());
     return clash ? `Double-booked with ${fullName(clash.service_user)} ${formatTime(clash.scheduled_start)}` : null;
   };
 
@@ -201,7 +210,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
       onAssigned(); onClose();
     } catch (err) {
       const c = err.data?.conflict;
-      const when = c ? `${new Date(c.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
+      const when = c ? `${formatDateFull(c.scheduled_start, { weekday: 'short', year: undefined })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
       if (err.message === 'carer_unavailable') {
         setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
       } else if (err.message === 'client_unavailable') {
@@ -214,7 +223,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
 
   return (
     <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
-      subtitle={`${day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
+      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
         {error && (
@@ -284,18 +293,39 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
   const client = serviceUsers.find((c) => c.id === Number(clientId));
   const carer = activeCarers.find((e) => e.id === Number(carerId));
 
+  // The single source of truth for the visit's start/end DATES. Both the save
+  // and the on-screen summary use it, so what you see is exactly what's saved.
+  // Overnight: any end time-of-day at or before the start (i.e. after 23:59 the
+  // clock wraps) is the NEXT calendar day — 22:00 -> 02:00 is a 4h overnight
+  // visit, not a negative one. The end date rolls forward a day automatically.
+  const resolveWindow = () => {
+    // The picked time is UK wall-clock time — care happens in the UK, so "09:00"
+    // means 09:00 in London no matter where the admin is (e.g. Kenya). ukTime
+    // interprets the picked time as Europe/London and returns the correct UTC
+    // instant. Overnight: end at/before start -> next day.
+    const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
+    const startDate = ukTime(base, start);
+    let endDate = ukTime(base, end);
+    if (endDate.getTime() <= startDate.getTime()) endDate = ukTime(base, end, 1);
+    const overnight = end <= start;
+    return { startDate, endDate, overnight };
+  };
+  const { startDate: previewStart, endDate: previewEnd, overnight } = resolveWindow();
+  // Show the preview in UK time (with a UK/GMT/BST hint) so what the admin sees
+  // matches what's saved — not their own local zone.
+  const fmtDateTime = (d) => d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London', timeZoneName: 'short' });
+  const durationMin = Math.round((previewEnd - previewStart) / 60000);
+  const durationLabel = `${Math.floor(durationMin / 60)}h${durationMin % 60 ? ` ${durationMin % 60}m` : ''}`;
+
   async function save() {
     if (!clientId) { toast.error('Pick a client'); return; }
     if (byCarer && !carerId) { toast.error('Pick a carer'); return; }
-    const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
-    const mkDate = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
-    const startDate = mkDate(start);
+    const { startDate, endDate } = resolveWindow();
     if (startDate.getTime() < Date.now()) { toast.error("You can't create a visit in the past — pick a future date and time."); return; }
-    if (mkDate(end).getTime() <= startDate.getTime()) { toast.error('End time must be after the start time.'); return; }
-    const mk = (t) => mkDate(t).toISOString();
+    if (endDate.getTime() - startDate.getTime() < 15 * 60000) { toast.error('A visit must be at least 15 minutes long.'); return; }
     setBusy(true);
     try {
-      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: mk(start), scheduled_end: mk(end) });
+      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString() });
       // Carer grouping: assign the chosen carer straight away so the block lands
       // in their row, not the Unassigned one. Creation succeeded either way — if
       // the assign fails, keep the draft and say what happened.
@@ -350,6 +380,20 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
         <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
           <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
           <div style={field}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
+        </div>
+        {/* Explicit resolved window so the coordinator sees the real start and
+            end DATE + time — critical for an overnight visit, where the end is
+            the next day. This is exactly what gets saved. */}
+        <div style={{ ...s('display:flex;flex-direction:column;gap:5px;border-radius:10px;padding:9px 12px'), background: overnight ? 'var(--d-note-bg)' : 'var(--d-panel)' }}>
+          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}>
+            <span style={s('color:var(--d-muted)')}>Starts</span><span className="d-num">{fmtDateTime(previewStart)}</span>
+          </div>
+          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}>
+            <span style={s('color:var(--d-muted)')}>Ends</span><span className="d-num">{fmtDateTime(previewEnd)}</span>
+          </div>
+          <div style={s('display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--d-note-ink);margin-top:1px')}>
+            <Icon name="clock" size={12} />{durationLabel}{overnight ? ' · overnight — ends the next day' : ''}
+          </div>
         </div>
         <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Rules that will apply</span><RulesNote settings={settings} /></div>
       </div>
@@ -419,8 +463,12 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
   async function save() {
     if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
-    const base = new Date(visit.scheduled_start);
-    const mk = (t) => { const d = new Date(base); const [h, m] = t.split(':').map(Number); d.setHours(h, m, 0, 0); return d.toISOString(); };
+    // Keep the visit's original UK calendar day, and set the picked times as UK
+    // wall-clock (not the admin's local zone). The day parts come from the visit's
+    // UK date so a Kenya admin editing near midnight doesn't shift the day.
+    const ukParts = new Date(visit.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
+    const base = new Date(ukParts[0], ukParts[1] - 1, ukParts[2]);
+    const mk = (t) => ukTime(base, t).toISOString();
     setBusy(true);
     try {
       await editVisit(visit.id, { scheduled_start: mk(start), scheduled_end: mk(end), reason: reason.trim() });
@@ -438,7 +486,7 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
   const editable = isEditable(visit);
 
   return (
-    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={new Date(visit.scheduled_start).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })} onClose={onClose}
+    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} onClose={onClose}
       footer={editable ? (
         <div style={s('display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap')}>
           {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
@@ -699,7 +747,7 @@ export default function RotaPage() {
           <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
           <ExportButton label="Export rota" title="Export rota" subtitle="Choose a file format. The week on screen is exported."
             onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />
-          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint text={view === 'carer' ? 'Add a one-off visit for a carer: choose the carer, the client to visit, the day and the time, then Create. It goes onto their rota as a draft until you publish.' : 'Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can\'t be double-booked at the same time.'} /></span>
+          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint below text={view === 'carer' ? 'Add a one-off visit for a carer: choose the carer, the client to visit, the day and the time, then Create. It goes onto their rota as a draft until you publish.' : 'Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can\'t be double-booked at the same time.'} /></span>
         </div>
       )}
 
@@ -767,7 +815,7 @@ export default function RotaPage() {
                           {selected.includes(v.id) ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
                         </span>
                       </Td>
-                      <Td mono>{new Date(v.scheduled_start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</Td>
+                      <Td mono>{formatDateFull(v.scheduled_start, { weekday: 'short', year: undefined })}</Td>
                       <Td mono>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</Td>
                       <Td><span style={{ ...s('font-weight:700;color:var(--d-ink)'), textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>{fullName(v.service_user)}</span></Td>
                       <Td>{carer ? fullName(carer) : <span style={s('color:var(--d-faint)')}>Unassigned</span>}</Td>

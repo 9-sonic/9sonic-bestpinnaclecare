@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { listEmployees, inviteEmployee, resendEmployeeInvite } from '../api/index.js';
+import { listEmployees, inviteEmployee, resendEmployeeInvite, updateEmployee } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Modal from '../components/common/Modal.jsx';
 import InfoHint from '../components/common/InfoHint.jsx';
@@ -46,7 +46,9 @@ function EmployeesTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [showInactive, setShowInactive] = useState(false);
+  // Which roster to show — active carers by default, or the inactive (leavers).
+  // A single toggle shows one group at a time.
+  const [status, setStatus] = useState('active');
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -58,14 +60,14 @@ function EmployeesTab() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows
-      .filter((e) => (showInactive ? true : e.active))
+      .filter((e) => (status === 'inactive' ? !e.active : e.active))
       .filter((e) => (q ? `${e.full_name} ${e.email} ${e.employee_reference ?? ''}`.toLowerCase().includes(q) : true));
-  }, [rows, query, showInactive]);
+  }, [rows, query, status]);
 
   // Paginate the filtered list client-side so search still spans everyone.
   const PER_PAGE = 20;
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [query, showInactive]);
+  useEffect(() => { setPage(1); }, [query, status]);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   function validate() {
@@ -92,11 +94,20 @@ function EmployeesTab() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const [resending, setResending] = useState(null); // carer id being resent
+  const [reactivating, setReactivating] = useState(null); // carer id being reactivated
   async function resend(e) {
     setResending(e.id);
     try { await resendEmployeeInvite(e.id); toast.success(`Invite re-sent to ${e.email}`); await load(); }
     catch (err) { toast.error(err.message || 'Could not resend the invite'); }
     finally { setResending(null); }
+  }
+  // Bring a leaver back onto the live roster. Just flips active on — their login,
+  // password and full history are untouched, so they return exactly as they were.
+  async function reactivate(e) {
+    setReactivating(e.id);
+    try { await updateEmployee(e.id, { active: true }); toast.success(`${fullName(e)} reactivated`); await load(); }
+    catch (err) { toast.error(err.message || 'Could not reactivate this carer'); }
+    finally { setReactivating(null); }
   }
 
   if (loading) return <Spinner fullscreen />;
@@ -122,14 +133,20 @@ function EmployeesTab() {
         <div style={s('flex:1;min-width:220px')}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search name, email or reference" />
         </div>
-        {/* A quiet filter toggle, grouped with the search — not an action. */}
-        <label style={s('display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--d-ink2);user-select:none')}>
-          <input type="checkbox" checked={showInactive} onChange={() => setShowInactive((v) => !v)} style={s('width:16px;height:16px;accent-color:var(--d-pill);cursor:pointer')} />
-          Show inactive
-        </label>
         <div style={s('flex:1')} />
         {canManage && <span data-tour="employees-invite" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={openInvite}>Invite carer</Button><InfoHint text="Invite a new carer by name and work email. They get an email to set their own password — the account stays inactive until they do, so no one else can use it." /></span>}
       </div>
+
+      {/* Roster toggle — sits directly above the table. One group at a time:
+          active carers by default, or the inactive (leavers) to reactivate. */}
+      <SegTabs
+        active={status}
+        onSelect={setStatus}
+        tabs={[
+          { key: 'active', label: 'Active', icon: 'users', count: rows.filter((e) => e.active).length },
+          { key: 'inactive', label: 'Inactive', icon: 'user', count: rows.filter((e) => !e.active).length },
+        ]}
+      />
 
       {/* Staff table */}
       <div style={s('display:flex;flex-direction:column')}>
@@ -138,8 +155,10 @@ function EmployeesTab() {
             {filtered.length === 0 ? (
               <div style={s('padding:44px 20px;text-align:center;font-size:13.5px;font-weight:600;color:var(--d-muted)')}>No carers match.</div>
             ) : (
-              <TableWrap minWidth={920}>
-                <thead><tr><Th>Carer</Th><Th>Reference</Th><Th>Clocking method</Th><Th align="right">Hours this week</Th><Th>Punctuality</Th><Th>Status</Th><Th align="right" /></tr></thead>
+              <TableWrap minWidth={760}>
+                {/* Carer column absorbs all slack (width:100%) so the rest sit tight to
+                    their content — no big gaps spread between columns. */}
+                <thead><tr><Th style={{ width: '100%' }}>Carer</Th><Th style={{ whiteSpace: 'nowrap' }}>Reference</Th><Th style={{ whiteSpace: 'nowrap' }}>Clocking method</Th><Th align="center" style={{ whiteSpace: 'nowrap' }}>Hours this week</Th><Th style={{ whiteSpace: 'nowrap' }}>Punctuality</Th><Th style={{ whiteSpace: 'nowrap' }}>Status</Th><Th align="right" /></tr></thead>
                 <tbody>
                   {paged.map((e) => (
                     <Row key={e.id}>
@@ -152,14 +171,15 @@ function EmployeesTab() {
                           </span>
                         </span>
                       </Td>
-                      <Td>{e.employee_reference ?? '—'}</Td>
+                      <Td style={{ whiteSpace: 'nowrap' }}>{e.employee_reference ?? '—'}</Td>
                       <Td><Tag tone={e.capture_method === 'gps' ? 'primary' : e.capture_method === 'pin' ? 'info' : 'muted'}>{METHOD[e.capture_method] ?? '—'}</Tag></Td>
-                      <Td align="right" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{e.hours_this_week != null ? `${e.hours_this_week}h` : '—'}</b></Td>
+                      <Td align="center" mono><b style={s('font-weight:700;color:var(--d-ink)')}>{e.hours_this_week != null ? `${e.hours_this_week}h` : '—'}</b></Td>
                       <Td><Meter value={e.punctuality} /></Td>
                       <Td><Tag tone={!e.active ? 'muted' : e.invite_pending ? 'warning' : 'success'}>{!e.active ? 'Inactive' : e.invite_pending ? 'Invite pending' : 'Active'}</Tag></Td>
                       <Td align="right">
                         <span style={s('display:inline-flex;gap:8px;justify-content:flex-end')}>
                           {e.active && e.invite_pending && <Button size="sm" icon="send" disabled={resending === e.id} onClick={() => resend(e)}>{resending === e.id ? 'Sending…' : 'Resend'}</Button>}
+                          {canManage && !e.active && <Button size="sm" variant="primary" icon="refresh" disabled={reactivating === e.id} onClick={() => reactivate(e)}>{reactivating === e.id ? 'Reactivating…' : 'Reactivate'}</Button>}
                           <Button size="sm" icon="user" onClick={() => navigate(`/employees/${e.id}`)}>View</Button>
                         </span>
                       </Td>

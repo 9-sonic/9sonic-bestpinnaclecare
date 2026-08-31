@@ -159,7 +159,7 @@ module Api
         end
 
         def service_user_params
-          params.permit(:first_name, :last_name, :reference, :date_of_birth, :phone,
+          params.permit(:first_name, :last_name, :reference, :council_id, :date_of_birth, :phone,
                         :address_line1, :address_line2, :city, :postcode,
                         :lat, :lng, :geofence_radius_m, :geofence_mode, :access_notes, :active)
         end

@@ -39,13 +39,13 @@ function recurrenceLabel(rec) {
 const fmtDate = (iso) => { if (!iso) return null; try { return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); } catch { return iso; } };
 
 const EMPTY = {
-  first_name: '', last_name: '', reference: '', phone: '',
+  first_name: '', last_name: '', reference: '', council_id: '', phone: '',
   address_line1: '', address_line2: '', city: '', postcode: '',
   lat: '', lng: '', access_notes: '',
 };
 const fmtNoteDate = (iso) => {
   if (!iso) return '';
-  try { return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }); }
   catch { return iso; }
 };
 
@@ -136,6 +136,7 @@ export default function ClientDetailPage() {
             </div>
             <div style={s('display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:500;color:var(--d-muted);margin-top:5px')}>
               <span>{client.reference ?? 'No reference'}</span>
+              {client.council_id && <><span style={s('opacity:0.5')}>·</span><span title="Local authority ID">Council ID {client.council_id}</span></>}
               {client.phone && <><span style={s('opacity:0.5')}>·</span><span style={s('display:inline-flex;align-items:center;gap:5px')}><Icon name="phone" size={13} />{client.phone}</span></>}
             </div>
             <div style={s('font-size:13.5px;font-weight:500;color:var(--d-ink2);margin-top:9px;display:flex;align-items:center;gap:7px')}><Icon name="pin" size={15} />{addressOf(client) || 'No address on file'}</div>
@@ -166,6 +167,7 @@ export default function ClientDetailPage() {
               <L label="First name"><input style={inp} value={form.first_name} onChange={setField('first_name')} /></L>
               <L label="Last name"><input style={inp} value={form.last_name} onChange={setField('last_name')} /></L>
               <L label="Reference"><input style={inp} value={form.reference} onChange={setField('reference')} /></L>
+              <L label="Council ID"><input style={inp} value={form.council_id} onChange={setField('council_id')} /></L>
               <L label="Phone"><input style={inp} value={form.phone} onChange={setField('phone')} /></L>
               <L label="Address line 1"><input style={inp} value={form.address_line1} onChange={setField('address_line1')} /></L>
               <L label="City"><input style={inp} value={form.city} onChange={setField('city')} /></L>
@@ -311,7 +313,7 @@ function ClientVisitsTab({ clientId, onOpen }) {
                 {rows.map((v) => {
                   const c0 = v.carers?.[0];
                   const st = v.status === 'cancelled' ? 'cancelled' : (c0?.lifecycle_state ?? 'scheduled');
-                  const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null);
+                  const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : null);
                   const actual = c0?.actual_start
                     ? `${hhmm(c0.actual_start)}–${c0.actual_end ? hhmm(c0.actual_end) : 'open'}${c0.worked_minutes != null ? ` · ${Math.round(c0.worked_minutes / 60 * 10) / 10}h` : ''}`
                     : '—';

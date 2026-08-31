@@ -1,4 +1,27 @@
 // Shared display helpers for the office screens.
+import { fromZonedTime } from 'date-fns-tz';
+
+const UK_ZONE = 'Europe/London';
+
+// Build a UTC instant for a UK wall-clock time on a given day. The picked time
+// ("09:00") always means 09:00 in the UK, regardless of the admin's own zone
+// (e.g. Kenya) — care happens in the UK. `base` is a Date whose Y-M-D we use;
+// `t` is "HH:MM"; `dayOffset` shifts the day (for overnight ends). Returns a
+// Date (call .toISOString() to send). This replaces `new Date(); setHours()`,
+// which wrongly interpreted the time in the browser's local zone.
+export function ukTime(base, t, dayOffset = 0) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const [h, m] = t.split(':').map(Number);
+  const stamp = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate() + dayOffset)}T${pad(h)}:${pad(m)}:00`;
+  return fromZonedTime(stamp, UK_ZONE);
+}
+
+// Full UK-timezone date, e.g. "Mon 8 Sep 2026". Use for any visit/clock date so
+// it reads in UK time, not the admin's local zone.
+export function formatDateFull(iso, opts = {}) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: UK_ZONE, ...opts });
+}
 
 export const LIFECYCLE_LABELS = {
   scheduled: 'Scheduled',
@@ -34,9 +57,12 @@ export function fullName(person) {
   return person.full_name ?? [person.first_name, person.last_name].filter(Boolean).join(' ');
 }
 
+// Every visit time is shown in UK time (Europe/London) regardless of where the
+// admin's browser is — a Kenya admin must see the same clock as the office and
+// the carer. Pinning the timeZone here fixes it across the whole console.
 export function formatTime(iso) {
   if (!iso) return '--:--';
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: UK_ZONE });
 }
 
 export function formatTimeRange(a, b) {
@@ -49,6 +75,7 @@ export function formatDate(iso) {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
+    timeZone: UK_ZONE,
   });
 }
 

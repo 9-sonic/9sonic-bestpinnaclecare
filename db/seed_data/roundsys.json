@@ -1,0 +1,303 @@
+{
+  "employees": [
+    {
+      "first_name": "Ann",
+      "last_name": "Howse",
+      "email": "annhowse95@gmail.com",
+      "phone": "07871860561",
+      "reference": "5059",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": 0.0
+    },
+    {
+      "first_name": "Anne",
+      "last_name": "Musa",
+      "email": "annemusanete77@gmail.com",
+      "phone": null,
+      "reference": "6420",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Beatrice",
+      "last_name": "Maina",
+      "email": "beatricekande6@gmail.com",
+      "phone": "07459262454",
+      "reference": "6386",
+      "emergency_contact_name": "Anastacia W Wanjiku",
+      "emergency_contact_phone": "07932245139",
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "catherine",
+      "last_name": "wanjiku",
+      "email": "catemwihaki2000@gmail.com",
+      "phone": "07823860896",
+      "reference": "20039082",
+      "emergency_contact_name": "Mama Amani",
+      "emergency_contact_phone": "07449394194",
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Emily",
+      "last_name": "Wa Njenga",
+      "email": "waithiemi48@yahoo.com",
+      "phone": "07861809648",
+      "reference": "20035756",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Esther",
+      "last_name": "Mugo",
+      "email": "estherkagema8@gmail.com",
+      "phone": "079442266632",
+      "reference": "20056",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": 38.0
+    },
+    {
+      "first_name": "Esther",
+      "last_name": "Nyirabega",
+      "email": "enyirabega@yahoo.com",
+      "phone": null,
+      "reference": "9825",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "jacqueline",
+      "last_name": "mumbi",
+      "email": "jacquewairimu1@gmail.com",
+      "phone": "07785983619",
+      "reference": "20036527",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Michael",
+      "last_name": "Kamau",
+      "email": "ammical.kamau@gmail.com",
+      "phone": "07425233346",
+      "reference": "29565",
+      "emergency_contact_name": "Joseph Kamau",
+      "emergency_contact_phone": "07913917738",
+      "contracted_hours_per_week": 38.0
+    },
+    {
+      "first_name": "Stephen",
+      "last_name": "Muhura",
+      "email": "stephenmuhura32@gmail.com",
+      "phone": "07",
+      "reference": "28071",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Tameisha",
+      "last_name": "Jack",
+      "email": "tameishajack535@gmail.com",
+      "phone": null,
+      "reference": "20038171",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    },
+    {
+      "first_name": "Winifred",
+      "last_name": "Mathenge",
+      "email": "mathengelilian71@gmail.com",
+      "phone": "07860106192",
+      "reference": "20038801",
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "contracted_hours_per_week": null
+    }
+  ],
+  "admins": [
+    {
+      "first_name": "Godfrey",
+      "last_name": "Mwangi",
+      "email": "admin@bestpinnaclecare.co.uk",
+      "phone": "07427 165307",
+      "role": "manager"
+    },
+    {
+      "first_name": "Jesse",
+      "last_name": "Ngari",
+      "email": "jessengari@gmail.com",
+      "phone": null,
+      "role": "coordinator"
+    },
+    {
+      "first_name": "Rosemary",
+      "last_name": "Muhura",
+      "email": "info@bestpinnaclecare.co.uk",
+      "phone": "07427 165307",
+      "role": "manager"
+    }
+  ],
+  "service_users": [
+    {
+      "first_name": "Amber",
+      "last_name": "Kingham",
+      "reference": "160503",
+      "date_of_birth": "1994-11-01",
+      "address_line1": "34 Marsh Road",
+      "postcode": "RG18 4QR",
+      "lat": 51.406984454275,
+      "lng": -1.250699445901,
+      "shared_site": true
+    },
+    {
+      "first_name": "Barbara",
+      "last_name": "Black",
+      "reference": "254712",
+      "date_of_birth": "1932-09-03",
+      "address_line1": "1 Hatchgate Close, Cold Ash, Thatcham",
+      "postcode": "RG18 9NY",
+      "lat": 51.417868341664,
+      "lng": -1.26399527292,
+      "shared_site": false
+    },
+    {
+      "first_name": "Carol",
+      "last_name": "Stanley",
+      "reference": "0777063",
+      "date_of_birth": "1943-01-28",
+      "address_line1": "81 Conifer Crest, Newbury",
+      "postcode": "RG14 6RR",
+      "lat": 51.375499964621,
+      "lng": -1.351905431842,
+      "shared_site": false
+    },
+    {
+      "first_name": "CO",
+      "last_name": "CHC-421155",
+      "reference": null,
+      "date_of_birth": "2002-04-07",
+      "address_line1": "22 Islandsmead, Eldene, Swindon",
+      "postcode": "SN3 3TG",
+      "lat": 51.557592362784,
+      "lng": -1.737118281553,
+      "shared_site": false
+    },
+    {
+      "first_name": "David",
+      "last_name": "Smith",
+      "reference": "131654",
+      "date_of_birth": "1953-04-22",
+      "address_line1": "29 Dysons Close, Newbury",
+      "postcode": "RG14 5QD",
+      "lat": 51.400444860377,
+      "lng": -1.335055696924,
+      "shared_site": false
+    },
+    {
+      "first_name": "DBT",
+      "last_name": "CHC 438604",
+      "reference": null,
+      "date_of_birth": "1964-11-30",
+      "address_line1": "46 Nore Marsh Road, Royal Wootton Bassett, Wiltshire",
+      "postcode": "SN4 8BH",
+      "lat": 51.539455,
+      "lng": -1.896066,
+      "shared_site": false
+    },
+    {
+      "first_name": "Dorothy",
+      "last_name": "Burgin",
+      "reference": null,
+      "date_of_birth": "1934-08-17",
+      "address_line1": "33 Pinelands Mobile Home Park, Padworth Common, Reading",
+      "postcode": "RG7 4QB",
+      "lat": 51.371653120755,
+      "lng": -1.116560697556,
+      "shared_site": true
+    },
+    {
+      "first_name": "James",
+      "last_name": "Burgin",
+      "reference": "736649",
+      "date_of_birth": "1930-07-14",
+      "address_line1": "33 Pinelands Mobile Home Park, Padworth Common, Reading",
+      "postcode": "RG7 4QB",
+      "lat": 51.371653120755,
+      "lng": -1.116560697556,
+      "shared_site": true
+    },
+    {
+      "first_name": "Maisie",
+      "last_name": "Turner",
+      "reference": null,
+      "date_of_birth": "1998-03-16",
+      "address_line1": "34 Marsh Road",
+      "postcode": "RG18 4QR",
+      "lat": 51.406991146754,
+      "lng": -1.250692740379,
+      "shared_site": true
+    },
+    {
+      "first_name": "Mandy",
+      "last_name": "Cockram",
+      "reference": "234036",
+      "date_of_birth": "1970-09-18",
+      "address_line1": "92 Cromwell Road, Newbury",
+      "postcode": "RG14 2HW",
+      "lat": 51.412106884491,
+      "lng": -1.310064371874,
+      "shared_site": false
+    },
+    {
+      "first_name": "Martin",
+      "last_name": "Rose",
+      "reference": "35707",
+      "date_of_birth": "1951-04-30",
+      "address_line1": "57 Willow Close, Newbury",
+      "postcode": "RG14 7FX",
+      "lat": 51.393260130772,
+      "lng": -1.327706601206,
+      "shared_site": false
+    },
+    {
+      "first_name": "Nancy",
+      "last_name": "Lewington",
+      "reference": null,
+      "date_of_birth": "2026-07-18",
+      "address_line1": "49 London Road",
+      "postcode": "RG14 1JN",
+      "lat": 51.406044919664,
+      "lng": -1.321137666882,
+      "shared_site": false
+    },
+    {
+      "first_name": "Robert",
+      "last_name": "Lewis",
+      "reference": "746677",
+      "date_of_birth": "1944-04-25",
+      "address_line1": "Alma Lodge, Speen Lane, Speen, Newbury",
+      "postcode": "RG14 1RJ",
+      "lat": 51.409625458614,
+      "lng": -1.346169030557,
+      "shared_site": false
+    },
+    {
+      "first_name": "Shirley",
+      "last_name": "Bailey",
+      "reference": "526491",
+      "date_of_birth": "1939-04-30",
+      "address_line1": "Flat 4 Benedict Court, Western Avenue, Newbury",
+      "postcode": "RG14 1AR",
+      "lat": 51.407284973715,
+      "lng": -1.331125348806,
+      "shared_site": false
+    }
+  ]
+}

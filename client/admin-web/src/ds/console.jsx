@@ -189,8 +189,8 @@ export function TableWrap({ children, minWidth = 760 }) {
     </div>
   );
 }
-export function Th({ children, align }) {
-  return <th style={{ ...s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px'), textAlign: align || 'left' }}>{children}</th>;
+export function Th({ children, align, style }) {
+  return <th style={{ ...s('font-size:11px;font-weight:700;color:var(--d-muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 12px'), textAlign: align || 'left', ...style }}>{children}</th>;
 }
 export function Td({ children, align, mono, style }) {
   return <td style={{ ...s('font-size:12.5px;font-weight:500;color:var(--d-ink2);padding:12px;border-top:1px solid var(--d-border)'), textAlign: align || 'left', fontVariantNumeric: mono ? 'tabular-nums' : undefined, ...style }}>{children}</td>;

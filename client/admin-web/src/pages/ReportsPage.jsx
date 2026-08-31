@@ -53,13 +53,16 @@ export default function OverviewTab({ range, setRange }) {
   const stats = useMemo(() => {
     const su = data?.summary ?? {};
     const loc = data?.location ?? {};
+    // A rate is null when the period had nothing to measure (no visits/tasks) —
+    // show "—" rather than a made-up 0% or 100%.
+    const pct = (v) => (v == null ? '—' : `${v}%`);
     return [
-      { label: 'Attendance', value: `${su.attendance_pct ?? 0}%`, tone: 'ok', icon: 'check' },
-      { label: 'On-time rate', value: `${su.on_time_pct ?? 0}%`, tone: 'primary', icon: 'clock' },
+      { label: 'Attendance', value: pct(su.attendance_pct), tone: 'ok', icon: 'check' },
+      { label: 'On-time rate', value: pct(su.on_time_pct), tone: 'primary', icon: 'clock' },
       { label: 'On-site clock-ins', value: `${loc.on_site ?? 0}/${loc.clock_ins ?? 0}`, tone: loc.needs_review ? 'magenta' : 'ok', icon: 'location' },
       { label: 'Unresolved', value: su.unresolved ?? 0, tone: (su.unresolved ?? 0) > 0 ? 'danger' : 'ok', icon: 'alert' },
       { label: 'Verified hours', value: `${su.verified_hours ?? 0}h`, tone: 'info', icon: 'wallet' },
-      { label: 'Care tasks done', value: `${su.tasks_pct ?? 0}%`, tone: (su.tasks_pct ?? 100) < 90 ? 'magenta' : 'ok', icon: 'check' },
+      { label: 'Care tasks done', value: pct(su.tasks_pct), tone: (su.tasks_pct ?? 0) < 90 && su.tasks_pct != null ? 'magenta' : 'ok', icon: 'check' },
     ];
   }, [data]);
 

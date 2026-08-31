@@ -52,8 +52,8 @@ const fmt = (iso, withTime = true) => {
   if (!iso) return '—';
   try {
     return new Date(iso).toLocaleString('en-GB', withTime
-      ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
-      : { day: '2-digit', month: 'short', year: 'numeric' });
+      ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }
+      : { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/London' });
   } catch { return iso; }
 };
 

@@ -79,14 +79,17 @@ module Reports
         verified_hours:  (worked_min / 60.0).round(1),
         scheduled_hours: (sched_min / 60.0).round(1),
         break_hours:     (break_min / 60.0).round(1),
-        attendance_pct:  denom.zero? ? 100 : ((done.to_f / denom) * 100).round,
-        on_time_pct:     clocked.empty? ? 100 : ((on_time.to_f / clocked.size) * 100).round,
+        # nil (not 100) when there's nothing to measure — an empty period has no
+        # rate, and showing 100% reads as "perfect" when really no visits happened.
+        # The dashboard renders nil as "—".
+        attendance_pct:  denom.zero? ? nil : ((done.to_f / denom) * 100).round,
+        on_time_pct:     clocked.empty? ? nil : ((on_time.to_f / clocked.size) * 100).round,
         unresolved:      unres_ct,
         missed:          missed_ct,
         completed:       done,
         tasks_total:     tasks.size,
         tasks_done:      tasks_done,
-        tasks_pct:       tasks.empty? ? 100 : ((tasks_done.to_f / tasks.size) * 100).round,
+        tasks_pct:       tasks.empty? ? nil : ((tasks_done.to_f / tasks.size) * 100).round,
         exceptions:      alerts_in_range.size
       }
     end

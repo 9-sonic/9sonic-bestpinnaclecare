@@ -81,6 +81,9 @@ module Api
             payload: { reason: reason, from: before,
                        to: { scheduled_start: visit.scheduled_start&.iso8601, scheduled_end: visit.scheduled_end&.iso8601 } }
           )
+          # The visit moved — refresh the assigned carer(s)' calendar so the new
+          # time shows without them reopening the app.
+          Notifications::ShiftChanged.call(visit.visit_assignments.assigned.filter_map(&:employee))
           render json: VisitSerializer.call(visit, include_service_user: true)
         end
 
@@ -94,7 +97,15 @@ module Api
             return render json: { error: "visit_in_past" }, status: 422
           end
 
+          was_published = visit.published?
           visit.update!(status: :published, published_at: Time.current, published_by: current_admin)
+          # Tell the assigned carer(s) they're on — only on the draft -> published
+          # transition, so re-publishing an already-live visit doesn't re-notify.
+          unless was_published
+            Notifications::ShiftAssigned.call(visit: visit)
+            # A newly-published visit appears on the carer's calendar — refresh it live.
+            Notifications::ShiftChanged.call(visit.visit_assignments.assigned.filter_map(&:employee))
+          end
           render json: VisitSerializer.call(visit)
         end
 
@@ -113,6 +124,9 @@ module Api
             return render json: { error: "visit_started" }, status: 422
           end
 
+          # Capture the carers before they're withdrawn, so we can refresh their
+          # calendars after the cancel — the visit drops off their rota.
+          freed_carers = visit.visit_assignments.assigned.filter_map(&:employee)
           ActiveRecord::Base.transaction do
             visit.visit_assignments.assigned.each do |va|
               va.update!(assignment_status: "withdrawn", lifecycle_state: :cancelled)
@@ -123,6 +137,7 @@ module Api
               payload: { reason: reason }
             )
           end
+          Notifications::ShiftChanged.call(freed_carers)
           render json: VisitSerializer.call(visit, include_service_user: true)
         end
 
@@ -140,6 +155,7 @@ module Api
             return render json: { error: "visit_started" }, status: 422
           end
 
+          freed_carers = visit.visit_assignments.assigned.filter_map(&:employee)
           ActiveRecord::Base.transaction do
             Events::Record.call(
               aggregate: visit, actor: current_admin, event_type: "visit.deleted",
@@ -147,6 +163,8 @@ module Api
             )
             visit.destroy!
           end
+          # The visit is gone — refresh the freed carers' calendars.
+          Notifications::ShiftChanged.call(freed_carers)
           head :no_content
         rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::InvalidForeignKey
           # A note or clock record blocked the cascade — never erase held history.
