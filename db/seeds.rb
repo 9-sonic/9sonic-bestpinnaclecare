@@ -1,23 +1,34 @@
-# Best Pinnacle Care — seed data.
+# Best Pinnacle Care — INITIAL seed (one-time, wipes then loads).
 #
-#   bin/rails db:seed
-#   FORCE_SEED=1 RAILS_ENV=production bin/rails db:seed
+#   bin/rails db:seed                        # dev
+#   FORCE_SEED=1 RAILS_ENV=production ...     # prod, first load only
 #
-# Wipes existing table data, then loads the real staff and service users
-# exported from the RoundSys manager portal (db/seed_data/roundsys.json), plus
-# the single test manager admin used to log into the console.
+# This TRUNCATES and rebuilds from the RoundSys export — it is the first-time
+# load for an EMPTY system. It refuses to run once real clock-ins exist, so it
+# can't wipe live data after go-live.
 #
-# The JSON is generated from docs/roundsys_staff_service_users_addresses.xlsx —
-# checked in so seeding needs no xlsx-parsing gem on the server.
+# To TOP UP more history later (e.g. the 28 Aug–1 Sep batch) WITHOUT wiping, use
+# the additive, idempotent task instead — safe to re-run any time:
+#
+#   bin/rails roundsys:import
+#
+# That's also what the deploy runs. Both share Seeding::RoundsysImport.
 require "securerandom"
 require "json"
+
+DEMO_PASSWORD = "Password123!".freeze
+DEMO_MFA_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".freeze
 
 if Rails.env.production? && ENV["FORCE_SEED"].blank?
   abort "Refusing to seed production without FORCE_SEED=1"
 end
 
-DEMO_PASSWORD = "Password123!".freeze
-DEMO_MFA_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP".freeze
+# Hard stop: never let the wiping seed destroy real attendance. Once a carer has
+# clocked in live (a "live"-origin clock event that isn't part of the historical
+# import), this DB is in use — top up with `rails roundsys:import` instead.
+if ClockEvent.where(origin: "live").where("occurred_at > ?", Date.new(2026, 9, 1).end_of_day).exists?
+  abort "Refusing to wipe: live clock-ins after go-live exist. Use `rails roundsys:import` to add data instead."
+end
 
 # ---------------------------------------------------------------------------
 # Reset: truncate all tables to guarantee a clean state
@@ -37,8 +48,7 @@ if existing_tables.any?
 end
 
 # ---------------------------------------------------------------------------
-# Settings — provider record. NOTE: company_name/postcode/phone are placeholders
-# taken from the office address; the real CQC provider/location IDs and
+# Settings — provider record. NOTE: the real CQC provider/location IDs and
 # registered address were NOT in the RoundSys export — confirm with Jesse and
 # replace before this is treated as the source of truth.
 # ---------------------------------------------------------------------------
@@ -53,7 +63,7 @@ Setting.create!(
 )
 
 # ---------------------------------------------------------------------------
-# Test manager admin — the login you already know. Kept alongside the real data.
+# Test manager admin — the login you already know.
 # ---------------------------------------------------------------------------
 manager = Admin.create!(
   email: "manager@bestpinnacle.test",
@@ -68,179 +78,45 @@ manager = Admin.create!(
   mfa_secret: DEMO_MFA_SECRET
 )
 
-# ---------------------------------------------------------------------------
-# Real staff + service users from the RoundSys export.
-# ---------------------------------------------------------------------------
-data = JSON.parse(File.read(Rails.root.join("db/seed_data/roundsys.json")))
-
-# Office staff (Manager / Registered Manager / Duty Officer) -> Admin logins.
-# MFA off so they can sign in on a fresh environment; everyone shares the dev
-# password (the export carried no passwords). Skip the seeded test manager's
-# email if it ever clashes.
+# Office staff -> Admin logins. MFA off so they can sign in on a fresh
+# environment; everyone shares the dev password (the export had none).
+people = JSON.parse(File.read(Rails.root.join("db/seed_data/roundsys.json")))
 admins = 0
-data["admins"].each do |a|
+people["admins"].each do |a|
   next if a["email"] == manager.email
 
   Admin.create!(
-    email: a["email"],
-    password: DEMO_PASSWORD,
-    first_name: a["first_name"],
-    last_name: a["last_name"],
-    phone: a["phone"],
-    role: a["role"],           # registered_manager | manager | coordinator
-    active: true,
-    accepted_invite_at: Time.current,
-    mfa_enabled: false
+    email: a["email"], password: DEMO_PASSWORD,
+    first_name: a["first_name"], last_name: a["last_name"], phone: a["phone"],
+    role: a["role"], active: true, accepted_invite_at: Time.current, mfa_enabled: false
   )
   admins += 1
 end
 
-# Careworkers -> Employees (the only employee_role is :carer).
-carers = 0
-data["employees"].each do |e|
-  Employee.create!(
-    email: e["email"],
-    password: DEMO_PASSWORD,
-    first_name: e["first_name"],
-    last_name: e["last_name"],
-    phone: e["phone"],
-    role: :carer,
-    # Leave employee_reference unset so the model assigns OUR standard EMP-XXXX
-    # code (the raw RoundSys staff ID isn't our reference format).
-    emergency_contact_name: e["emergency_contact_name"],
-    emergency_contact_phone: e["emergency_contact_phone"],
-    contracted_hours_per_week: e["contracted_hours_per_week"],
-    active: true,
-    accepted_invite_at: Time.current
-  )
-  carers += 1
-end
-
-# Service users — with real address + lat/lng (the geofence anchor). Seeded
-# verbatim; a shared_site flag means the coordinates match another service user
-# (a radius geofence alone can't tell those visits apart).
-users = 0
-data["service_users"].each do |su|
-  ServiceUser.create!(
-    first_name: su["first_name"],
-    last_name: su["last_name"],
-    # `reference` is OUR client code — leave it unset so the model assigns the
-    # standard SU-XXXX (before_create). The export's "Council Service User ID"
-    # goes in its own council_id field, not reference.
-    council_id: su["reference"],
-    date_of_birth: su["date_of_birth"],
-    address_line1: su["address_line1"],
-    postcode: su["postcode"],
-    lat: su["lat"],
-    lng: su["lng"],
-    active: true
-  )
-  users += 1
-end
-
 # ---------------------------------------------------------------------------
-# Historical visits (RoundSys CQC export, ~3k rows). Optional — set SEED_VISITS=1
-# to include them (it's slow: each visit writes 1–2 clock events through the real
-# Clocking::RecordClockEvent so lifecycle/worked-minutes/geofence come out exactly
-# as the live app would compute them). Skipped by default so a routine reseed is
-# fast; run once with SEED_VISITS=1 to populate attendance history.
+# Real staff, service users, and (optionally) the historical visits — loaded
+# through the SAME additive importer the top-up task uses, so there's one code
+# path. On this empty DB it simply creates everything. Visits are slow (~4,900
+# rows), so they're opt-in via SEED_VISITS=1.
 # ---------------------------------------------------------------------------
-visit_count = 0
-deactivated = 0
 if ENV["SEED_VISITS"].present?
-  vdata = JSON.parse(File.read(Rails.root.join("db/seed_data/roundsys_visits.json")))
-
-  # Carers who appear in the visit history but not in the current-staff sheet
-  # (leavers, plus two office managers who did the odd visit) — created as
-  # DEACTIVATED so their history has an owner without cluttering the live roster.
-  vdata["extra_carers"].each do |c|
-    next if Employee.exists?(email: c["email"])
-
-    Employee.create!(
-      email: c["email"], password: DEMO_PASSWORD,
-      first_name: c["first_name"], last_name: c["last_name"],
-      role: :carer, active: false, accepted_invite_at: 1.year.ago
-    )
-    deactivated += 1
-  end
-
-  emp_by_email = Employee.pluck(:email, :id).to_h
-  su_by_name = ServiceUser.all.index_by { |s| "#{s.first_name} #{s.last_name}" }
-
-  # Build one historical clock event, fully-formed, in a single INSERT. This is
-  # deliberately NOT routed through Clocking::RecordClockEvent + a follow-up
-  # update: clock_events carries a DB-level append-only RULE (clock_events_no_update
-  # -> DO INSTEAD NOTHING) that SILENTLY swallows any UPDATE. So distance, geofence
-  # and origin must be set at INSERT time or they're lost without any error — which
-  # is exactly what happened before. INSERT is allowed by the rule; UPDATE is not.
-  #
-  #   distance/geofence : the export's real metres, pass/fail vs the fence radius.
-  #   origin            : offline_sync for a tap the carer made offline (synced
-  #                       later), else "live" — because these ARE the carers' real
-  #                       taps from the field, not admin corrections. (An earlier
-  #                       version marked them manual_admin to dodge the live
-  #                       skew-check, but that misrepresented an honest carer tap
-  #                       as a manual admin entry. We insert directly now, so we
-  #                       set the true origin.)
-  #   method            : "gps" — the carer clocked on the app with a location fix.
-  build_event = lambda do |va, kind, at, lat, lng, metres, radius, offline|
-    geo = metres.nil? ? "not_checked" : (metres <= radius ? "pass" : "fail")
-    ClockEvent.create!(
-      visit_assignment: va, kind: kind, occurred_at: at, recorded_at: at,
-      lat: lat, lng: lng, distance_from_site_m: metres, geofence_result: geo,
-      origin: offline ? "offline_sync" : "live",
-      method: "gps", client_event_id: SecureRandom.uuid
-    )
-  end
-
-  grace = (Setting.instance.late_grace_minutes || 15).minutes
-
-  vdata["visits"].each do |v|
-    emp_id = emp_by_email[v["carer_email"]]
-    su = su_by_name[v["su"]]
-    next unless emp_id && su
-
-    started = Time.zone.parse(v["clocked_in"])
-    ended   = v["clocked_out"] ? Time.zone.parse(v["clocked_out"]) : nil
-    radius  = su.geofence_radius_m || 150
-    # Scheduled window: back out the recorded lateness so late arrivals stay late.
-    # It's scheduling metadata (the real taps are kept verbatim on the events);
-    # the model requires >= 15 min, and some rows have a near-instant/missing
-    # clock-out, so clamp to a sane minimum.
-    sched_start = started - (v["late_in_min"] || 0).minutes
-    sched_end   = ended && ended > sched_start ? ended : sched_start + 45.minutes
-    sched_end   = sched_start + 15.minutes if sched_end < sched_start + 15.minutes
-
-    visit = Visit.create!(service_user: su, scheduled_start: sched_start, scheduled_end: sched_end,
-                          status: :published, published_at: sched_start)
-
-    # Compute the FINAL outcome and create the assignment with it in one shot —
-    # NOT as :scheduled-then-update. These visits are months in the past, so the
-    # timer-driven Lifecycle::EvaluateStatesJob (which runs in the background)
-    # would grab any assignment left in :scheduled and, seeing it long overdue,
-    # flip it to :missed and raise a false alert. Setting the terminal state at
-    # create time closes that race — a completed visit stays completed.
-    #   both taps -> completed; only a clock-in -> in_progress (late if past grace).
-    if ended
-      lifecycle = :completed
-      cols = { actual_start: started, actual_end: ended, worked_minutes: ((ended - started) / 60).round }
-    else
-      lifecycle = started > sched_start + grace ? :late : :in_progress
-      cols = { actual_start: started }
-    end
-    va = VisitAssignment.create!(visit: visit, employee_id: emp_id,
-                                 assignment_status: "assigned", lifecycle_state: lifecycle, **cols)
-
-    build_event.call(va, "clock_in", started, v["in_lat"], v["in_lng"], v["in_metres"], radius, v["offline_in"])
-    build_event.call(va, "clock_out", ended, v["out_lat"] || v["in_lat"], v["out_lng"] || v["in_lng"], v["out_metres"], radius, v["offline_out"]) if ended
-
-    visit_count += 1
-    puts "  seeded #{visit_count} visits…" if (visit_count % 500).zero?
-  end
+  res = Seeding::RoundsysImport.call
+  carers = res.carers
+  users  = res.service_users
+  visit_count = res.visits
+  deactivated = res.deactivated
+else
+  # Staff + service users only (fast). Reuse the importer but skip visits by
+  # pointing it at an empty visit set.
+  res = Seeding::RoundsysImport.new(visits_path: nil).call_people_only
+  carers = res.carers
+  users  = res.service_users
+  visit_count = 0
+  deactivated = 0
 end
 
 puts "\n" + ("=" * 64)
-puts "Seed complete."
+puts "Seed complete (initial load)."
 puts "-" * 64
 puts "Test admin login: #{manager.email} / #{DEMO_PASSWORD}"
 puts "Real office admins: #{admins}  (password #{DEMO_PASSWORD}, MFA off)"
@@ -249,6 +125,6 @@ puts "Service users:      #{users}"
 if ENV["SEED_VISITS"].present?
   puts "Visits imported:    #{visit_count}  (+ #{deactivated} deactivated carers for history)"
 else
-  puts "Visits:             skipped (set SEED_VISITS=1 to import ~3k historical visits)"
+  puts "Visits:             skipped (set SEED_VISITS=1 to import the historical visits)"
 end
 puts "=" * 64
