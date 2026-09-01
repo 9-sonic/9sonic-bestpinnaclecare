@@ -1275,3 +1275,9 @@ button.tile:hover { border-color: var(--color-border-strong); }
 .dlogin__title { font-size: 25px; font-weight: 800; letter-spacing: -0.6px; color: var(--d-ink); text-align: center; }
 .dlogin__subtitle { margin-top: 5px; font-size: 13.5px; font-weight: 600; color: var(--d-muted); text-align: center; }
 .dlogin__form { display: flex; flex-direction: column; gap: 16px; margin-top: 22px; }
+
+/* MFA enrolment QR. The generated SVG carries inline width/height="228" and no
+   viewBox, so it can't shrink itself; cap it responsively and let it keep its
+   1:1 ratio so it renders whole (a clipped QR won't scan). */
+.mfa-qr { max-width: 100%; }
+.mfa-qr svg { display: block; width: 208px; height: auto; max-width: 100%; }
