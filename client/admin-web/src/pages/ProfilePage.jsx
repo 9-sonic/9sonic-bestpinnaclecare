@@ -124,6 +124,22 @@ function SecurityPanel() {
     setStep(null); setEnroll(null); setOtp(''); setBackupCodes([]); setBusy(false);
   }
 
+  // The QR SVG comes with fixed width/height="NNN" and no viewBox, so it can't
+  // be scaled by CSS without clipping. Give it a viewBox built from its own size
+  // and drop the fixed dims, so the .mfa-qr rule can size it responsively and it
+  // always renders whole (a clipped QR won't scan).
+  const qrHtml = (() => {
+    const raw = enroll?.qr_svg;
+    if (!raw) return '';
+    const w = raw.match(/width="(\d+)"/)?.[1];
+    const h = raw.match(/height="(\d+)"/)?.[1];
+    if (!w || !h) return raw;
+    return raw
+      .replace(/\swidth="\d+"/, '')
+      .replace(/\sheight="\d+"/, '')
+      .replace(/<svg /, `<svg viewBox="0 0 ${w} ${h}" `);
+  })();
+
   async function begin() {
     setBusy(true);
     try {
@@ -191,14 +207,18 @@ function SecurityPanel() {
           }
         >
           <div style={s('padding:22px 24px;display:flex;flex-direction:column;gap:18px;align-items:center')}>
+            {/* The QR SVG is a fixed 228×228 with no viewBox — give it a white box
+                that fits it so it renders whole and stays scannable (a smaller box
+                clipped it). Always on white regardless of theme for scan contrast. */}
             <div
-              style={s('width:196px;height:196px;background:#fff;border-radius:14px;padding:10px;display:flex;align-items:center;justify-content:center')}
-              dangerouslySetInnerHTML={{ __html: enroll?.qr_svg || '' }}
+              className="mfa-qr"
+              style={s('background:#fff;border-radius:14px;padding:12px;display:flex;align-items:center;justify-content:center')}
+              dangerouslySetInnerHTML={{ __html: qrHtml }}
             />
             <div style={s('width:100%')}>
               <div style={s('font-size:12px;font-weight:600;color:var(--d-ink2);margin-bottom:6px')}>Can’t scan? Enter this key manually</div>
-              <code style={s('display:block;font-size:12px;word-break:break-all;background:var(--d-panel);border:1px solid var(--d-border);border-radius:10px;padding:10px 12px;color:var(--d-ink2)')}>
-                {enroll?.otpauth_uri}
+              <code style={s('display:block;font-size:14px;letter-spacing:1px;word-break:break-all;background:var(--d-panel);border:1px solid var(--d-border);border-radius:10px;padding:10px 12px;color:var(--d-ink)')}>
+                {(enroll?.secret || '').replace(/(.{4})/g, '$1 ').trim()}
               </code>
             </div>
             <label style={s('width:100%;display:flex;flex-direction:column;gap:6px')}>
@@ -329,7 +349,6 @@ export default function ProfilePage({ embedded = false }) {
         </div>
         <div style={s('display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap')}>
           <Tag tone="info">{ROLE_LABEL[admin?.role] ?? admin?.role}</Tag>
-          <Tag tone={admin?.mfa_enabled ? 'success' : 'muted'}>{admin?.mfa_enabled ? 'Two-step on' : 'Two-step off'}</Tag>
           <span style={s('flex:1;min-width:20px')} />
           <Button variant="primary" icon="check" disabled={!dirty || saving} onClick={(!dirty || saving) ? undefined : save}>
             {saving ? 'Saving…' : 'Save changes'}

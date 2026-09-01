@@ -9,7 +9,9 @@ module Mfa
       resource.update!(mfa_secret: secret, mfa_confirmed_at: nil)
 
       uri = ROTP::TOTP.new(secret, issuer: ISSUER).provisioning_uri(resource.email)
-      { otpauth_uri: uri, qr_svg: qr_svg(uri) }
+      # `secret` is the base32 key an authenticator app wants for *manual* entry
+      # (when the QR can't be scanned) — grouped in fours for legibility client-side.
+      { secret: secret, otpauth_uri: uri, qr_svg: qr_svg(uri) }
     end
 
     def self.qr_svg(uri)
