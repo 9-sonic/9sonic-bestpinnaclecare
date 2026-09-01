@@ -8,7 +8,7 @@ class EmployeeSerializer
       last_name:                 employee.last_name,
       full_name:                 employee.full_name,
       phone:                     employee.phone,
-      avatar_url:                AttachmentUrl.for(employee.avatar),
+      avatar_url:                AttachmentUrl.variant(employee.avatar, Employee::AVATAR_VARIANT),
       role:                      employee.role,
       employee_reference:        employee.employee_reference,
       contracted_hours_per_week: employee.contracted_hours_per_week&.to_f,
