@@ -39,6 +39,7 @@ tables = %w[
   message_receipts message_attachments messages conversation_participants conversations
   notifications notification_preferences alerts
   refresh_tokens devices webauthn_credentials jwt_denylist
+  active_storage_variant_records active_storage_attachments active_storage_blobs
   employees admins settings
 ]
 existing_tables = tables & ActiveRecord::Base.connection.tables
