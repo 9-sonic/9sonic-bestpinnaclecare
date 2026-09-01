@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { uploadMyAvatar, removeMyAvatar, updateMyProfile } from '../api/index.js';
+import { uploadMyAvatar, removeMyAvatar, updateMyProfile, beginMfaEnrolment, confirmMfaEnrolment } from '../api/index.js';
 import { Panel, PanelTitle, Button, Tag, fieldStyle as dsFieldStyle } from '../ds/console.jsx';
+import Modal from '../components/common/Modal.jsx';
 import { s, imageTooLarge } from '../lib/ui.jsx';
 import { enablePush, disablePush, pushPermission, isSubscribed } from '../lib/push.js';
 
@@ -102,6 +103,145 @@ function NotificationsPanel() {
   );
 }
 
+// Two-step verification (TOTP). The backend does the real work — POST /admin/mfa
+// mints a fresh secret and returns a QR + otpauth URI; /admin/mfa/confirm verifies
+// the first code, flips mfa_enabled and hands back one-time backup codes. This is
+// just the enrolment surface: scan, confirm, save the backup codes. Once on, the
+// login screen already prompts for a code (handled in AuthContext), so there's
+// nothing more to wire for sign-in.
+function SecurityPanel() {
+  const { admin, refreshAdmin } = useAuth();
+  const toast = useToast();
+  const enabled = !!admin?.mfa_enabled;
+
+  const [step, setStep] = useState(null); // null | 'scan' | 'codes'
+  const [enroll, setEnroll] = useState(null); // { qr_svg, otpauth_uri }
+  const [otp, setOtp] = useState('');
+  const [backupCodes, setBackupCodes] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  function close() {
+    setStep(null); setEnroll(null); setOtp(''); setBackupCodes([]); setBusy(false);
+  }
+
+  async function begin() {
+    setBusy(true);
+    try {
+      const res = await beginMfaEnrolment();
+      setEnroll(res);
+      setStep('scan');
+    } catch (e) {
+      toast.error(e.message || 'Could not start two-step setup');
+    } finally { setBusy(false); }
+  }
+
+  async function confirm() {
+    const code = otp.trim();
+    if (!/^\d{6}$/.test(code)) { toast.error('Enter the 6-digit code from your app'); return; }
+    setBusy(true);
+    try {
+      const res = await confirmMfaEnrolment(code);
+      setBackupCodes(res.backup_codes || []);
+      setStep('codes');
+      await refreshAdmin?.();
+    } catch (e) {
+      // The backend returns 422 invalid_code for a wrong/expired code.
+      toast.error(e.status === 422 ? 'That code was not right — check the app and try again' : (e.message || 'Could not confirm the code'));
+    } finally { setBusy(false); }
+  }
+
+  function copyCodes() {
+    navigator.clipboard?.writeText(backupCodes.join('\n'))
+      .then(() => toast.success('Backup codes copied'))
+      .catch(() => toast.error('Could not copy — select and copy them manually'));
+  }
+
+  return (
+    <Panel>
+      <PanelTitle hint="Require a one-time code from an authenticator app when you sign in">Two-step verification</PanelTitle>
+      <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px')}>
+        {enabled ? (
+          <>
+            <Tag tone="success">On for your account</Tag>
+            <span style={s('font-size:13px;font-weight:500;color:var(--d-ink2)')}>You’ll enter a code from your authenticator app each time you sign in.</span>
+          </>
+        ) : (
+          <>
+            <span style={s('font-size:13px;font-weight:500;color:var(--d-ink2)')}>Add a second step to your login with an authenticator app (Google Authenticator, Authy, 1Password…).</span>
+            <span style={s('flex:1;min-width:20px')} />
+            <Button variant="primary" icon="shield" disabled={busy} onClick={busy ? undefined : begin}>
+              {busy ? 'Starting…' : 'Enable two-step'}
+            </Button>
+          </>
+        )}
+      </div>
+
+      {step === 'scan' && (
+        <Modal
+          title="Scan this with your authenticator app"
+          subtitle="Then enter the 6-digit code it shows to finish."
+          onClose={close}
+          footer={
+            <div style={s('display:flex;justify-content:flex-end;gap:8px')}>
+              <Button onClick={close}>Cancel</Button>
+              <Button variant="primary" icon="check" disabled={busy} onClick={busy ? undefined : confirm}>
+                {busy ? 'Confirming…' : 'Confirm & turn on'}
+              </Button>
+            </div>
+          }
+        >
+          <div style={s('padding:22px 24px;display:flex;flex-direction:column;gap:18px;align-items:center')}>
+            <div
+              style={s('width:196px;height:196px;background:#fff;border-radius:14px;padding:10px;display:flex;align-items:center;justify-content:center')}
+              dangerouslySetInnerHTML={{ __html: enroll?.qr_svg || '' }}
+            />
+            <div style={s('width:100%')}>
+              <div style={s('font-size:12px;font-weight:600;color:var(--d-ink2);margin-bottom:6px')}>Can’t scan? Enter this key manually</div>
+              <code style={s('display:block;font-size:12px;word-break:break-all;background:var(--d-panel);border:1px solid var(--d-border);border-radius:10px;padding:10px 12px;color:var(--d-ink2)')}>
+                {enroll?.otpauth_uri}
+              </code>
+            </div>
+            <label style={s('width:100%;display:flex;flex-direction:column;gap:6px')}>
+              <span style={s('font-size:12px;font-weight:600;color:var(--d-ink2)')}>6-digit code</span>
+              <input
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !busy) confirm(); }}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                style={{ ...fieldStyle, letterSpacing: '4px', fontSize: '18px', textAlign: 'center' }}
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
+
+      {step === 'codes' && (
+        <Modal
+          title="Two-step is on — save your backup codes"
+          subtitle="Each code works once if you lose your phone. Store them somewhere safe; they won’t be shown again."
+          onClose={close}
+          footer={
+            <div style={s('display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap')}>
+              <Button icon="copy" onClick={copyCodes}>Copy codes</Button>
+              <Button variant="primary" icon="check" onClick={close}>Done</Button>
+            </div>
+          }
+        >
+          <div style={s('padding:22px 24px')}>
+            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:8px')}>
+              {backupCodes.map((c) => (
+                <code key={c} style={s('font-size:14px;letter-spacing:1px;text-align:center;background:var(--d-panel);border:1px solid var(--d-border);border-radius:10px;padding:10px;color:var(--d-ink)')}>{c}</code>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </Panel>
+  );
+}
+
 export default function ProfilePage({ embedded = false }) {
   const { admin, refreshAdmin } = useAuth();
   const toast = useToast();
@@ -196,6 +336,8 @@ export default function ProfilePage({ embedded = false }) {
           </Button>
         </div>
       </Panel>
+
+      <SecurityPanel />
 
       <NotificationsPanel />
     </div>
