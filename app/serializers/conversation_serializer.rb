@@ -18,7 +18,7 @@ class ConversationSerializer
       # out of the roster, though their past messages stay in the thread.
       participants:         convo.conversation_participants.select { |p| p.left_at.nil? }.map { |p|
         { type: p.participant_type, id: p.participant_id, role: p.role,
-          full_name: p.participant&.full_name, avatar_url: AttachmentUrl.for(p.participant&.avatar) }
+          full_name: p.participant&.full_name, avatar_url: AttachmentUrl.variant(p.participant&.avatar, Authenticatable::AVATAR_VARIANT) }
       },
       muted:                cp ? cp.muted : false,
       unread_count:         cp ? cp.unread_count : 0

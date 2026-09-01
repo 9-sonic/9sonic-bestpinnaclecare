@@ -4,6 +4,12 @@
 module Authenticatable
   extend ActiveSupport::Concern
 
+  # Avatars are shown at most ~92px (carer detail); everything else is a 32–40px
+  # chip. Serving the raw phone upload (often several MB) into that box loads
+  # slowly and renders badly, so we resize to a square-capped variant the same
+  # way chat images do — 160px covers the largest avatar at 2x retina.
+  AVATAR_VARIANT = { resize_to_limit: [ 160, 160 ], saver: { quality: 82 } }.freeze
+
   included do
     devise :database_authenticatable, :recoverable, :validatable,
            :lockable, :jwt_authenticatable, jwt_revocation_strategy: JwtDenylist

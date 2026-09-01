@@ -7,7 +7,7 @@ class AdminSerializer
       last_name:   admin.last_name,
       full_name:   admin.full_name,
       phone:       admin.phone,
-      avatar_url:  AttachmentUrl.for(admin.avatar),
+      avatar_url:  AttachmentUrl.variant(admin.avatar, Admin::AVATAR_VARIANT),
       role:        admin.role,
       active:      admin.active,
       mfa_enabled: admin.mfa_enabled,
