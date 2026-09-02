@@ -6,9 +6,10 @@ module Assignments
   # and then sees the first). Used by admin assign, reassign and cover-accept.
   #
   # Returns a Result: ok + assignment, or blocked + conflict.
-  # reason: :carer  -> the carer is already booked in an overlapping visit
-  # reason: :client -> the client already has a carer in an overlapping visit
-  #                    (one service user, one carer at a time)
+  # reason: :carer     -> the carer is already booked in an overlapping visit
+  # reason: :client    -> the client already has a SEPARATE overlapping visit
+  #                       (a double-up on the SAME visit is fine — that's excluded)
+  # reason: :duplicate -> this carer is already on THIS visit
   Result = Struct.new(:ok, :assignment, :conflict, :reason, keyword_init: true)
 
   class Assign
@@ -22,6 +23,14 @@ module Assignments
         VisitAssignment.assigned.joins(:visit)
                        .where(visits: { service_user_id: visit.service_user_id })
                        .lock("FOR UPDATE").load
+
+        # Already on THIS visit? (A double-up visit takes several carers, so we
+        # can't rely on "the visit is full" — guard the exact pair.) Return a
+        # clean result instead of letting the (visit_id, employee_id) unique index
+        # raise an unhandled 500.
+        if visit.visit_assignments.assigned.exists?(employee_id: employee.id)
+          return Result.new(ok: false, reason: :duplicate)
+        end
 
         if (clash = Validate.conflicting_visit(visit: visit, employee: employee))
           return Result.new(ok: false, conflict: clash, reason: :carer)

@@ -32,6 +32,13 @@ module Api
         # reason: :client -> the client already has a carer then (one service
         # user, one carer at a time).
         def render_conflict(clash, reason = :carer)
+          # :duplicate has no clashing visit — the carer is already on THIS visit.
+          # 409 Conflict, matching the RecordNotUnique the DB index used to raise
+          # before this pre-check existed (error_handling rescues it to :conflict).
+          if reason == :duplicate
+            return render json: { error: "already_on_visit" }, status: :conflict
+          end
+
           render json: {
             error: reason == :client ? "client_unavailable" : "carer_unavailable",
             conflict: {

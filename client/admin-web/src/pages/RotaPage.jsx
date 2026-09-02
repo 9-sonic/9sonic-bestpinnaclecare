@@ -104,9 +104,13 @@ function VisitBlock({ v, view, selected, onOpen, onMenu }) {
   const short = isShort(v);
   const cancelled = v.status === 'cancelled';
   const c = chipFor(v);
-  const carer = v.assignments?.[0]?.employee;
+  const assigned = v.assignments ?? [];
+  const carer = assigned[0]?.employee;
+  // Double-up: show the first carer with a "+N" so the block reads e.g. "Ann +1"
+  // rather than hiding that a second carer is on the same visit.
+  const extra = assigned.length > 1 ? ` +${assigned.length - 1}` : '';
   const primary = view === 'client'
-    ? (carer ? fullName(carer) : 'Unfilled')
+    ? (carer ? `${fullName(carer)}${extra}` : 'Unfilled')
     : fullName(v.service_user);
   // Solid block, white text. Unfilled = orange, cancelled = grey + struck, else
   // Main's soft-card style with the distinct colours: unfilled = soft orange,
@@ -192,7 +196,10 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
     return clash ? `Double-booked with ${fullName(clash.service_user)} ${formatTime(clash.scheduled_start)}` : null;
   };
 
-  const ranked = employees.filter((e) => e.active)
+  // Carers already on THIS visit (a double-up may have one of two already) — don't
+  // offer them again; a carer can't be assigned to the same visit twice.
+  const alreadyOn = new Set((visit.assignments ?? []).map((a) => a.employee?.id));
+  const ranked = employees.filter((e) => e.active && !alreadyOn.has(e.id))
     .filter((e) => { const q = query.trim().toLowerCase(); return !q || `${e.full_name} ${e.employee_reference ?? ''}`.toLowerCase().includes(q); })
     .map((e) => ({ e, regular: regulars.has((e.full_name ?? '').toLowerCase()), conflict: conflictFor(e.id) }))
     .sort((a, b) => (Number(!!a.conflict) - Number(!!b.conflict)) || (Number(b.regular) - Number(a.regular)) || a.e.full_name.localeCompare(b.e.full_name));
@@ -215,6 +222,8 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
         setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
       } else if (err.message === 'client_unavailable') {
         setError({ title: 'The client already has a carer then', body: `${fullName(visit.service_user)} is already being visited at ${when}. One client, one carer at a time.` });
+      } else if (err.code === 'already_on_visit') {
+        setError({ title: 'Already on this visit', body: `${e.full_name} is already assigned to this visit. Pick a different carer.` });
       } else {
         setError({ title: isReassign ? 'Could not reassign the visit' : 'Could not assign that carer', body: err.message || 'Please try again.' });
       }
@@ -223,7 +232,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
 
   return (
     <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
-      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
+      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}${!isReassign && (visit.staff_required ?? 1) > 1 ? ` · ${(visit.assignments ?? []).length} of ${visit.staff_required} carers assigned` : ''}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
         {error && (
@@ -286,8 +295,11 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
   const [clientId, setClientId] = useState(preset?.clientId ?? serviceUsers[0]?.id ?? '');
   const [carerId, setCarerId] = useState(preset?.carerId ?? '');
   const [day, setDay] = useState(preset?.day ?? 0);
-  const [start, setStart] = useState('09:00');
-  const [end, setEnd] = useState('10:00');
+  const [start, setStart] = useState(preset?.start ?? '09:00');
+  const [end, setEnd] = useState(preset?.end ?? '10:00');
+  // Carers needed on this visit — 1 for a normal call, 2 for a double-up (e.g. a
+  // hoist transfer that needs two carers on the same visit at the same time).
+  const [staffRequired, setStaffRequired] = useState(1);
   const [busy, setBusy] = useState(false);
   if (!preset) return null;
   const client = serviceUsers.find((c) => c.id === Number(clientId));
@@ -303,7 +315,10 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
     // means 09:00 in London no matter where the admin is (e.g. Kenya). ukTime
     // interprets the picked time as Europe/London and returns the correct UTC
     // instant. Overnight: end at/before start -> next day.
-    const base = new Date(weekMonday); base.setDate(base.getDate() + Number(day));
+    // Day-mode add passes an absolute date; week-mode uses weekMonday + day index.
+    let base;
+    if (preset?.date) { const [y, m, d] = preset.date.split('-').map(Number); base = new Date(y, m - 1, d); }
+    else { base = new Date(weekMonday); base.setDate(base.getDate() + Number(day)); }
     const startDate = ukTime(base, start);
     let endDate = ukTime(base, end);
     if (endDate.getTime() <= startDate.getTime()) endDate = ukTime(base, end, 1);
@@ -325,7 +340,7 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
     if (endDate.getTime() - startDate.getTime() < 15 * 60000) { toast.error('A visit must be at least 15 minutes long.'); return; }
     setBusy(true);
     try {
-      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString() });
+      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString(), staff_required: Number(staffRequired) });
       // Carer grouping: assign the chosen carer straight away so the block lands
       // in their row, not the Unassigned one. Creation succeeded either way — if
       // the assign fails, keep the draft and say what happened.
@@ -376,6 +391,17 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
           <select value={day} onChange={(e) => setDay(e.target.value)} style={control}>
             {days.map((d, i) => <option key={d} value={i}>{d}</option>)}
           </select>
+        </div>
+        <div style={field}><span style={label}>Carers needed</span>
+          <input
+            type="number" min={1} max={10} step={1} value={staffRequired}
+            onChange={(e) => setStaffRequired(e.target.value)}
+            onBlur={(e) => { const n = Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 1))); setStaffRequired(n); }}
+            style={control}
+          />
+          {Number(staffRequired) > 1 && (
+            <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>A double-up visit. You’ll add the other {Number(staffRequired) - 1} carer{Number(staffRequired) - 1 > 1 ? 's' : ''} from the visit after it’s created.</span>
+          )}
         </div>
         <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
           <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
@@ -440,7 +466,7 @@ function VisitDelivery({ delivery }) {
 }
 
 /* ---------- filled-visit editor drawer (retime + real actions) ---------- */
-function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
+function VisitDetailDrawer({ visit, settings, onClose, onChanged, onAddCarer }) {
   const toast = useToast();
   const [start, setStart] = useState(formatTime(visit?.scheduled_start));
   const [end, setEnd] = useState(formatTime(visit?.scheduled_end));
@@ -456,8 +482,11 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
     return () => { active = false; };
   }, [visit?.id]);
   if (!visit) return null;
-  const a = visit.assignments?.[0];
-  const started = (visit.assignments ?? []).some((x) => x.actual_start);
+  // All active carers on the visit, not just the first — a double-up visit has
+  // more than one, and each carer must be visible.
+  const carers = visit.assignments ?? [];
+  const needsMore = carers.length < (visit.staff_required ?? 1);
+  const started = carers.some((x) => x.actual_start);
   const tone = { neutral: 'muted', warn: 'warning', active: 'info' }[LIFECYCLE_TONE[stateOf(visit)]] ?? LIFECYCLE_TONE[stateOf(visit)];
 
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
@@ -499,8 +528,21 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
           {visit.status === 'draft' && <Tag tone="muted">Draft</Tag>}
         </div>
         <div style={s('background:var(--d-panel);border-radius:14px;padding:13px 15px')}>
-          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Carer</div>
-          <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{a ? fullName(a.employee) : 'Unassigned'}</div>
+          <div style={s('display:flex;align-items:center;justify-content:space-between;gap:8px')}>
+            <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>
+              {carers.length > 1 || (visit.staff_required ?? 1) > 1 ? `Carers · ${carers.length} of ${visit.staff_required ?? 1}` : 'Carer'}
+            </div>
+            {editable && needsMore && <Button size="sm" icon="user" onClick={onAddCarer}>Add carer</Button>}
+          </div>
+          {carers.length === 0 ? (
+            <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>Unassigned</div>
+          ) : (
+            <div style={s('display:flex;flex-direction:column;gap:4px;margin-top:5px')}>
+              {carers.map((x) => (
+                <div key={x.id} style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{fullName(x.employee)}</div>
+              ))}
+            </div>
+          )}
           <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:6px')}>{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
         </div>
         <RulesNote settings={settings} />
@@ -545,6 +587,8 @@ export default function RotaPage() {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('client');
   const [layout, setLayout] = useState('grid'); // 'grid' | 'list' — how the week is drawn, independent of the carer/client grouping above
+  const [span, setSpan] = useState('week'); // 'week' (7 day-columns) | 'day' (hour-columns for one day)
+  const [dayDate, setDayDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }); // the single day shown in day mode
   const [assigning, setAssigning] = useState(null);
   const [creating, setCreating] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -554,15 +598,20 @@ export default function RotaPage() {
 
   const range = useMemo(() => weekOf(weekStart), [weekStart]);
 
+  // In day mode we fetch just the selected day; in week mode the whole week.
+  const dayIso = useMemo(() => isoDate(dayDate), [dayDate]);
+  const fetchFrom = span === 'day' ? dayIso : range.from;
+  const fetchTo = span === 'day' ? dayIso : range.to;
+
   const load = useCallback(async () => {
     const [v, e, su, st] = await Promise.all([
-      listVisits({ from: range.from, to: range.to }),
+      listVisits({ from: fetchFrom, to: fetchTo }),
       listEmployees().catch(() => []),
       listServiceUsers().catch(() => []),
       getSettings().catch(() => null),
     ]);
     setVisits(v ?? []); setEmployees(e ?? []); setServiceUsers(su ?? []); setSettings(st);
-  }, [range.from, range.to]);
+  }, [fetchFrom, fetchTo]);
 
   useEffect(() => { let a = true; setLoading(true); load().finally(() => a && setLoading(false)); return () => { a = false; }; }, [load]);
 
@@ -570,6 +619,35 @@ export default function RotaPage() {
     const d = new Date(range.monday); d.setDate(d.getDate() + i);
     return { date: d, label: d.toLocaleDateString('en-GB', { weekday: 'short' }), num: d.getDate(), today: d.toDateString() === new Date().toDateString() };
   }), [range.monday]);
+
+  // Day mode: one column per hour of the selected day (07:00–21:00 covers the
+  // domiciliary day; anything outside still shows because we clamp into the
+  // first/last hour). A visit falls in the hour of its UK-local start time.
+  const DAY_START_H = 7;
+  const DAY_END_H = 22; // exclusive — last column is 21:00
+  const dayHours = useMemo(
+    () => Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => DAY_START_H + i),
+    [],
+  );
+  // UK-local hour, as a fraction (08:30 -> 8.5), so a visit spans the real time
+  // it covers, not just its whole start hour.
+  const ukHourFrac = (iso) => {
+    const [hh, mm] = new Date(iso).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' }).split(':').map(Number);
+    return hh + (mm || 0) / 60;
+  };
+  // A visit's column span in the nested hour grid (1-based; column 1 = DAY_START_H).
+  // Start floors to the hour it begins in, end ceils to the hour it finishes in, so
+  // 08:00–10:00 spans columns 2..4 (the 08 and 09 columns) and 08:00–08:30 still
+  // fills one column. Clamped to the visible band; an overnight end wraps to the
+  // band's end so it doesn't collapse.
+  const spanCols = (v) => {
+    const s0 = ukHourFrac(v.scheduled_start);
+    let e0 = ukHourFrac(v.scheduled_end);
+    if (e0 <= s0) e0 = DAY_END_H; // ends next day (or same instant) — run to the edge
+    const startH = Math.min(Math.max(Math.floor(s0), DAY_START_H), DAY_END_H - 1);
+    const endH = Math.min(Math.max(Math.ceil(e0), startH + 1), DAY_END_H);
+    return { start: startH - DAY_START_H + 1, end: endH - DAY_START_H + 1 };
+  };
 
   const rows = useMemo(() => {
     if (view === 'carer') {
@@ -622,7 +700,15 @@ export default function RotaPage() {
 
   const drafts = useMemo(() => visits.filter((v) => v.status === 'draft'), [visits]);
 
-  const move = (w) => { const d = new Date(range.monday); d.setDate(d.getDate() + w * 7); setWeekStart(d); };
+  // Nav steps by a week in week mode, by a day in day mode.
+  const move = (n) => {
+    if (span === 'day') { const d = new Date(dayDate); d.setDate(d.getDate() + n); d.setHours(0, 0, 0, 0); setDayDate(d); return; }
+    const d = new Date(range.monday); d.setDate(d.getDate() + n * 7); setWeekStart(d);
+  };
+  const goToday = () => {
+    if (span === 'day') { const d = new Date(); d.setHours(0, 0, 0, 0); setDayDate(d); return; }
+    setWeekStart(weekOf().monday);
+  };
   const toggleSel = (id) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const openBlock = (v) => (isShort(v) ? setAssigning(v) : setDetail(v));
@@ -756,6 +842,16 @@ export default function RotaPage() {
       <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
           <span data-tour="rota-view"><SegTabs tabs={viewTabs} active={view} onSelect={setView} /></span>
+          {/* Day / Week span. Week draws the 7-day grid; Day draws one day by the
+              hour. The Grid/List layout toggle still applies within either span. */}
+          <div style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
+            {[{ key: 'day', icon: 'clock', label: 'Day' }, { key: 'week', icon: 'calendar', label: 'Week' }].map((o) => (
+              <div key={o.key} onClick={() => setSpan(o.key)} title={`${o.label} view`}
+                style={{ ...s('display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700'), background: span === o.key ? 'var(--d-card)' : 'transparent', color: span === o.key ? 'var(--d-ink)' : 'var(--d-muted)' }}>
+                <Icon name={o.icon} size={14} />{o.label}
+              </div>
+            ))}
+          </div>
           <div data-tour="rota-layout" style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
             {[{ key: 'grid', icon: 'calendar', label: 'Grid' }, { key: 'list', icon: 'menu', label: 'List' }].map((o) => (
               <div key={o.key} onClick={() => setLayout(o.key)} title={`${o.label} view`}
@@ -768,10 +864,14 @@ export default function RotaPage() {
         <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
           <div data-tour="rota-week" style={s('display:flex;align-items:center;gap:8px')}>
             <div className="hv" onClick={() => move(-1)} style={circleBtn}><Icon name="chevronLeft" size={17} /></div>
-            <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>{range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>
+              {span === 'day'
+                ? dayDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                : `${range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+            </span>
             <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
           </div>
-          <div onClick={() => setWeekStart(weekOf().monday)} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>This week</div>
+          <div onClick={goToday} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>{span === 'day' ? 'Today' : 'This week'}</div>
           <div onClick={() => load()} className="hv tip" data-tip="Refresh the rota" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
         </div>
       </div>
@@ -835,6 +935,70 @@ export default function RotaPage() {
               <Pager page={listPage} perPage={LIST_PER_PAGE} total={listRows.length} onPage={setListPage} />
             </div>
           )}
+        </div>
+      ) : span === 'day' ? (
+        /* Day — one day, hour columns. Same carer/client rows as the week grid,
+           but each row's visits sit in the column of their start hour. */
+        <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
+          <div style={s('overflow-x:auto')}>
+            <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: `188px repeat(${dayHours.length}, minmax(96px, 1fr))`, minWidth: 188 + dayHours.length * 96 }}>
+              <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>
+              {dayHours.map((h) => (
+                <div key={h} style={s('text-align:center;padding:7px 2px;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);background:var(--d-panel)')}>
+                  <div className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>{String(h).padStart(2, '0')}:00</div>
+                </div>
+              ))}
+
+              {rows.length === 0 ? (
+                <div style={{ ...s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)'), gridColumn: '1 / -1' }}>No {view === 'carer' ? 'carers' : 'clients'} to show.</div>
+              ) : rows.map((row) => {
+                const dayVisits = row.cell(dayDate);
+                return (
+                  <Fragment key={row.id}>
+                    <div style={s('position:sticky;left:0;z-index:3;background:var(--d-card);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:8px 12px')}>
+                      <Avatar initials={row.initials} size="sm" />
+                      <div style={s('min-width:0')}>
+                        <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.title}</div>
+                        <div className="d-num" style={s('font-size:10.5px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.sub}</div>
+                      </div>
+                    </div>
+                    {/* One row = its own nested hour grid. Empty hour cells form the
+                        background (borders + per-hour quick-add); each visit is laid
+                        OVER them, spanning grid-column start-hour -> end-hour, so a
+                        08:00–10:00 visit stretches across the 08 and 09 columns
+                        instead of sitting only in 08. */}
+                    <div style={{ ...s('position:relative;display:grid;align-items:stretch;grid-column:2 / -1'), gridTemplateColumns: `repeat(${dayHours.length}, minmax(96px, 1fr))` }}>
+                      {dayHours.map((h) => {
+                        const hh = String(h).padStart(2, '0');
+                        return (
+                          <div key={h} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column')}>
+                            {canManage && (view === 'client' || (view === 'carer' && row.id.startsWith('e'))) && (
+                              <button type="button" aria-label={`Add visit at ${hh}:00`}
+                                onClick={() => setCreating({
+                                  date: dayIso, start: `${hh}:00`, end: `${String(Math.min(23, h + 1)).padStart(2, '0')}:00`,
+                                  ...(view === 'carer' ? { carerId: Number(row.id.slice(1)) } : { clientId: Number(row.id.slice(1)) }),
+                                })}
+                                className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {/* Visits, layered above the hour cells, each spanning its hours. */}
+                      {dayVisits.map((v) => {
+                        const startCol = spanCols(v).start;
+                        const endCol = spanCols(v).end;
+                        return (
+                          <div key={v.id} style={{ ...s('position:relative;z-index:1;padding:5px 3px;min-width:0'), gridColumn: `${startCol} / ${endCol}`, gridRow: 1 }}>
+                            <VisitBlock v={v} view={view} selected={selected.includes(v.id)} onOpen={() => openBlock(v)} onMenu={setMenu} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         /* Grid — bordered spreadsheet: sticky first column, ruled cells */
@@ -900,7 +1064,7 @@ export default function RotaPage() {
       {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
       {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
       {creating && <CreateVisitDrawer preset={creating} view={view} serviceUsers={serviceUsers} employees={employees} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
-      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} />}
+      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} onAddCarer={() => { const v = detail; setDetail(null); setAssigning(v); }} />}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.visit)} onClose={() => setMenu(null)} />}
       <ConfirmDialog dialog={confirm} onClose={() => setConfirm(null)} />
