@@ -104,9 +104,13 @@ function VisitBlock({ v, view, selected, onOpen, onMenu }) {
   const short = isShort(v);
   const cancelled = v.status === 'cancelled';
   const c = chipFor(v);
-  const carer = v.assignments?.[0]?.employee;
+  const assigned = v.assignments ?? [];
+  const carer = assigned[0]?.employee;
+  // Double-up: show the first carer with a "+N" so the block reads e.g. "Ann +1"
+  // rather than hiding that a second carer is on the same visit.
+  const extra = assigned.length > 1 ? ` +${assigned.length - 1}` : '';
   const primary = view === 'client'
-    ? (carer ? fullName(carer) : 'Unfilled')
+    ? (carer ? `${fullName(carer)}${extra}` : 'Unfilled')
     : fullName(v.service_user);
   // Solid block, white text. Unfilled = orange, cancelled = grey + struck, else
   // Main's soft-card style with the distinct colours: unfilled = soft orange,
@@ -192,7 +196,10 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
     return clash ? `Double-booked with ${fullName(clash.service_user)} ${formatTime(clash.scheduled_start)}` : null;
   };
 
-  const ranked = employees.filter((e) => e.active)
+  // Carers already on THIS visit (a double-up may have one of two already) — don't
+  // offer them again; a carer can't be assigned to the same visit twice.
+  const alreadyOn = new Set((visit.assignments ?? []).map((a) => a.employee?.id));
+  const ranked = employees.filter((e) => e.active && !alreadyOn.has(e.id))
     .filter((e) => { const q = query.trim().toLowerCase(); return !q || `${e.full_name} ${e.employee_reference ?? ''}`.toLowerCase().includes(q); })
     .map((e) => ({ e, regular: regulars.has((e.full_name ?? '').toLowerCase()), conflict: conflictFor(e.id) }))
     .sort((a, b) => (Number(!!a.conflict) - Number(!!b.conflict)) || (Number(b.regular) - Number(a.regular)) || a.e.full_name.localeCompare(b.e.full_name));
@@ -215,6 +222,8 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
         setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
       } else if (err.message === 'client_unavailable') {
         setError({ title: 'The client already has a carer then', body: `${fullName(visit.service_user)} is already being visited at ${when}. One client, one carer at a time.` });
+      } else if (err.code === 'already_on_visit') {
+        setError({ title: 'Already on this visit', body: `${e.full_name} is already assigned to this visit. Pick a different carer.` });
       } else {
         setError({ title: isReassign ? 'Could not reassign the visit' : 'Could not assign that carer', body: err.message || 'Please try again.' });
       }
@@ -223,7 +232,7 @@ function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onA
 
   return (
     <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
-      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}`}
+      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}${!isReassign && (visit.staff_required ?? 1) > 1 ? ` · ${(visit.assignments ?? []).length} of ${visit.staff_required} carers assigned` : ''}`}
       onClose={onClose}>
       <div style={s('padding:16px 22px 0')}>
         {error && (
@@ -288,6 +297,9 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
   const [day, setDay] = useState(preset?.day ?? 0);
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('10:00');
+  // Carers needed on this visit — 1 for a normal call, 2 for a double-up (e.g. a
+  // hoist transfer that needs two carers on the same visit at the same time).
+  const [staffRequired, setStaffRequired] = useState(1);
   const [busy, setBusy] = useState(false);
   if (!preset) return null;
   const client = serviceUsers.find((c) => c.id === Number(clientId));
@@ -325,7 +337,7 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
     if (endDate.getTime() - startDate.getTime() < 15 * 60000) { toast.error('A visit must be at least 15 minutes long.'); return; }
     setBusy(true);
     try {
-      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString() });
+      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString(), staff_required: Number(staffRequired) });
       // Carer grouping: assign the chosen carer straight away so the block lands
       // in their row, not the Unassigned one. Creation succeeded either way — if
       // the assign fails, keep the draft and say what happened.
@@ -376,6 +388,17 @@ function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, we
           <select value={day} onChange={(e) => setDay(e.target.value)} style={control}>
             {days.map((d, i) => <option key={d} value={i}>{d}</option>)}
           </select>
+        </div>
+        <div style={field}><span style={label}>Carers needed</span>
+          <input
+            type="number" min={1} max={10} step={1} value={staffRequired}
+            onChange={(e) => setStaffRequired(e.target.value)}
+            onBlur={(e) => { const n = Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 1))); setStaffRequired(n); }}
+            style={control}
+          />
+          {Number(staffRequired) > 1 && (
+            <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>A double-up visit. You’ll add the other {Number(staffRequired) - 1} carer{Number(staffRequired) - 1 > 1 ? 's' : ''} from the visit after it’s created.</span>
+          )}
         </div>
         <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
           <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
@@ -440,7 +463,7 @@ function VisitDelivery({ delivery }) {
 }
 
 /* ---------- filled-visit editor drawer (retime + real actions) ---------- */
-function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
+function VisitDetailDrawer({ visit, settings, onClose, onChanged, onAddCarer }) {
   const toast = useToast();
   const [start, setStart] = useState(formatTime(visit?.scheduled_start));
   const [end, setEnd] = useState(formatTime(visit?.scheduled_end));
@@ -456,8 +479,11 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
     return () => { active = false; };
   }, [visit?.id]);
   if (!visit) return null;
-  const a = visit.assignments?.[0];
-  const started = (visit.assignments ?? []).some((x) => x.actual_start);
+  // All active carers on the visit, not just the first — a double-up visit has
+  // more than one, and each carer must be visible.
+  const carers = visit.assignments ?? [];
+  const needsMore = carers.length < (visit.staff_required ?? 1);
+  const started = carers.some((x) => x.actual_start);
   const tone = { neutral: 'muted', warn: 'warning', active: 'info' }[LIFECYCLE_TONE[stateOf(visit)]] ?? LIFECYCLE_TONE[stateOf(visit)];
 
   async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
@@ -499,8 +525,21 @@ function VisitDetailDrawer({ visit, settings, onClose, onChanged }) {
           {visit.status === 'draft' && <Tag tone="muted">Draft</Tag>}
         </div>
         <div style={s('background:var(--d-panel);border-radius:14px;padding:13px 15px')}>
-          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Carer</div>
-          <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{a ? fullName(a.employee) : 'Unassigned'}</div>
+          <div style={s('display:flex;align-items:center;justify-content:space-between;gap:8px')}>
+            <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>
+              {carers.length > 1 || (visit.staff_required ?? 1) > 1 ? `Carers · ${carers.length} of ${visit.staff_required ?? 1}` : 'Carer'}
+            </div>
+            {editable && needsMore && <Button size="sm" icon="user" onClick={onAddCarer}>Add carer</Button>}
+          </div>
+          {carers.length === 0 ? (
+            <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>Unassigned</div>
+          ) : (
+            <div style={s('display:flex;flex-direction:column;gap:4px;margin-top:5px')}>
+              {carers.map((x) => (
+                <div key={x.id} style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{fullName(x.employee)}</div>
+              ))}
+            </div>
+          )}
           <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:6px')}>{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
         </div>
         <RulesNote settings={settings} />
@@ -900,7 +939,7 @@ export default function RotaPage() {
       {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
       {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
       {creating && <CreateVisitDrawer preset={creating} view={view} serviceUsers={serviceUsers} employees={employees} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
-      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} />}
+      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} onAddCarer={() => { const v = detail; setDetail(null); setAssigning(v); }} />}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.visit)} onClose={() => setMenu(null)} />}
       <ConfirmDialog dialog={confirm} onClose={() => setConfirm(null)} />
