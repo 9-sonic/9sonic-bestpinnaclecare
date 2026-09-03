@@ -16,8 +16,14 @@ production:
   evaluate_visit_states:
     class: Lifecycle::EvaluateStatesJob
     schedule: every minute
+  ensure_rota_horizon:
+    class: Rota::EnsureHorizonJob
+    schedule: at 3am every day
 
 development:
   evaluate_visit_states:
     class: Lifecycle::EvaluateStatesJob
     schedule: every minute
+  ensure_rota_horizon:
+    class: Rota::EnsureHorizonJob
+    schedule: at 3am every day
