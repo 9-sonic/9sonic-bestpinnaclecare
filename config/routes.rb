@@ -75,6 +75,7 @@ Rails.application.routes.draw do
           member do
             post :publish
             post :cancel    # soft-cancel + free the assigned carer(s)
+            get  :events    # audit trail: reschedules, assignments, cancellations
           end
           collection { post :generate }   # generate dated visits from care packages
         end

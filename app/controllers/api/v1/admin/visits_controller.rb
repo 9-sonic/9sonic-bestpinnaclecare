@@ -141,6 +141,20 @@ module Api
           render json: VisitSerializer.call(visit, include_service_user: true)
         end
 
+        # GET /api/v1/admin/visits/:id/events — the visit's audit trail: every
+        # reschedule/cancel recorded against the visit itself, plus every
+        # assignment change recorded against its (current and past) carer
+        # assignments — so "who put this carer on, and who moved the time" both
+        # show up in one timeline. Oldest first.
+        def events
+          visit = Visit.find(params[:id])
+          assignment_ids = visit.visit_assignments.pluck(:id)
+          events = Event.where(aggregate_type: "Visit", aggregate_id: visit.id)
+                        .or(Event.where(aggregate_type: "VisitAssignment", aggregate_id: assignment_ids))
+                        .order(:occurred_at)
+          render json: events.map { |e| EventSerializer.call(e) }
+        end
+
         # DELETE /api/v1/admin/visits/:id
         # Hard-delete a visit that will never happen and carries NO clock history —
         # a mistaken or genuinely dropped call. The moment a carer has clocked in,
