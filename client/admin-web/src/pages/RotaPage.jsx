@@ -147,6 +147,25 @@ async function runPaced(items, fn, lanes = 4, onProgress) {
 }
 const ADVERTISE_LANES = 4;
 
+// Hours a carer is actually committed for, counting overlapping visits ONCE.
+// A couple at one address is two visits in the same half hour — that is half an
+// hour of the carer's time, not an hour. Mirrors Assignments::WorkedTime on the
+// server. With no overlap this is exactly the plain sum.
+function mergedHours(visits) {
+  const spans = visits
+    .map((v) => [new Date(v.scheduled_start).getTime(), new Date(v.scheduled_end).getTime()])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let total = 0;
+  let cur = null;
+  for (const [from, to] of spans) {
+    if (cur && from <= cur[1]) cur[1] = Math.max(cur[1], to);
+    else { if (cur) total += cur[1] - cur[0]; cur = [from, to]; }
+  }
+  if (cur) total += cur[1] - cur[0];
+  return total / 3600000;
+}
+
 const minToHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 // n / req and the derived status, mirroring the reference's statusOf.
@@ -706,7 +725,7 @@ function StaffPane({ days, employees, visits, allVisits, flagConflicts, onOpen }
           <tbody>
             {employees.map((e) => {
               const mine = mineOf(e);
-              const hrs = mine.filter((v) => !isLiveIn(v)).reduce((a, v) => a + durHrs(v), 0);
+              const hrs = mergedHours(mine.filter((v) => !isLiveIn(v)));
               const nights = mine.filter(isLiveIn).length;
               const contract = e.contracted_hours_per_week;
               const pct = contract ? Math.min(100, (hrs / contract) * 100) : (hrs ? 100 : 0);
@@ -859,8 +878,7 @@ function VisitDrawer({ visit, allVisits, employees, settings, canManage, onClose
     catch (e) {
       const c = e.data?.conflict;
       const when = c ? `${formatDateFull(c.scheduled_start, { weekday: 'short', year: undefined })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
-      if (e.message === 'carer_unavailable') setError(`That carer is already booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once.`);
-      else if (e.message === 'client_unavailable') setError(`${fullName(visit.service_user)} already has a carer at that time. One client, one carer at a time.`);
+      if (e.message === 'client_unavailable') setError(`${fullName(visit.service_user)} already has a carer${when ? ` on ${when}` : ' at that time'}. One client, one carer at a time.`);
       else if (e.code === 'already_on_visit') setError('That carer is already on this visit.');
       else setError(e.message || 'That did not go through. Please try again.');
     } finally { setBusy(false); }
@@ -956,7 +974,7 @@ function VisitDrawer({ visit, allVisits, employees, settings, canManage, onClose
                   </select>
                   {clash && (
                     <div style={s('border:1px solid var(--d-unfilled-ink);background:var(--d-unfilled-bg);color:var(--d-unfilled-ink);border-radius:9px;padding:7px 9px;font-size:11.5px;font-weight:600;margin-top:6px;line-height:1.45')}>
-                      {fullName(a.employee)} is already on another visit that overlaps this one. New assignments are blocked from clashing, so this came in with earlier data — worth fixing.
+                      {fullName(a.employee)} is also on another visit that overlaps this one — check they can realistically cover both.
                     </div>
                   )}
                 </div>
@@ -1267,7 +1285,7 @@ export default function RotaPage() {
   /* --------------------------------- actions ------------------------------- */
   async function assignFromQueue(v, e) {
     try { await assignEmployee({ visitId: v.id, employeeId: e.id }); toast.success(`${e.full_name} assigned to ${fullName(v.service_user)}`); await load(); }
-    catch (err) { toast.error(err.message === 'carer_unavailable' ? `${e.full_name} already has a visit at that time.` : (err.message || 'Could not assign that carer')); }
+    catch (err) { toast.error(err.message || 'Could not assign that carer'); }
   }
   async function advertise(v) {
     try { const r = await broadcastCover(v.id, null); toast.success(`Advertised to ${r.offered} carer${r.offered === 1 ? '' : 's'}`); await load(); }

@@ -32,9 +32,6 @@ module Assignments
           return Result.new(ok: false, reason: :duplicate)
         end
 
-        if (clash = Validate.conflicting_visit(visit: visit, employee: employee))
-          return Result.new(ok: false, conflict: clash, reason: :carer)
-        end
         # One service user, one carer at a time — block a second carer overlapping
         # the client's existing visit. The visit being reassigned is excluded, so
         # swapping the carer on the SAME visit is fine.

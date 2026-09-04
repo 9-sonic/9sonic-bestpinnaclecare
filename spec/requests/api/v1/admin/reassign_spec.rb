@@ -42,16 +42,16 @@ RSpec.describe "Admin reassigns a visit to a different carer", type: :request do
     expect(va.reload.assignment_status).to eq("assigned") # untouched
   end
 
-  it "hard-blocks reassigning to a carer already on an overlapping visit (422, nothing changes)" do
+  it "reassigns to a carer already on an overlapping visit — carers may double up" do
     va # ensure the original assignment exists before we measure
-    clash = create(:visit, scheduled_start: visit.scheduled_start, scheduled_end: visit.scheduled_end)
-    create(:visit_assignment, visit: clash, employee: carer_b)
+    create(:visit_assignment,
+           visit: create(:visit, scheduled_start: visit.scheduled_start, scheduled_end: visit.scheduled_end),
+           employee: carer_b)
 
-    expect { reassign(va.id, carer_b.id) }.not_to change(VisitAssignment.assigned, :count)
-    expect(response).to have_http_status(:unprocessable_entity)
-    expect(response.parsed_body["error"]).to eq("carer_unavailable")
-    expect(response.parsed_body.dig("conflict", "visit_id")).to eq(clash.id)
-    expect(va.reload.assignment_status).to eq("assigned") # original carer untouched
+    reassign(va.id, carer_b.id)
+    expect(response).to have_http_status(:created)
+    expect(va.reload.assignment_status).to eq("withdrawn")
+    expect(carer_b.visit_assignments.assigned.count).to eq(2) # their own visit, plus this one
   end
 
   it "still surfaces non-blocking warnings (rest period) when there is no overlap" do

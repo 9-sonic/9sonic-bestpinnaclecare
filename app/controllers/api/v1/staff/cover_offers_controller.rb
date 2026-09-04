@@ -22,19 +22,6 @@ module Api
           offer = current_employee.cover_offers.find(params[:id])
           return render(json: { error: "offer_closed" }, status: :unprocessable_entity) unless offer.state == "pending"
 
-          clash = Assignments::Validate.conflicting_visit(visit: offer.visit, employee: current_employee)
-          if clash
-            return render(json: {
-              error: "carer_unavailable",
-              conflict: {
-                visit_id: clash.visit_id,
-                service_user: clash.visit.service_user&.full_name,
-                scheduled_start: clash.visit.scheduled_start&.iso8601,
-                scheduled_end: clash.visit.scheduled_end&.iso8601
-              }
-            }, status: :unprocessable_entity)
-          end
-
           va = nil
           result = nil
           ApplicationRecord.transaction do

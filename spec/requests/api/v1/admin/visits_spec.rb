@@ -286,7 +286,7 @@ RSpec.describe "Admin visits & scheduling", type: :request do
       expect(CoverOffer.where(visit: visit).pluck(:state).uniq).to eq([ "pending" ])
     end
 
-    it "excludes a carer already booked on an overlapping visit" do
+    it "still offers a carer who is already booked on an overlapping visit" do
       free   = create(:employee)
       booked = create(:employee)
       clash  = create(:visit, service_user: create(:service_user),
@@ -299,8 +299,8 @@ RSpec.describe "Admin visits & scheduling", type: :request do
 
       offered_ids = CoverOffer.where(visit: visit).pluck(:employee_id)
       expect(offered_ids).to include(free.id)
-      expect(offered_ids).not_to include(booked.id)          # the clash is the point
-      expect(response.parsed_body["offered"]).to eq(eligible - 1)
+      expect(offered_ids).to include(booked.id)              # a clash no longer withholds the offer
+      expect(response.parsed_body["offered"]).to eq(eligible)
     end
 
     it "is idempotent — re-advertising reuses the pending offers rather than duplicating them" do

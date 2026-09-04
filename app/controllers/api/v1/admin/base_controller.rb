@@ -44,8 +44,10 @@ module Api
             return render json: { error: "already_on_visit" }, status: :conflict
           end
 
+          # :client is the only conflict left — a carer overlapping themselves is
+          # allowed (carers may double up across clients, with no limit).
           render json: {
-            error: reason == :client ? "client_unavailable" : "carer_unavailable",
+            error: "client_unavailable",
             conflict: {
               visit_id: clash.visit_id,
               service_user: clash.visit.service_user&.full_name,

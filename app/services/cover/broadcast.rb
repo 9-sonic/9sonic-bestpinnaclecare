@@ -53,12 +53,11 @@ module Cover
       @visit.visit_assignments.count { |a| a.assignment_status == "assigned" && a.lifecycle_state != "cancelled" } >= @visit.staff_required
     end
 
-    # Active carers not already on this visit and without a clashing visit.
+    # Every active carer not already on this visit. A carer's own overlapping
+    # work is no longer a reason to withhold the offer — carers may double up.
     def eligible_carers
       already = @visit.visit_assignments.where(assignment_status: "assigned").pluck(:employee_id)
-      Employee.where(active: true).where.not(id: already).reject do |carer|
-        Assignments::Validate.conflicting_visit(visit: @visit, employee: carer)
-      end
+      Employee.where(active: true).where.not(id: already).to_a
     end
 
     def notify(carers)

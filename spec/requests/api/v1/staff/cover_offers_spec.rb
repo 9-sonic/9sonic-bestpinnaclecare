@@ -68,8 +68,9 @@ RSpec.describe "Carer cover offers", type: :request do
       expect(VisitAssignment.where(visit: v, assignment_status: "assigned").count).to eq(1)
     end
 
-    it "won't let a carer accept an offer that overlaps a visit they're already on" do
-      # Aisha already assigned to an overlapping visit.
+    it "lets a carer accept an offer that overlaps a visit they're already on" do
+      # Aisha is already assigned to an overlapping visit; she is still offered
+      # this one, and may still take it — carers may double up across clients.
       other = create(:visit, service_user: create(:service_user), status: "published",
                              scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
       VisitAssignment.create!(visit: other, employee: aisha, assignment_status: "assigned", lifecycle_state: :scheduled)
@@ -78,14 +79,11 @@ RSpec.describe "Carer cover offers", type: :request do
       aisha; tom
       post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: v.id }, headers: admin_auth, as: :json
       offer = CoverOffer.find_by(visit: v, employee: aisha)
-      # (Aisha may not even be offered if she clashes — but if she is, accept must refuse.)
-      if offer
-        post "/api/v1/staff/cover_offers/#{offer.id}/accept", headers: carer_auth(aisha)
-        expect(response).to have_http_status(:unprocessable_entity)
-        expect(response.parsed_body["error"]).to eq("carer_unavailable")
-      else
-        expect(CoverOffer.where(visit: v, employee: aisha)).not_to exist
-      end
+      expect(offer).to be_present # a clash no longer withholds the offer
+
+      post "/api/v1/staff/cover_offers/#{offer.id}/accept", headers: carer_auth(aisha)
+      expect(response).to have_http_status(:ok)
+      expect(aisha.visit_assignments.assigned.count).to eq(2)
     end
 
     it "won't let a carer accept an offer that isn't theirs" do

@@ -37,9 +37,12 @@ module Staff
 
     def hours_this_week
       week = Date.current.beginning_of_week
+      # Grouped in Ruby rather than SQL: overlapping visits (a couple at one
+      # address) must count once, which a SUM() cannot express.
       scope_only(VisitAssignment.completed).joins(:visit)
                      .where(visits: { scheduled_start: week.beginning_of_day..(week + 6).end_of_day })
-                     .group(:employee_id).sum(:worked_minutes)
+                     .group_by(&:employee_id)
+                     .transform_values { |list| Assignments::WorkedTime.minutes(list) }
     end
 
     # [on_time, total] per employee over completed, clocked-in visits in 30 days.
