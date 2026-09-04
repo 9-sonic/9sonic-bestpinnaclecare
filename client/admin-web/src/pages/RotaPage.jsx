@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
   assignEmployee, withdrawAssignment, reassignAssignment,
-  publishVisit, generateVisits, createVisit, editVisit, exportRota,
+  publishVisit, createVisit, editVisit, exportRota,
   getVisit, listVisitEvents, cancelVisit, deleteVisit, broadcastCover,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
@@ -1181,7 +1181,6 @@ export default function RotaPage() {
   const [serviceUsers, setServiceUsers] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
 
   // Filters — the reference's rail, moved to the top bar.
   const [fClient, setFClient] = useState('all');
@@ -1194,7 +1193,6 @@ export default function RotaPage() {
   const [drawerId, setDrawerId] = useState(null);
   const [creating, setCreating] = useState(null);
   const [confirm, setConfirm] = useState(null);
-  const [advertising, setAdvertising] = useState(null); // { done, total } while a bulk advertise runs
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [weekMode, setWeekMode] = useState('hours'); // 'hours' (clock timeline, the default) | 'runs' (grouped by care run)
 
@@ -1275,33 +1273,6 @@ export default function RotaPage() {
     try { const r = await broadcastCover(v.id, null); toast.success(`Advertised to ${r.offered} carer${r.offered === 1 ? '' : 's'}`); await load(); }
     catch (err) { toast.error(err.message === 'visit_already_filled' ? 'That visit is already filled.' : (err.message || 'Could not advertise the visit')); }
   }
-  // Advertising every gap on screen reaches real carers' phones and cannot be
-  // recalled, so it asks first with the real numbers — and is paced (runPaced)
-  // so the rest of the console stays usable while it works.
-  function advertiseAll() {
-    const gaps = shown.filter((v) => isShort(v));
-    if (!gaps.length) { toast.info('Nothing unfilled to advertise.'); return; }
-    const carers = employees.filter((e) => e.active).length;
-    setConfirm({
-      title: `Advertise ${gaps.length} unfilled visit${gaps.length === 1 ? '' : 's'}?`,
-      body: `Every carer who is free at that time gets an in-app message and a push notification — up to ${carers} carer${carers === 1 ? '' : 's'} per visit, so roughly ${gaps.length * carers} notifications. Carers who already have an offer are notified again. This reaches real phones and can't be undone.`,
-      confirmLabel: `Advertise ${gaps.length}`,
-      onConfirm: async () => {
-        setBusy(true);
-        setAdvertising({ done: 0, total: gaps.length });
-        try {
-          const { ok, failed, results } = await runPaced(
-            gaps, (v) => broadcastCover(v.id, null), ADVERTISE_LANES,
-            () => setAdvertising((p) => (p ? { ...p, done: p.done + 1 } : p)),
-          );
-          const offers = results.reduce((a, r) => a + (r?.offered ?? 0), 0);
-          if (ok) toast.success(`${ok} visit${ok === 1 ? '' : 's'} advertised — ${offers} offer${offers === 1 ? '' : 's'} sent`);
-          if (failed) toast.warn(`${failed} could not be advertised (already filled, or the request failed).`);
-          await load();
-        } finally { setBusy(false); setAdvertising(null); }
-      },
-    });
-  }
   function askCancel(v) {
     setConfirm({
       title: 'Cancel this visit?',
@@ -1323,25 +1294,6 @@ export default function RotaPage() {
         catch (e) { toast.error(e.message === 'visit_started' ? 'A carer has clocked in — cancel it instead so the record is kept.' : (e.message || 'Could not delete the visit')); }
       },
     });
-  }
-  // Build the NEXT Mon–Sun from today (not the viewed week) from the care
-  // packages, then jump the view to it.
-  async function generateNextWeek() {
-    setBusy(true);
-    try {
-      const nextMon = new Date(weekOf(new Date()).monday);
-      nextMon.setDate(nextMon.getDate() + 7);
-      const nextSun = new Date(nextMon); nextSun.setDate(nextSun.getDate() + 6);
-      const r = await generateVisits({ from: isoDate(nextMon), to: isoDate(nextSun) });
-      toast.success(`${r.created} visit${r.created === 1 ? '' : 's'} generated for next week`);
-      setWeekStart(nextMon);
-    } catch (e) { toast.error(e.message || 'Could not generate next week'); } finally { setBusy(false); }
-  }
-  async function publishAll() {
-    if (!drafts.length) { toast.info('No draft visits to publish'); return; }
-    setBusy(true);
-    try { await Promise.all(drafts.map((v) => publishVisit(v.id))); toast.success(`Rota published — ${drafts.length} visit${drafts.length === 1 ? '' : 's'} now visible to carers`); await load(); }
-    catch (e) { toast.error(e.message || 'Some visits could not be published'); } finally { setBusy(false); }
   }
 
   const selectedVisits = () => visits.filter((v) => selected.includes(v.id));
@@ -1439,30 +1391,14 @@ export default function RotaPage() {
               ))}
             </div>
           )}
-          {/* Every action is still here. The four secondary ones sit in one
-              grouped cluster of icons rather than four competing labelled
-              buttons, so the row holds one line and "Add visit" is visibly the
-              primary thing. Each carries its full wording on hover. */}
+          {/* Refresh, then the two things you actually reach for. Advertising,
+              publishing and generating are per-visit or bulk-selection actions
+              (the drawer and the bulk bar) — not whole-week buttons. */}
           <div style={s('display:flex;align-items:center;gap:7px;margin-left:auto')}>
-            <div style={s('display:inline-flex;align-items:center;height:30px;border:1px solid var(--d-border);border-radius:9px;overflow:hidden')}>
-              {[
-                { key: 'refresh', icon: 'refresh', label: 'Refresh the rota', onClick: () => load(), show: true },
-                { key: 'advertise', icon: 'send', label: 'Advertise unfilled visits to available carers', onClick: busy ? undefined : advertiseAll, show: canManage },
-                { key: 'generate', icon: 'sync', label: 'Generate next week from the care packages', onClick: busy ? undefined : generateNextWeek, show: canManage, tour: 'rota-generate' },
-                { key: 'publish', icon: 'check', label: drafts.length ? `Publish rota — ${drafts.length} unpublished` : 'Publish rota', onClick: busy ? undefined : publishAll, show: canManage, badge: drafts.length },
-              ].filter((a) => a.show).map((a, i) => (
-                <div key={a.key} data-tour={a.tour} onClick={a.onClick} className="hv" title={a.label} aria-label={a.label}
-                  style={{ ...s('position:relative;width:34px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), borderLeft: i === 0 ? 'none' : '1px solid var(--d-border)', '--hbg': 'var(--d-panel)' }}>
-                  <Icon name={a.icon} size={14} />
-                  {a.badge > 0 && <span style={s('position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--d-warn-dot)')} />}
-                </div>
-              ))}
+            <div onClick={() => load()} className="hv tip" data-tip="Refresh the rota" aria-label="Refresh the rota"
+              style={{ ...s('width:30px;height:30px;border:1px solid var(--d-border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}>
+              <Icon name="refresh" size={14} />
             </div>
-            {advertising && (
-              <span className="d-num" style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2);white-space:nowrap')}>
-                Advertising {advertising.done}/{advertising.total}
-              </span>
-            )}
             {canManage && (
               <ExportButton label="Export rota" title="Export rota" size="xs" variant="primary" subtitle="Choose a file format. The week on screen is exported."
                 onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />

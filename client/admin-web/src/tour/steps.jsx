@@ -135,11 +135,6 @@ export const TOUR_PAGES = [
           'Narrow the rota to one client, one carer or one run, and switch visit states on and off. "Flag double-booking" marks anyone booked on two overlapping visits.',
       },
       {
-        anchor: 'rota-generate',
-        content:
-          'This builds next week automatically from your care packages, so you are not typing every recurring visit by hand.',
-      },
-      {
         anchor: 'rota-add',
         content: 'Add a one-off visit here — hover the ⓘ next to it for what to fill in.',
       },
