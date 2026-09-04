@@ -32,14 +32,6 @@ module Assignments
           return Result.new(ok: false, reason: :duplicate)
         end
 
-        # A carer on two overlapping visits is refused only while the provider
-        # keeps that policy on. Best Pinnacle runs with it OFF (carers may double
-        # up across clients, with no limit), in which case the overlap still comes
-        # back as a soft warning from Validate.call — it just no longer blocks.
-        if !Setting.instance.allow_carer_double_booking? &&
-           (clash = Validate.conflicting_visit(visit: visit, employee: employee))
-          return Result.new(ok: false, conflict: clash, reason: :carer)
-        end
         # One service user, one carer at a time — block a second carer overlapping
         # the client's existing visit. The visit being reassigned is excluded, so
         # swapping the carer on the SAME visit is fine.

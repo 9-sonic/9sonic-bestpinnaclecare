@@ -10,17 +10,6 @@ module Assignments
       [ overlap(visit, others), rest(visit, others), weekly(visit, others) ].compact
     end
 
-    # The carer's own visit that clashes in time with this one, or nil. Used to
-    # refuse a double-booking — but ONLY where the provider has that policy on
-    # (Setting#allow_carer_double_booking?, which ships allowing it). Same
-    # time-window logic as the soft `overlap` warning, so the refusal and the
-    # warning can never disagree. Excludes this visit's own existing assignment.
-    def self.conflicting_visit(visit:, employee:)
-      employee.visit_assignments.assigned.non_terminal.includes(:visit).to_a
-              .reject { |va| va.visit_id == visit.id }
-              .find { |va| va.visit.scheduled_start < visit.scheduled_end && visit.scheduled_start < va.visit.scheduled_end }
-    end
-
     # One service user, one carer at a time: the client's OTHER assigned visit
     # that clashes in time with this one, or nil. Used to HARD-BLOCK putting a
     # second carer on a client during a window they're already being visited —

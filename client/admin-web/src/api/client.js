@@ -27,7 +27,6 @@ const MESSAGES = {
   conflict: 'That already exists.',
   forbidden: 'Your role does not allow that.',
   unauthorized: 'Your session has expired. Please sign in again.',
-  carer_unavailable: 'That carer is already booked on an overlapping visit.',
   already_assigned: 'That carer is already on this visit.',
   unconfirmed_lines: 'This carer has visits still in review — resolve those before approving.',
   period_locked: 'This period is locked, so it can no longer be changed.',

@@ -125,7 +125,7 @@ RSpec.describe "Office — management", type: :request do
     parameter name: :id, in: :path, type: :integer
     post("Reassign a visit to a different carer") do
       tags "Office — Assignments"; consumes "application/json"; produces "application/json"; security [ bearerAuth: [] ]
-      description "Atomically moves a visit from its current carer to another: the existing assignment is withdrawn and a new one created in one transaction, so the visit is never left unassigned and a single `assignment.reassigned` audit event is written. A carer already on a time-overlapping visit is refused with 422 `carer_unavailable` ONLY while the provider's `policy.allow_carer_double_booking` is false; it ships true, so overlapping assignments are permitted and come back as a soft `overlap` warning instead. Returns the new assignment plus soft rest/weekly-hours warnings — those never block."
+      description "Atomically moves a visit from its current carer to another: the existing assignment is withdrawn and a new one created in one transaction, so the visit is never left unassigned and a single `assignment.reassigned` audit event is written. A carer already on a time-overlapping visit is NOT refused — carers may be double-booked across clients, with no limit; the overlap comes back as a soft `overlap` warning instead. Returns the new assignment plus soft rest/weekly-hours warnings — those never block."
       parameter name: :body, in: :body, schema: {
         type: :object,
         properties: { employee_id: { type: :integer, description: "The carer to move the visit to" } },
@@ -145,9 +145,9 @@ RSpec.describe "Office — management", type: :request do
         run_test!
       end
 
-      response(422, "blocked — same carer, or the carer is double-booked (carer_unavailable)") do
+      response(422, "blocked — same carer (already_assigned), or the client already has a carer then (client_unavailable)") do
         schema type: :object, properties: {
-          error: { type: :string, description: "already_assigned | carer_unavailable" },
+          error: { type: :string, description: "already_assigned | client_unavailable" },
           conflict: {
             type: :object, nullable: true,
             properties: {
