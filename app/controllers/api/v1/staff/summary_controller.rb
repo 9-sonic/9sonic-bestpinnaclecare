@@ -13,17 +13,18 @@ module Api
           by_visits = Array.new(7, 0)
           by_hours  = Array.new(7, 0)
           scheduled_minutes = 0
-          worked_minutes = 0
-          vas.includes(:visit).each do |va|
+          loaded = vas.includes(:visit).to_a
+          loaded.each do |va|
             day = weekday(va.visit.scheduled_start.to_date)
             by_visits[day] += 1
             scheduled_minutes += ((va.visit.scheduled_end - va.visit.scheduled_start) / 60.0).round
-            # worked_minutes lives on the assignment, set at clock-out — the
-            # real clock record.
-            worked = va.worked_minutes.to_i
-            worked_minutes += worked
-            by_hours[day] += worked
           end
+          # Hours worked are merged per day and for the week: a carer covering a
+          # couple at one address is clocked into two visits for the same half
+          # hour, and that is half an hour of their time, not an hour.
+          loaded.group_by { |va| weekday(va.visit.scheduled_start.to_date) }
+                .each { |day, list| by_hours[day] = Assignments::WorkedTime.minutes(list) }
+          worked_minutes = Assignments::WorkedTime.minutes(loaded)
 
           render json: {
             hours_worked_minutes: worked_minutes,

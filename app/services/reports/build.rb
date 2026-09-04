@@ -137,7 +137,9 @@ module Reports
     # Complete, sorted — the dashboard caps for its chart; the export keeps all.
     def hours_by_carer
       completed.group_by(&:employee).map { |emp, list|
-        { name: emp&.full_name || "—", hours: (list.sum { |a| a.worked_minutes.to_i } / 60.0).round(1) }
+        # Overlapping visits (a couple at one address) are one stretch of the
+        # carer's time, not two — see Assignments::WorkedTime.
+        { name: emp&.full_name || "—", hours: (Assignments::WorkedTime.minutes(list) / 60.0).round(1) }
       }.sort_by { |h| -h[:hours] }
     end
 

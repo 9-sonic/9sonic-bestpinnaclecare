@@ -147,6 +147,25 @@ async function runPaced(items, fn, lanes = 4, onProgress) {
 }
 const ADVERTISE_LANES = 4;
 
+// Hours a carer is actually committed for, counting overlapping visits ONCE.
+// A couple at one address is two visits in the same half hour — that is half an
+// hour of the carer's time, not an hour. Mirrors Assignments::WorkedTime on the
+// server. With no overlap this is exactly the plain sum.
+function mergedHours(visits) {
+  const spans = visits
+    .map((v) => [new Date(v.scheduled_start).getTime(), new Date(v.scheduled_end).getTime()])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let total = 0;
+  let cur = null;
+  for (const [from, to] of spans) {
+    if (cur && from <= cur[1]) cur[1] = Math.max(cur[1], to);
+    else { if (cur) total += cur[1] - cur[0]; cur = [from, to]; }
+  }
+  if (cur) total += cur[1] - cur[0];
+  return total / 3600000;
+}
+
 const minToHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 // n / req and the derived status, mirroring the reference's statusOf.
@@ -706,7 +725,7 @@ function StaffPane({ days, employees, visits, allVisits, flagConflicts, onOpen }
           <tbody>
             {employees.map((e) => {
               const mine = mineOf(e);
-              const hrs = mine.filter((v) => !isLiveIn(v)).reduce((a, v) => a + durHrs(v), 0);
+              const hrs = mergedHours(mine.filter((v) => !isLiveIn(v)));
               const nights = mine.filter(isLiveIn).length;
               const contract = e.contracted_hours_per_week;
               const pct = contract ? Math.min(100, (hrs / contract) * 100) : (hrs ? 100 : 0);
