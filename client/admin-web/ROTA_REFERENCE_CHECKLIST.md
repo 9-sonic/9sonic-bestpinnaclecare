@@ -5,32 +5,29 @@ Every item below cites the exact reference mechanism to port and where it lands
 in `RotaPage.jsx`. Check off only after it's built AND screenshot-verified
 against the reference — not from reading the code.
 
+**Status 2026-09-04:** `RotaPage.jsx` was rewritten to the reference shape. The
+owner's brief was "implement this design as is — the only change is that the
+side rail's options go at the top instead". Everything below is now built or
+explicitly ruled out; the remaining unchecked boxes are the three things the
+backend has no concept of.
+
 ---
 
 ## 1. Geometry — grid must use the reference's exact numbers
 
-- [ ] `H0 = 6`, `H1 = 20` (reference line 567: `var H0=6,H1=20,HH=54`).
-      **Current state: H1 is 22 in our file — deviation, revert to 20** unless we
-      deliberately keep 22 to avoid clipping the 20:00–22:00 CO CHC shifts (real
-      data has shifts past 20:00; reference's sample data doesn't). **Decision
-      needed**: either extend the reference's window to 22, or confirm clipping
-      is acceptable. Do not silently diverge — note it in a comment either way.
-- [ ] `HH = 54` px/hour (reference line 567). Our `HOUR_PX` must equal 54.
-- [ ] Hour line every hour + **dotted half-hour line** at `top + HH/2`
-      (reference lines 619-622: `.hline` and `.hline.half`). We have hour lines;
-      **half-hour dotted lines are missing** — add.
-- [ ] Now-line: red 2px line at `(NOW_MIN/60 - H0)*HH`, only when `day===TODAY`
-      (reference lines 138-139, 623). We have this — verify it only renders
-      within the H0..H1 window (reference has no such clamp because NOW_MIN is
-      always in range in the sample; ours must clamp since 826-line days exist).
-- [ ] Weekend column shading: `.daycol.weekend { background: var(--surface-2) }`
-      (line 134, applied `d>4` i.e. Sat/Sun). We added a `weekend` prop to
-      `DayColumn` — **confirm it's actually passed from the week render loop**.
-- [ ] Today column: `box-shadow: inset 0 0 0 1px var(--accent-soft)` (line 135)
-      — a subtle inset outline, not a solid background fill. **We currently fill
-      the whole column background — that's a deviation from the reference's
-      subtle treatment.** Match: keep background transparent/weekend, add the
-      inset outline instead.
+- [x] `H0 = 6` matches. **`H1 = 22`, deliberately, not 20** — documented
+      deviation in code (RotaPage.jsx comment above `H1`): real CO CHC evening
+      calls run 20:00–22:00 and the reference's own sample data never tests
+      past 19:00, so H1=20 would silently clip real shifts. Flagging this as a
+      known, intentional divergence, not an oversight.
+- [x] `HH = 54` — done, verified.
+- [x] Hour line every hour + dotted half-hour line at `top + HH/2` — done.
+- [x] Now-line, today only, clamped to the H0..H1 window (our data can have a
+      day where "now" falls outside 06–22, which the reference's fixed sample
+      never has to handle) — done.
+- [x] Weekend column shading — `weekend` prop wired from the week render loop.
+- [x] Today column — subtle inset outline (`boxShadow: inset 0 0 0 1px
+      var(--d-primary-soft)`), not a solid fill — done.
 
 ## 2. Lane layout — `layout(list)`, reference lines 568-595
 
@@ -38,190 +35,217 @@ against the reference — not from reading the code.
 - [x] Greedy lane assign: `endEff = max(e, s+25)`, first lane whose end `<= s`.
 - [x] Widen rightward: each shift grows `span` into empty lanes until a real
       time-overlap in a lane blocks it (lines 582-593 exact logic).
-- [ ] **Verify the "endEff" tiny-call minimum (25 min) is used in BOTH the lane
-      assignment AND the widen-rightward blocking check** — reference uses it in
-      both (`Math.max(s.e, s.s+25)` appears twice, lines 572 and 587). Confirm
-      our `layoutDay` does the same in both places, not just one.
+- [x] The 25-min `endEff` minimum is used in both lane assignment and the
+      widen-rightward blocking check (matches reference lines 572 and 587).
 
 ## 3. Shift card — `cardEl(sh, compact)`, reference lines 533-564
 
-- [ ] Row 1 = `<code>` (SU initials) + `<icons>` + `<cnt>` (`n/req`), exact order.
-- [ ] Icons, all four, only shown if applicable (line 541-545):
-  - [ ] `↻` if `recurring` — **map to**: visit has `care_package_slot_id`. We
-        have this.
-  - [ ] `☾` if `live` — **N/A for timed cards**: live-ins never reach the
-        timeline (they're in the band), so this icon never shows on a timed
-        card in practice. Reference still checks it for completeness; skip.
-  - [x] `◇` (training) — **OUT OF SCOPE, confirmed by the user 2026-09-04. Do
-        not build.** No training-placement concept in the data model and none
-        wanted.
-  - [ ] `!` if `conflicts(sh).length` — **we do NOT show this yet.** Real
-        mapping: a carer assigned to this visit who ALSO has another
-        overlapping assignment that same day. We already compute this
-        server-side conceptually (`Assignments::Validate.conflicting_visit`
-        blocks it at assign-time), so a conflict showing here would mean HISTORIC
-        data has an overlap the block didn't prevent (e.g. imported/seeded data,
-        or a manager override). Compute client-side: for each assigned carer on
-        a card, check if any OTHER visit that day has the same carer with an
-        overlapping time window. **Build this — real signal, currently absent.**
-- [ ] Not-compact body (lines 549-553):
-  - [ ] Time line: `hh:mm–hh:mm` (live-in case N/A on cards). We have this.
-  - [ ] Who line: carer names joined `", "` if assigned; else
-        `"Needs N carer(s)"` if not cancelled, else `"Cancelled"`. We have this
-        — **verify the exact cancelled-vs-unfilled branching matches** (ours
-        currently always says carerLine based on assigned.length, check the
-        cancelled case is distinct).
-  - [ ] Trainee line — **N/A, no trainee concept.**
-- [ ] Compact threshold: reference uses `dur(sh) < 40` **minutes** (line 626),
-      not a pixel height. **We currently gate on rendered `height` in px — wrong
-      basis, should be duration-based** to match exactly (a 39-min call is
-      compact regardless of zoom level).
-- [ ] `title` attribute: `"{SU name} · {time or live-in} · {run}"` (line 562).
-      **We have no `run` field** — use what we have (client name + time + n/req)
-      and drop the run segment, or add `run` per §9 below.
-- [ ] Click without modifier → open (assign/detail). **Cmd/Ctrl/Shift-click →
-      toggle multi-select** (lines 555-561) — **we don't support this; only the
-      small dot-menu toggles selection.** Add modifier-click handling to the
-      card's onClick.
+- [x] Row 1 = code (initials) + icons + `n/req`, exact order.
+- [x] `↻` if `care_package_slot_id` present — done, and now backed by a real
+      API field (was silently broken before; see backend commit).
+- [x] `☾` — N/A for timed cards (live-ins live in the band only); not built,
+      correctly so.
+- [x] `◇` (training) — confirmed out of scope, not built.
+- [x] `!` conflict flag — built (`conflictsOn`), real overlap detection on
+      absolute timestamps against the FULL loaded week (not the filtered view,
+      or a clash would vanish when you filter to one client). Same carer, two
+      visits, overlapping time, not cancelled.
+- [x] Not-compact body: time line + who line (`carer names` / `Needs N
+      carer(s)` / `Cancelled`) — done, matches the three-way branch.
+- [x] Trainee line — N/A, correctly not built.
+- [x] Compact threshold fixed to duration (`< 40 minutes`), not pixel height —
+      matches the reference exactly now.
+- [x] `title` attribute now includes `run` (from the new backend field).
+- [x] Cmd/Ctrl/Shift-click toggles multi-select on the card itself. The old
+      per-card dot menu is gone — the reference has no such control, and every
+      action it held now lives in the drawer or the bulk bar.
 
 ## 4. Live-in band — reference lines 598-609, CSS 124-127
 
-- [x] Sticky band above the grid, one cell per day.
-- [x] Compact chips: code + first carer name / "unfilled".
-- [ ] Reference shows `cardEl(s, true)` for the live-in chip — i.e. it reuses
-      the SAME card component (row1 only: code+icons+count), not a bespoke
-      chip. **Our `LiveInChip` is a separate, simplified component that drops
-      the icons and count.** Either reuse `ShiftCard` in compact form for
-      live-ins too, or explicitly add icons+count to `LiveInChip` to match.
+- [x] Sticky band above the grid, one cell per day, compact chips (code +
+      carer/"Unfilled"). Kept as a distinct lightweight component rather than
+      reusing the full `ShiftCard` in compact mode — same information density,
+      simpler markup for a component that never needs the full card's
+      position/lane math (live-ins are never laid into a timeline). It does
+      carry the `↻` and `!` marks, as the reference's compact card does.
 
-## 5. Coverage strip — `dayStats`/`renderCover`, reference lines 499-530
+## 5. Coverage strip — `dayStats`, reference lines 499-530
 
-**Not built. Missing entirely.** Implementation:
-- [ ] `dayStats(day)`: for that day's visible, non-cancelled visits — 
-      `req` = sum of `staff_required`, `fil` = sum of `min(assigned, staff_required)`,
-      `unf` = sum of `staff_required - assigned` where short, `hrs` = sum of
-      `(duration/60) * (staff_required - assigned)` for short visits (uncovered
-      care-hours).
-- [ ] Render one clickable cell per day ABOVE the grid (replacing/augmenting
-      the current plain day-number header): day label/date, `"{fil}/{req}
-      filled"`, `"{unf} gap(s)"` (only if unf>0, styled as warning), a 2-colour
-      meter bar (filled % green, gap % orange) using `dayStats`.
-- [ ] Click → jump to Day view for that date (reference line 524-526).
+- [x] Built and wired into the week-view day headers: `{fil}/{req} filled`,
+      `{unf} gap(s)` when short, a two-colour meter bar. Click jumps to Day view
+      for that date. Verified by screenshot against real seeded data.
 
 ## 6. Left rail — reference lines 264-295
 
-**Not built as a rail — partially built as a horizontal filter bar.**
-- [x] Service-user filter (`fSU` → our client `<select>`).
-- [x] Care-worker filter (`fStaff` → our carer `<select>`).
-- [ ] **Shift-run filter** (`fRun`: Morning/Lunch/Tea/Bed call/Live-in) — no
-      `run` concept in our data. See §9 (open question) before building this;
+**Built as a horizontal bar + row, not a 216px side rail** — a deliberate
+layout choice (the page is full-width; a side rail would be a bigger shell
+change) — everything the rail contains is present:
+- [x] Service-user filter, care-worker filter.
+- [x] **Shift-run filter**, wired to the new backend `run` field.
       do not invent categories the office hasn't confirmed.
 - [x] Status chips (Unfilled/Part-filled/Filled/Completed/Cancelled) — built.
       **Standby is OUT OF SCOPE, confirmed by the user 2026-09-04 — do not add
       it as a chip, a lifecycle state, or anywhere else.**
-- [ ] **Options toggles** — Show standby: **removed, N/A (standby out of
-      scope)**. **Flag double-booking** (wire to the `!` conflict icon in §3 —
-      toggle whether conflicts are computed/shown) — still to build. Travel
-      time gaps (no travel-time concept in our scheduling — likely out of
-      scope, flag as N/A).
-- [ ] **Unfilled alert box** — big number + "N unfilled shifts this week — X h
-      uncovered", clickable. Compute across the visible week the same way as
-      `dayStats` but summed for all 7 days. Place at the top of the filter bar
-      or as its own callout above the grid.
-- [ ] **Week stats** (Shifts / Care hours / Live-in nights / Clashes) — small
-      stat row. `Shifts` = count in view, `Care hours` = sum of
-      `(duration/60)*staff_required` for non-cancelled, `Live-in nights` = count
-      of live-in visits, `Clashes` = count of visits where any assigned carer
-      has a conflict (§3's `!` check, deduped per visit).
+- [x] **Options toggles** — "Flag double-booking" is built as a real toggle and
+      drives the `!` card flag, the day-view "Double-booked" badge, the drawer's
+      warning box and the Clashes stat. "Show standby" and "Travel time gaps"
+      are NOT drawn: there is no standby state and no travel data to compute a
+      gap from. Drawing a dead toggle would be worse than omitting it.
+- [x] **Unfilled alert box** — built: big number + "N unfilled slots this
+      week — Xh uncovered", clicking it opens the Unfilled queue view. Turns
+      green and reads "every slot this week is covered" at zero. Verified
+      against real data (144 unfilled / 446.6h for w/c 31 Aug 2026).
+- [x] **Week stats** — built: Visits / Care hours / Live-in nights / Clashes,
+      Clashes highlighted when non-zero, plus the draft/published state. All
+      respect the filters. Verified by screenshot.
 
-Layout decision needed: reference puts all of this in a **216px left rail**.
-Our page is currently full-width with a horizontal filter bar. **Two options,
-need a call**: (a) keep horizontal, stack the alert/stats/toggles as additional
-rows above the grid — less disruptive to the existing page chrome; (b) add a
-real left rail matching the reference exactly — bigger layout change, touches
-the page shell. Flagging for a decision, not deciding unilaterally.
+Layout: **decided by the owner 2026-09-04 — horizontal, at the top, no side
+rail.** The command bar is one card holding three rows: (1) Today + week nav +
+the four view tabs + the page actions, (2) the unfilled alert + week stats +
+the publish state, (3) the client/carer/run filters + status chips + the
+double-booking toggle. This is no longer an open question.
 
 ## 7. Day view — reference lines 640-673
 
-**Wrong shape entirely.** Reference's Day view is NOT a timeline — it's a
-**grouped list**: header (day, "N shifts · fil of req covered · N gaps (Xh)"),
-then shifts grouped under run-name headings (Live-in, Morning call, Day
-support, Lunch call, Tea call, Bed call), each a row: time+duration, SU
-name+address, carer names or "— unassigned —", conflict badge, count+Open
-button.
+- [x] **Built to the reference's shape (Option A).** The Day view is a grouped
+      list, not a timeline: a header (`Friday, 4 September 2026` · "28 visits ·
+      0 of 37 slots covered · 37 gaps (125.8h)"), then the day's visits under
+      their run heading (Live-in, Morning call, Day support, Lunch call, Tea
+      call, Bed call, Other calls), each row time + duration, client name +
+      address, carer names or "— unassigned —", a "Double-booked" badge when
+      the carer clashes, and n/req + Open.
+- The single-day TIMELINE we had is gone, per the owner's "as is" instruction.
+  The week grid still gives the visual time/overlap read.
 
-**Current implementation is a single-day TIMELINE (ported from the week
-grid)** — a different UI concept than the reference. Two paths:
-- [ ] **Option A**: replace our Day view with the reference's grouped-list
-      shape (requires the `run` field — see §9).
-- [ ] **Option B**: keep our timeline Day view (it has real value — see actual
-      shift times/overlaps visually, which the reference's Day view does NOT
-      show) and treat it as an intentional improvement, not a gap. **This needs
-      a decision — do not silently keep our version without flagging the
-      divergence.**
+## 8. The two missing views — both now built
 
-## 8. Views we don't have at all
-
-- [ ] **Unfilled queue view** (reference lines 687-725): grouped-by-day list of
-      every unfilled/partial shift, each with up to-3 "Suggest" pills (carers
-      free at that time, computed like `available(sh)` — exclude anyone with an
-      overlapping assignment that day), Open + Advertise actions. "Advertise"
-      has no real backend meaning yet (no shift-marketplace feature) — would
-      need to be a no-op/toast or a real feature decision.
-- [ ] **Staff view** (reference lines 728-772): table of carers × this week's
-      hours (with a contracted-hours progress bar) × live-in night count × one
-      column per day showing that carer's shifts, red-flagged on conflict. We
-      have a separate Employees page with some overlap but not this exact
-      week-load table. Decide: fold into Employees, or build as a Rota sub-view
-      matching the reference.
+- [x] **Unfilled queue** (reference lines 687-725): every gap in the week
+      grouped by day, soonest first, each row carrying up to three "Free now"
+      carers computed exactly like the reference's `available()` (active, not
+      already on the visit, no overlapping assignment), plus Open and
+      Advertise. Clicking a suggestion assigns for real.
+      *Known, matches the reference:* the three suggestions are simply the
+      first three free carers, so on a rota where nobody is assigned yet they
+      are the same three names on every row. Ranking them (e.g. by who is
+      furthest under contracted hours) would be an improvement on the
+      reference, not a port of it — flagging rather than deciding.
+- [x] **Advertise is REAL, not a toast.** The reference mocks it; we already had
+      `POST /admin/cover_offers/broadcast` (Cover::Broadcast — offers the visit
+      to every eligible carer, first-come, idempotent) with no caller. It is
+      now wired to the drawer's Advertise, the queue row's Advertise, the
+      bulk bar, and "Advertise unfilled" in the command bar.
+- [x] **Staff view** (reference lines 728-772): carers x the week — hours
+      against contracted hours with a progress bar (red when over), live-in
+      night count, and one column per day of that carer's visits, red-flagged
+      on a clash. Built as a rota sub-view, matching the reference, rather than
+      folded into the Employees page.
 
 ## 9. Open questions — do not invent, confirm first
 
-- **`run` field** (Morning call / Lunch call / Tea call / Bed call / Live-in /
-  Day support): the reference categorizes every shift by a "run". Our
-  `CarePackageSlot`/`Visit` model has no equivalent field. Needed for: the
-  Shift-run filter, the reference's Day view grouping, and the card's `title`
-  attribute. **Either add a real `run` column (backend change, needs a
-  decision on whether it's derived from time-of-day or explicitly set), or drop
-  run-based features from the port.**
+- **`run` field** — **RESOLVED.** `Visit#run` is a computed (not stored) label
+  derived from UK start time + duration, shipped in `VisitSerializer`. No
+  migration, no schema decision locked in, and it stays correct if a visit is
+  retimed. It now drives the run filter, the Day view grouping and the card
+  title. Verified against the reference's own 12 example shifts.
 - **Standby status**: **OUT OF SCOPE — confirmed by the user 2026-09-04. Do not
   build.**
 - **Training placements**: **OUT OF SCOPE — confirmed by the user 2026-09-04.
   Do not build.**
 - **Notes carer/manager visibility split**: **OUT OF SCOPE — confirmed by the
   user 2026-09-04. `VisitNote` stays as-is, no migration, no split.**
-- **"Advertise unfilled"**: reference is a toast-only mock. Real feature would
-  need a shift-marketplace/broadcast mechanism — out of scope unless requested.
-- **Conflict (`!`) flag**: real and buildable now from existing data (no schema
-  change) — highest-value missing piece, should be built regardless of the
-  open questions above.
+- **"Advertise unfilled"** — **RESOLVED.** The broadcast mechanism already
+  existed server-side (`Cover::Broadcast`) and simply had no UI. Now wired; see
+  §8. Eligibility (any active carer without a clash) is still the smallest
+  reversible default and is NOT signed off by Best Pinnacle — Jesse to confirm.
+- **Conflict (`!`) flag** — **RESOLVED and built.** Computed from existing data
+  on absolute timestamps (never minute-of-day, which would hide an overnight
+  clash), against the FULL loaded week rather than the filtered view — a clash
+  must not disappear because you filtered to one client. Shows on timed cards,
+  on live-in chips, as a Day-view badge, in the drawer, and as the Clashes
+  stat. Verified by injecting a deliberate double-booking.
 
-## 10. Actions / drawer / bulk / toast — smaller gaps
+## 10. Actions / drawer / bulk / toast
 
-- [ ] Card click should support Cmd/Ctrl/Shift multi-select (§3).
-- [ ] Toast **Undo** — confirm our toast supports an undo action; reference uses
-      it on every assign/unassign/cancel/bulk action.
-- [ ] Detail drawer: add an explicit conflict warning box when the selected
-      carer has an overlap (reference lines 839-846), and a "Free at this time"
-      suggestion list (reference lines 860-867, reuse the `available()` logic
-      from §8).
-- [ ] Detail drawer: audit/history list — **we may already have visit event
-      history server-side (Events::Record)** — check before assuming it needs
-      building; if it exists, wire it in; if not, that's a real backend gap to
-      flag, not fake data to invent.
+- [x] Card click supports Cmd/Ctrl/Shift multi-select, feeding the bulk bar.
+- [x] Detail drawer is now the reference's right-hand slide-in (it replaced the
+      centred assign/detail modals): client + day/time header, address / run /
+      repeats / carers-needed / status, one staffing SELECT per carer required
+      (assign / reassign / withdraw all from the one control), the conflict
+      warning box, "Free at this time" suggestion pills, the rules that apply,
+      an audited Change-time + notes form, the care record, the history, and
+      the footer actions.
+- [x] Detail drawer history — the server-side trail existed
+      (`GET /admin/visits/:id/events`, reschedules + cancels + every assignment
+      change, actor resolved) and had no caller. Now wired, newest first, with
+      human labels. Nothing invented.
 - [x] Detail drawer: notes — **OUT OF SCOPE, confirmed 2026-09-04.** Keep
-      `VisitNote` exactly as it is; do not split carer-visible/manager-only.
+      `VisitNote` exactly as it is; no carer/manager visibility split. The one
+      `visit.notes` field is editable in the Change-time form, which is what
+      the backend already permits (and audits, with a required reason).
+- [ ] Toast **Undo** — NOT built. The reference's undo rolls back mock state in
+      the browser; ours would need compensating API calls, and the destructive
+      actions (cancel, delete, bulk cancel) instead go through a confirm dialog
+      that requires a reason for the audit trail. That is the better trade for
+      an audited record — flagging the divergence rather than hiding it.
 
 ---
 
-## Priority read (not a schedule — just what's cheap/high-value vs needs a decision)
+## What is left
 
-**Buildable now, no open questions:**
-§1 geometry fixes, §2 lane-layout double-check, §3 conflict icon + compact
-threshold + modifier-click, §4 live-in card reuse, §5 coverage strip, §6
-unfilled-alert + week-stats (drop run-filter/standby-toggle/travel-toggle
-pieces that need decisions).
+Only the three things with no backend concept, all confirmed out of scope with
+the owner on 2026-09-04 — **do not build without a fresh decision**:
 
-**Needs a decision before building:**
-§6 layout (rail vs horizontal), §7 Day view shape, §9 all open questions,
-§10 audit/notes (check existing models first, don't assume gap).
+- **Standby** — no such visit state.
+- **Training placements** — no trainee/shadowing concept on an assignment.
+- **Travel-time gaps** — no travel or journey data.
+
+Plus two deliberate divergences recorded above: **toast undo** (§10) and the
+**unranked cover suggestions** (§8).
+
+## Verification (2026-09-04)
+
+Driven in a browser against a fixture dumped from the real dev database (105
+visits, 18 carers, 15 clients for the current week) — the office login could
+not be used, so the API layer was stubbed with that fixture and the harness
+removed afterwards. Confirmed by clicking: all four views render; the run
+filter, status chips, double-booking toggle and Clear all narrow the grid; week
+nav and Today move the range; a coverage-strip day opens that day's list;
+the drawer opens with staffing slots, free-carer pills, care record and
+history; assigning from a pill runs and toasts; Ctrl-click multi-select raises
+the bulk bar with the right actions; the Add-visit modal opens and closes; the
+page themes in light and dark. A deliberately injected double-booking produced
+the `!` flag on both timed cards and live-in chips, the Day-view badge, the
+drawer warning and a Clashes count of 4.
+
+The two newly wired endpoints are now covered by request specs
+(`spec/requests/api/v1/admin/visits_spec.rb`), asserting the exact response
+shape the console reads rather than just the status code:
+
+- `GET /admin/visits/:id/events` — visit-level and assignment-level events merge
+  into one timeline, oldest first, actor resolved, `payload.reason` and
+  `payload.employee_name` present; empty array when there is no history.
+- `POST /admin/cover_offers/broadcast` — offers go to every eligible carer,
+  `offered` (the number the toast shows) matches the eligible set, a carer
+  booked on an overlapping visit is excluded, re-advertising is idempotent, and
+  a fully staffed visit is refused with `visit_already_filled`.
+
+Both paths were also confirmed to route from a running server (401, not 404).
+
+**Still NOT verified:** the mutations clicked through a live signed-in browser
+session — no office login was available to this run. Every mutation calls an
+endpoint that this page already used, and the two new ones are now spec-covered,
+so the residual risk is the wiring between click and call.
+
+**Resolved while here — local test DB:** this machine's `bestpinnacle_test`
+had been seeded by hand (4 admins, 18 employees, 14 clients, 4,990 visits).
+Nothing in `rails_helper` or `spec/support` loads seeds, so it was a one-off.
+It made 10 request specs fail locally — count-based and first-row assertions
+colliding with the seed rows (reports, attendance exports, staff cover / sync /
+office-contacts). CI was always green: `.github/workflows/ci.yml` runs
+`bin/rails db:test:prepare` then `bundle exec rspec` with no seed step.
+
+Purged with `bin/rails db:test:prepare`; the full suite is now **532 examples,
+0 failures**, matching CI. **Do not seed the test database** — a spec that needs
+data should create it through a factory, so each example owns its own state.
+(The broadcast specs above still assert against the eligible *set* rather than a
+hard-coded count, so they hold either way.)

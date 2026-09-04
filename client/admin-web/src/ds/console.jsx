@@ -74,14 +74,17 @@ export function Button({ variant = 'primary', icon, children, onClick, disabled,
     ghost: { bg: 'var(--d-card)', ink: 'var(--d-ink)', bd: 'var(--d-border)', shadow: 'none' },
     danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', bd: 'rgba(220, 38, 38, 0.15)', shadow: 'none' },
     subtle: { bg: 'var(--d-panel)', ink: 'var(--d-ink2)', bd: 'transparent', shadow: 'none' },
+    // No chrome of its own — for a button that sits inside an already-bordered
+    // group and must not draw a second border inside the first.
+    bare: { bg: 'transparent', ink: 'var(--d-ink2)', bd: 'transparent', shadow: 'none' },
   }[variant] || {};
-  const h = size === 'sm' ? 34 : 40;
-  const r = size === 'sm' ? 10 : 12;
+  const h = size === 'xs' ? 30 : size === 'sm' ? 34 : 40;
+  const r = size === 'xs' ? 9 : size === 'sm' ? 10 : 12;
   return (
     <button type="button" disabled={disabled} onClick={disabled ? undefined : onClick}
       className={disabled ? '' : 'pressable'}
       style={{
-        ...s(`height:${h}px;border-radius:${r}px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 ${size === 'sm' ? 12 : 16}px;font-size:${size === 'sm' ? 12.5 : 13.5}px;font-weight:600;white-space:nowrap;outline:none`),
+        ...s(`height:${h}px;border-radius:${r}px;display:inline-flex;align-items:center;justify-content:center;gap:${size === 'xs' ? 5 : 7}px;padding:0 ${size === 'xs' ? 10 : size === 'sm' ? 12 : 16}px;font-size:${size === 'xs' ? 12 : size === 'sm' ? 12.5 : 13.5}px;font-weight:600;white-space:nowrap;outline:none`),
         fontFamily: 'inherit',
         background: V.bg,
         color: V.ink,
@@ -91,7 +94,7 @@ export function Button({ variant = 'primary', icon, children, onClick, disabled,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
       }}>
-      {icon && <Icon name={icon} size={size === 'sm' ? 14 : 16} />} {children}
+      {icon && <Icon name={icon} size={size === 'xs' ? 13 : size === 'sm' ? 14 : 16} />} {children}
     </button>
   );
 }
@@ -104,7 +107,9 @@ const EXPORT_FORMATS = [
   { type: 'csv', label: 'CSV', hint: 'Comma-separated — opens in any spreadsheet or text tool.', icon: 'file' },
   { type: 'xlsx', label: 'Excel (XLSX)', hint: 'Formatted workbook with the audit columns.', icon: 'download' },
 ];
-export function ExportButton({ onExport, label = 'Export', title = 'Export', subtitle = 'Choose a file format. The filters on screen are applied.', formats = EXPORT_FORMATS, disabled = false }) {
+// `variant`/`size` default to the original filled, full-height button so every
+// existing caller is unchanged; pass them to sit this in a dense toolbar.
+export function ExportButton({ onExport, label = 'Export', title = 'Export', subtitle = 'Choose a file format. The filters on screen are applied.', formats = EXPORT_FORMATS, disabled = false, variant = 'primary', size = 'md' }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const run = async (type) => {
@@ -114,7 +119,7 @@ export function ExportButton({ onExport, label = 'Export', title = 'Export', sub
   };
   return (
     <>
-      <Button variant="primary" icon="download" disabled={disabled} onClick={() => setOpen(true)}>{label}</Button>
+      <Button variant={variant} size={size} icon="download" disabled={disabled} onClick={() => setOpen(true)}>{label}</Button>
       {open && (
         <Modal open onClose={() => (busy ? null : setOpen(false))} title={title} subtitle={subtitle} maxWidth={440}>
           <div style={s('padding:6px 24px 20px;display:flex;flex-direction:column;gap:12px')}>

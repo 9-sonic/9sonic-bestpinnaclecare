@@ -1,70 +1,268 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   listVisits, listEmployees, listServiceUsers, getSettings,
-  assignEmployee, withdrawAssignment, publishVisit, generateVisits, createVisit, editVisit,
-  exportRota, getVisit, reassignAssignment, cancelVisit, deleteVisit,
+  assignEmployee, withdrawAssignment, reassignAssignment,
+  publishVisit, generateVisits, createVisit, editVisit, exportRota,
+  getVisit, listVisitEvents, cancelVisit, deleteVisit, broadcastCover,
 } from '../api/index.js';
 import Spinner from '../components/common/Spinner.jsx';
 import Icon from '../components/common/Icon.jsx';
 import Modal from '../components/common/Modal.jsx';
-import InfoHint from '../components/common/InfoHint.jsx';
-import ContextMenu from '../components/common/ContextMenu.jsx';
 import { s } from '../lib/ui.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  LIFECYCLE_LABELS, LIFECYCLE_TONE, formatTime, formatTimeRange, formatDateFull, fullName, weekOf, isoDate, ukTime,
+  LIFECYCLE_LABELS, formatTime, formatDateFull, fullName, addressOf,
+  weekOf, isoDate, ukTime, ukDay,
 } from '../api/format.js';
-import { Button, ExportButton, Tag, Avatar, SegTabs, TableWrap, Th, Td, Row, Pager } from '../ds/console.jsx';
+import { Button, ExportButton, Tag } from '../ds/console.jsx';
 
-// A cancelled visit is not "short-staffed" — it's cancelled. Only a live visit
-// with fewer active carers than required counts as unfilled.
-const isShort = (v) => v.status !== 'cancelled' && (v.assignments ?? []).length < v.staff_required;
-const sameDay = (iso, d) => new Date(iso).toDateString() === d.toDateString();
-const inits = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || '—';
+/* ==========================================================================
+   Rota console — a port of the RoundSys rota reference the office already uses
+   (`rota-console.html`), wired to real visits, carers and endpoints.
 
-// Lifecycle state -> chip colour, mirroring the design's lifecycleMeta.
-// The six shared tones, but with a DISTINCT colour each — previously `info` and
-// `active` were both blue, so "due now" and "on shift" looked identical. Every
-// token exists in both light and dark themes, so these read in either mode.
-// Main's soft-card design (light tinted background + coloured text), but with the
-// distinct colours: blue/violet/yellow/red/green — none alike. `bg` is a light
-// wash of the colour over the card; `ink`/`dot` is the full colour.
-const soft = (col) => `color-mix(in srgb, ${col} 16%, var(--d-card))`;
-// Visit-state colours read from the console's semantic status tokens rather than
-// raw hex, so the rota themes for dark mode and matches the status language used
-// everywhere else (and the PWA). Scheduled/check-in use the brand teal instead
-// of a generic blue; on-shift keeps a distinct magenta so "in progress" stands
-// apart from "scheduled" at a glance.
-const CHIP = {
-  neutral: { bg: soft('var(--d-primary)'), ink: 'var(--d-primary-deep)', dot: 'var(--d-primary)' }, // scheduled
-  info: { bg: soft('var(--d-primary)'), ink: 'var(--d-primary-deep)', dot: 'var(--d-primary)' },    // check-in
-  active: { bg: soft('var(--d-magenta)'), ink: 'var(--d-magenta)', dot: 'var(--d-magenta)' },       // on shift
-  warn: { bg: 'var(--d-warn-bg)', ink: 'var(--d-warn-ink)', dot: 'var(--d-warn-dot)' },             // late
-  danger: { bg: 'var(--d-danger-bg)', ink: 'var(--d-danger-ink)', dot: 'var(--d-danger-dot)' },     // missed
-  success: { bg: 'var(--d-ok-bg)', ink: 'var(--d-ok-ink)', dot: 'var(--d-ok-ink)' },                // completed
+   Two deliberate departures from the reference file:
+
+   1. NO LEFT RAIL. Everything the reference keeps in its 216px rail — the
+      unfilled alert, the filters, the status chips, the options toggle and the
+      week stats — sits in the command bar at the top instead. Asked for
+      explicitly; the console's own shell already owns the left edge.
+   2. The reference is a mock: its actions raise toasts against sample data.
+      Every action here calls a real endpoint (assign / reassign / withdraw /
+      retime / cancel / delete / publish / advertise), so anything the backend
+      has no concept of is NOT drawn rather than faked. See NOT-BUILT below.
+
+   NOT BUILT, and why (all confirmed with the owner 2026-09-04):
+     · Standby status      — the Visit lifecycle has no standby state.
+     · Training placements — no trainee/shadowing concept on an assignment.
+     · Travel-time gaps    — no travel or journey data to compute a gap from.
+   The reference's "Show standby" and "Travel time gaps" toggles are therefore
+   absent; "Flag double-booking" is real and is kept.
+
+   Two things break a naive calendar for domiciliary care, and both are handled
+   the way the reference does:
+     1. 24h LIVE-IN shifts don't go in the timeline — they sit in a band at the
+        top (one chip per day). In the grid they'd swallow a whole lane.
+     2. Many short OVERLAPPING calls — a greedy lane assignment would squeeze a
+        30-min call into a thin sliver next to a 7h day-support block. So after
+        assigning lanes, each call WIDENS RIGHTWARD into empty lanes until it
+        meets a call it truly overlaps in time.
+   ========================================================================== */
+
+const H0 = 6;                        // first hour shown — the reference's H0
+// The reference's H1 is 20 (its sample data ends by 19:00). Real visits run
+// later — the CO CHC evening call is 20:00-22:00 — so H1 is 22 here: a
+// deliberate, documented deviation to avoid silently clipping real shifts off
+// the bottom of the grid, not an oversight.
+const H1 = 22;
+const HOUR_PX = 54;                  // vertical pixels per hour — the reference's HH
+// Inset above the first hour and below the last. Without it the 06:00 label
+// (drawn 4px above its own line, to sit centred on it) overlapped the live-in
+// band, and 22:00 hung past the bottom edge.
+const GRID_PAD = 10;
+const GRID_PX = (H1 - H0) * HOUR_PX;
+const GRID_BOX = GRID_PX + GRID_PAD * 2;      // the drawn height of a day column
+const yFor = (min) => (min / 60 - H0) * HOUR_PX + GRID_PAD;  // minutes-into-day -> pixels
+// A visit card is at least as tall as its CONTENT: the header row, the time,
+// and one line per carer — however many that is. A 30-minute double-up is 25px
+// by the clock but needs ~65px to name both carers, so it gets 65. Values are
+// real px (text is scaled by s(), these already account for it).
+const CARD_HEAD = 16;   // client + marks + n/req
+const CARD_TIME = 13;   // the time range line
+const CARD_NAME = 14;   // one carer
+const CARD_PAD = 9;     // padding + inter-line gaps
+function cardHeight(v, startMin, endMin) {
+  const byClock = ((endMin - startMin) / 60) * HOUR_PX - 2;
+  const carers = (v.assignments ?? []).length;
+  const byContent = carers ? CARD_HEAD + CARD_TIME + carers * CARD_NAME + CARD_PAD : 0;
+  return Math.max(20, byClock, byContent);
+}
+
+const GRID_HOURS = Array.from({ length: H1 - H0 + 1 }, (_, i) => H0 + i);
+const GRID_COLS = '52px repeat(7, minmax(0, 1fr))';
+const RUN_COLS = '104px repeat(7, minmax(0, 1fr))';
+
+// The runs the office already works to, in the order the day reads. `run` is a
+// computed field on the visit (UK start time + duration), not a stored one.
+const RUN_ORDER = ['Live-in', 'Morning call', 'Day support', 'Lunch call', 'Tea call', 'Bed call', 'Other calls'];
+const runOf = (v) => v.run || 'Other calls';
+
+// "Dorothy Burgin" -> "D. Burgin". Initials alone are ambiguous here: this
+// provider has two clients at one address whose initials both read "DB"/"JB".
+const shortName = (p) => {
+  const first = p?.first_name?.trim();
+  const last = p?.last_name?.trim();
+  if (!first && !last) return 'Unknown';
+  if (!last) return first;
+  return `${first ? `${first[0]}. ` : ''}${last}`;
 };
+const inits = (p) => ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')) || '—';
+const isShort = (v) => v.status !== 'cancelled' && (v.assignments ?? []).length < (v.staff_required ?? 1);
+// A visit is editable unless it's cancelled — its record stands. Past and
+// already-started visits can be retimed too (admin reconciliation); every edit
+// is audited (who, before/after, reason) by the backend.
+const isEditable = (v) => v.status !== 'cancelled';
 // A cancelled visit reads its state from the visit status, not the assignment
 // (its carer was withdrawn, so there's no active assignment to read from).
 const stateOf = (v) => (v.status === 'cancelled' ? 'cancelled' : (v.assignments?.[0]?.lifecycle_state) ?? 'scheduled');
-const chipFor = (v) => (isShort(v) ? null : CHIP[LIFECYCLE_TONE[stateOf(v)] ?? 'neutral']);
-// Lifecycle tone -> the Tag component's tone names (list view's status pill).
-const L2TAG = { neutral: 'muted', info: 'info', warn: 'warning', active: 'info', danger: 'danger', success: 'success' };
 
-// A visit is editable unless it's cancelled — its record stands. Past and
-// already-started visits can be retimed too (admin reconciliation); every edit
-// is audited (who, before/after, reason) by the backend. Drives both the
-// drawer (form vs read-only) and which right-click quick actions are offered.
-const isEditable = (v) => v.status !== 'cancelled';
+// Minutes-into-the-UK-day for an instant (0..1440), from UK wall-clock parts so
+// the axis is right whatever zone the admin's browser is in.
+function ukMinutes(iso) {
+  const [h, m] = new Date(iso)
+    .toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' })
+    .split(':').map(Number);
+  return h * 60 + m;
+}
+// A live-in / 24h shift: ends on a later UK day than it starts. Pulled OUT of
+// the timeline into the band above it.
+const isLiveIn = (v) => ukDay(v.scheduled_end) !== ukDay(v.scheduled_start);
+const durMin = (v) => Math.round((new Date(v.scheduled_end) - new Date(v.scheduled_start)) / 60000);
+const durHrs = (v) => durMin(v) / 60;
+// Two hour formats, matching the reference: a single visit's length keeps two
+// decimals so a 45-minute call reads exactly (0.75h), while week/day totals
+// round to one (446.6h, not 446.58h).
+const hoursLabel = (h) => `${Math.round(h * 100) / 100}h`;
+const hoursTotal = (h) => `${Math.round(h * 10) / 10}h`;
+// A live-in is a whole night on the rota; its 07:00->06:59 window is 23.98h,
+// which reads as noise. Call it what the office calls it.
+const visitLength = (v) => (isLiveIn(v) ? '24h' : hoursLabel(durHrs(v)));
+// Run `fn` over `items` with at most `lanes` in flight. Each cover broadcast is
+// a ~1.5s, 100-query request server-side: firing one per visit at once saturates
+// the thread pool and every other request in the console queues behind it. Pace
+// them instead. Returns { ok, failed, results } and never rejects.
+async function runPaced(items, fn, lanes = 4, onProgress) {
+  const queue = [...items];
+  const results = [];
+  let ok = 0, failed = 0;
+  const lane = async () => {
+    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+      try { results.push(await fn(item)); ok += 1; }
+      catch { failed += 1; }
+      onProgress?.();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(lanes, items.length)) }, lane));
+  return { ok, failed, results };
+}
+const ADVERTISE_LANES = 4;
 
-// Legend — each dot's colour matches exactly what the block renders for that
-// state, so a block on the grid can always be read against the key.
-const LEGEND = [
-  ['Scheduled', CHIP.neutral.dot], ['On shift', CHIP.active.dot], ['Late', CHIP.warn.dot],
-  ['Missed', CHIP.danger.dot], ['Completed', CHIP.success.dot],
-  ['Unfilled', 'var(--d-unfilled-ink)'], ['Cancelled', 'var(--d-faint)'],
+const minToHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+// n / req and the derived status, mirroring the reference's statusOf.
+function shiftStatus(v) {
+  if (v.status === 'cancelled') return 'cancelled';
+  const n = (v.assignments ?? []).length;
+  const req = v.staff_required ?? 1;
+  if (n === 0) return 'unfilled';
+  if (n < req) return 'partial';
+  return stateOf(v) === 'completed' ? 'completed' : 'filled';
+}
+
+// Every carer double-booked on `v` — the same person on another visit that
+// overlaps this one in time. The assign flow hard-blocks new double-bookings,
+// so a flag here means historic or imported data, not something the office can
+// create today. Compared on absolute timestamps, never minute-of-day, so an
+// overnight visit can't hide a real clash.
+function conflictsOn(v, all) {
+  if (v.status === 'cancelled') return [];
+  const mine = (v.assignments ?? []).map((a) => a.employee).filter(Boolean);
+  if (!mine.length) return [];
+  const start = new Date(v.scheduled_start).getTime();
+  const end = new Date(v.scheduled_end).getTime();
+  return mine.filter((emp) => all.some((o) => o.id !== v.id
+    && o.status !== 'cancelled'
+    && new Date(o.scheduled_start).getTime() < end
+    && start < new Date(o.scheduled_end).getTime()
+    && (o.assignments ?? []).some((a) => a.employee?.id === emp.id)));
+}
+
+// Carers with nothing overlapping this visit — the reference's available().
+// Active, not already on the visit, and free across the whole window.
+function freeCarers(v, employees, all, limit = 3) {
+  const start = new Date(v.scheduled_start).getTime();
+  const end = new Date(v.scheduled_end).getTime();
+  const already = new Set((v.assignments ?? []).map((a) => a.employee?.id));
+  return employees.filter((e) => e.active && !already.has(e.id)).filter((e) => !all.some((o) => o.status !== 'cancelled'
+    && new Date(o.scheduled_start).getTime() < end
+    && start < new Date(o.scheduled_end).getTime()
+    && (o.assignments ?? []).some((a) => a.employee?.id === e.id))).slice(0, limit);
+}
+
+// Coverage for one day's visits, the reference's dayStats: how many carer-slots
+// are required vs filled, how many gaps remain, and the care-hours left
+// uncovered. Cancelled visits don't count towards or against coverage.
+function dayStats(list) {
+  const live = list.filter((v) => v.status !== 'cancelled');
+  let req = 0, fil = 0, unf = 0, hrs = 0;
+  for (const v of live) {
+    const r = v.staff_required ?? 1;
+    const n = (v.assignments ?? []).length;
+    req += r; fil += Math.min(n, r);
+    if (n < r) { unf += r - n; hrs += durHrs(v) * (r - n); }
+  }
+  return { req, fil, unf, hrs, n: live.length };
+}
+
+// Lay out a day's NON-live visits into lanes, then widen each rightward so short
+// calls fill the width instead of being squeezed next to a long day-support
+// block. Returns [{ v, startMin, endMin, lane, lanes, span }].
+function layoutDay(visits, dayISO) {
+  const items = visits
+    .filter((v) => !isLiveIn(v) && ukDay(v.scheduled_start) === dayISO)
+    .map((v) => ({ v, startMin: ukMinutes(v.scheduled_start), endMin: ukMinutes(v.scheduled_end) }))
+    // Reserve the height the card will actually be drawn at, not just its clock
+    // duration — otherwise a card that grew to fit its carers gets overlapped by
+    // the next call along.
+    .map((it) => ({
+      ...it,
+      endEff: it.startMin + Math.max(25, (cardHeight(it.v, it.startMin, it.endMin) / HOUR_PX) * 60),
+    }))
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  const laneEnds = [];
+  for (const it of items) {
+    let lane = laneEnds.findIndex((end) => end <= it.startMin);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(it.endEff); }
+    else laneEnds[lane] = it.endEff;
+    it.lane = lane;
+  }
+  const lanes = Math.max(1, laneEnds.length);
+  for (const it of items) {
+    it.lanes = lanes;
+    let span = 1;
+    for (let L = it.lane + 1; L < lanes; L++) {
+      const blocked = items.some((o) => o !== it && o.lane === L && it.startMin < o.endEff && o.startMin < it.endEff);
+      if (blocked) break;
+      span++;
+    }
+    it.span = span;
+  }
+  return items;
+}
+
+/* ------------------------------- appearance ------------------------------- */
+
+// Status -> the card's left-border colour + tinted background, mirroring the
+// reference's s-<status> classes, on our own themed tokens so the rota reads in
+// light and dark alike.
+const STATUS_STYLE = {
+  unfilled: { bar: 'var(--d-unfilled-ink)', bg: 'var(--d-unfilled-bg)' },
+  partial: { bar: 'var(--d-unfilled-ink)', bg: 'var(--d-unfilled-bg)' },
+  filled: { bar: 'var(--d-primary)', bg: 'color-mix(in srgb, var(--d-primary) 16%, var(--d-card))' },
+  completed: { bar: 'var(--d-ok-ink)', bg: 'var(--d-ok-bg)' },
+  cancelled: { bar: 'var(--d-faint)', bg: 'var(--d-panel)' },
+};
+const STATUS_CHIPS = [
+  ['unfilled', 'Unfilled'], ['partial', 'Part-filled'], ['filled', 'Filled'],
+  ['completed', 'Completed'], ['cancelled', 'Cancelled'],
 ];
+const styleFor = (st) => STATUS_STYLE[st] ?? STATUS_STYLE.filled;
+
+const selectStyle = { ...s('height:32px;border-radius:9px;border:1px solid var(--d-border);background:var(--d-field);padding:0 10px;font-size:12px;font-weight:600;color:var(--d-ink);outline:none'), fontFamily: 'inherit' };
+const fieldStyle = { ...s('height:40px;border-radius:11px;border:1px solid var(--d-border);background:var(--d-field);padding:0 12px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
+const pillStyle = { ...s('border:1px solid var(--d-border);border-radius:99px;padding:4px 10px;font-size:11.5px;font-weight:600;background:var(--d-panel);color:var(--d-ink);cursor:pointer'), fontFamily: 'inherit' };
+const sectionTitle = s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);margin-bottom:8px');
 
 /* ---------- confirm / reason dialog (replaces window.prompt/confirm) ---------- */
 // dialog = { title, body, confirmLabel, danger, needReason, reasonLabel, onConfirm(reason) }
@@ -78,7 +276,6 @@ function ConfirmDialog({ dialog, onClose }) {
     try { await dialog.onConfirm(reason.trim()); onClose(); }
     finally { setBusy(false); }
   };
-  const control = { ...s('width:100%;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:10px 13px;font-size:13px;font-weight:500;color:var(--d-ink);outline:none;resize:vertical'), fontFamily: 'inherit' };
   return (
     <div onClick={onClose} style={{ ...s('position:fixed;inset:0;background:rgba(15,23,30,0.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:24px'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
       <div onClick={(e) => e.stopPropagation()} style={s('width:100%;max-width:440px;background:var(--d-card);border-radius:22px;padding:22px 24px;display:flex;flex-direction:column;gap:14px')}>
@@ -87,7 +284,8 @@ function ConfirmDialog({ dialog, onClose }) {
         {dialog.needReason && (
           <div style={s('display:flex;flex-direction:column;gap:6px')}>
             <span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2)')}>{dialog.reasonLabel || 'Reason'} <span style={s('color:var(--d-danger-ink)')}>*</span></span>
-            <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Kept in the audit trail with your name and time" style={control} />
+            <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Kept in the audit trail with your name and time"
+              style={{ ...fieldStyle, ...s('height:auto;padding:10px 12px;resize:vertical') }} />
           </div>
         )}
         <div style={s('display:flex;justify-content:flex-end;gap:8px;margin-top:2px')}>
@@ -99,703 +297,1068 @@ function ConfirmDialog({ dialog, onClose }) {
   );
 }
 
-/* ---------- one visit block inside a grid cell ---------- */
-function VisitBlock({ v, view, selected, onOpen, onMenu }) {
-  const short = isShort(v);
-  const cancelled = v.status === 'cancelled';
-  const c = chipFor(v);
+/* --------------------------------- cards ---------------------------------- */
+
+// One timed shift card, absolutely positioned by time and lane. Content mirrors
+// the reference's card: client code, ↻ (recurring) / ! (conflict) marks, the
+// n/req count, the time, and the carer line — coloured by status via a left
+// border, with a diagonal hatch when part-filled. Compact (duration < 40 min,
+// matching the reference) drops the time/who lines to fit.
+function ShiftCard({ item, selected, conflicted, onOpen, onToggleSelect }) {
+  const { v, startMin, endMin, lane, lanes, span } = item;
+  const status = shiftStatus(v);
+  const st = styleFor(status);
   const assigned = v.assignments ?? [];
-  const carer = assigned[0]?.employee;
-  // Double-up: show the first carer with a "+N" so the block reads e.g. "Ann +1"
-  // rather than hiding that a second carer is on the same visit.
-  const extra = assigned.length > 1 ? ` +${assigned.length - 1}` : '';
-  const primary = view === 'client'
-    ? (carer ? `${fullName(carer)}${extra}` : 'Unfilled')
-    : fullName(v.service_user);
-  // Solid block, white text. Unfilled = orange, cancelled = grey + struck, else
-  // Main's soft-card style with the distinct colours: unfilled = soft orange,
-  // cancelled = faded grey + struck, else the status chip.
-  const bg = cancelled ? 'var(--d-panel)' : short ? 'var(--d-unfilled-bg)' : c.bg;
-  const ink = cancelled ? 'var(--d-faint)' : short ? 'var(--d-unfilled-ink)' : c.ink;
-  const border = '1px solid transparent';
-  // Open the action menu anchored to the circle itself (not the mouse) so it
-  // works the same for touch and mouse — there is no right-click on the rota.
-  const openMenu = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); onMenu({ x: r.right, y: r.bottom, visit: v }); };
+  const req = v.staff_required ?? 1;
+  const cancelled = status === 'cancelled';
+  // Staffing is not spelled out in words: the n/req badge already carries it.
+  const carerNames = assigned.map((a) => fullName(a.employee));
+  const height = cardHeight(v, startMin, endMin);
+  // The time line is the first thing to go on a card too short to hold it; the
+  // carers never are — the card grew to fit them.
+  const showTime = height >= 35;
+
   return (
-    <div style={s('position:relative')}>
-      <div data-visit-block onClick={onOpen} draggable className="pressable"
-        style={{
-          ...s('border-radius:9px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:1px'),
-          background: bg, color: ink, border, opacity: cancelled ? 0.7 : 1,
-          textDecoration: cancelled ? 'line-through' : 'none',
-        }}>
-        <span style={s('font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{primary}{cancelled ? ' · cancelled' : ''}</span>
-        <span className="d-num" style={s('font-size:10px;font-weight:600;opacity:0.85')}>
-          {formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}
-          {/* Overnight visit: the end is the next day. Mark it (+1) so a block that
-              reads e.g. "23:30–01:00" isn't mistaken for a same-day slot. */}
-          {new Date(v.scheduled_end).toDateString() !== new Date(v.scheduled_start).toDateString() && (
-            <span title="Ends the next day" style={s('margin-left:3px;opacity:0.9')}>⁺¹</span>
-          )}
-        </span>
-      </div>
-      {/* Action circle — the single control for this visit. Click it to open the
-          menu (edit, assign, cancel, select for bulk action…). It also shows a
-          check when the visit is selected for a bulk action. Replaces the old
-          right-click menu, which nothing on touch could reach. */}
-      <div onClick={openMenu} aria-label="Visit actions" title="Visit actions" className="rota-seldot"
-        style={{
-          ...s('position:absolute;top:-6px;right:-6px;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--d-border);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.15);transition:transform .1s ease,background .12s ease'),
-          background: selected ? 'var(--d-primary)' : 'var(--d-card)', color: selected ? '#fff' : 'var(--d-muted)',
-        }}>
-        {selected ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
+    <div
+      data-visit-block className="pressable"
+      title={`${fullName(v.service_user)} · ${formatTime(v.scheduled_start)}–${formatTime(v.scheduled_end)} · ${runOf(v)} · ${assigned.length}/${req}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        // Cmd/Ctrl/Shift-click toggles multi-select for the bulk bar; a plain
+        // click opens the visit drawer. Straight from the reference's cardEl.
+        if (e.metaKey || e.ctrlKey || e.shiftKey) { onToggleSelect(v.id); return; }
+        onOpen(v);
+      }}
+      style={{
+        ...s('position:absolute;overflow:hidden;cursor:pointer;padding:3px 6px;box-sizing:border-box;border-radius:5px;display:flex;flex-direction:column;gap:1px'),
+        top: yFor(startMin),
+        height,
+        left: `calc(${(100 / lanes) * lane}% + 2px)`,
+        width: `calc(${(100 / lanes) * span}% - 4px)`,
+        background: st.bg, color: 'var(--d-ink)', borderLeft: `3px solid ${st.bar}`,
+        opacity: cancelled ? 0.7 : 1, textDecoration: cancelled ? 'line-through' : 'none',
+        boxShadow: selected ? '0 0 0 2px var(--d-primary)' : '0 1px 2px rgba(15,23,32,0.10)',
+        zIndex: selected ? 3 : 1,
+        backgroundImage: status === 'partial' ? 'repeating-linear-gradient(135deg,transparent 0 6px,rgba(168,64,26,0.14) 6px 12px)' : undefined,
+      }}>
+      <span style={s('display:flex;align-items:center;gap:4px;min-width:0')}>
+        <span style={s('flex:none;font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2')}>{inits(v.service_user)}</span>
+        {v.care_package_slot_id && <span title="Repeats every week" style={s('flex:none;font-size:9px;opacity:0.6')}>↻</span>}
+        {conflicted && <span title="This carer has another overlapping visit" style={s('flex:none;font-size:10px;font-weight:800;color:var(--d-unfilled-ink)')}>!</span>}
+        <span style={s('flex:1;min-width:0')} />
+        <span className="d-num" style={s('flex:none;font-size:9.5px;font-weight:700;opacity:0.85')}>{assigned.length}/{req}</span>
+      </span>
+      {showTime && (
+        <span className="d-num" style={s('font-size:9.5px;font-weight:600;opacity:0.8;white-space:nowrap')}>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</span>
+      )}
+      {/* Every carer, one per line. The card was sized to hold them all. */}
+      {carerNames.map((n) => (
+        <span key={n} style={s('font-size:10px;font-weight:600;color:var(--d-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2')}>{n}</span>
+      ))}
+      {cancelled && <span style={{ ...s('font-size:10px;font-weight:600;line-height:1.2'), color: st.bar }}>Cancelled</span>}
+    </div>
+  );
+}
+
+// The band above the grid for LIVE-IN (24h) shifts — one cell per day, a compact
+// chip per live-in, so they never eat a lane in the timeline below.
+function LiveInChip({ v, selected, conflicted, onOpen, onToggleSelect }) {
+  const st = styleFor(shiftStatus(v));
+  const assigned = v.assignments ?? [];
+  return (
+    <div data-visit-block className="pressable"
+      title={`${fullName(v.service_user)} · live-in 24h`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.metaKey || e.ctrlKey || e.shiftKey) { onToggleSelect(v.id); return; }
+        onOpen(v);
+      }}
+      style={{
+        ...s('position:relative;display:flex;align-items:center;gap:4px;border-radius:5px;padding:2px 6px;cursor:pointer;min-width:0'),
+        background: st.bg, borderLeft: `3px solid ${st.bar}`, boxShadow: selected ? '0 0 0 2px var(--d-primary)' : 'none',
+      }}>
+      <span style={s('flex:none;font-size:9px;opacity:0.7')}>☾</span>
+      <span style={s('flex:none;font-size:10px;font-weight:800;letter-spacing:0.02em')}>{inits(v.service_user)}</span>
+      {v.care_package_slot_id && <span title="Repeats every week" style={s('flex:none;font-size:9px;opacity:0.6')}>↻</span>}
+      {conflicted && <span title="This carer has another overlapping visit" style={s('flex:none;font-size:10px;font-weight:800;color:var(--d-unfilled-ink)')}>!</span>}
+      <span style={s('flex:1;min-width:0')} />
+      <span style={{ ...s('flex:none;font-size:9.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'), color: assigned.length ? 'var(--d-ink2)' : st.bar }}>
+        {assigned.length ? fullName(assigned[0].employee) : 'Unfilled'}
+      </span>
+    </div>
+  );
+}
+
+/* -------------------------------- week grid -------------------------------- */
+
+function TimeRuler() {
+  return (
+    <div style={{ ...s('position:relative;background:var(--d-panel);border-right:1px solid var(--d-border)'), height: GRID_BOX }}>
+      {GRID_HOURS.map((h) => (
+        <div key={h} className="d-num" style={{ ...s('position:absolute;right:6px;font-size:9.5px;font-weight:600;color:var(--d-muted);line-height:1'), top: yFor(h * 60) - 4 }}>
+          {`${String(h).padStart(2, '0')}:00`}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// One day's timeline: hour + half-hour lines, a now-line on today, its non-live
+// shifts laid out with widen-rightward lanes, and click-empty-space to add.
+function DayColumn({ dayISO, visits, allVisits, selected, flagConflicts, today, weekend, onOpen, onToggleSelect, onAdd, canAdd }) {
+  const items = layoutDay(visits, dayISO);
+  const nowMin = ukMinutes(new Date().toISOString());
+  return (
+    <div style={{
+      ...s('position:relative;border-left:1px solid var(--d-border)'), height: GRID_BOX,
+      background: weekend ? 'var(--d-panel)' : 'transparent',
+      boxShadow: today ? 'inset 0 0 0 1px var(--d-primary-soft)' : 'none',
+    }}
+      onClick={canAdd ? (e) => {
+        if (e.target.closest('[data-visit-block]')) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top - GRID_PAD;
+        const raw = H0 * 60 + Math.round(((offsetY / GRID_PX) * (H1 - H0) * 60) / 15) * 15;
+        onAdd(Math.max(0, Math.min(1439, raw)));
+      } : undefined}>
+      {GRID_HOURS.map((h) => (
+        <div key={h}>
+          <div style={{ ...s('position:absolute;left:0;right:0;border-top:1px solid var(--d-border);opacity:0.6'), top: yFor(h * 60) }} />
+          {h < H1 && <div style={{ ...s('position:absolute;left:0;right:0;border-top:1px dotted var(--d-border);opacity:0.4'), top: yFor(h * 60 + 30) }} />}
+        </div>
+      ))}
+      {today && nowMin >= H0 * 60 && nowMin <= H1 * 60 && (
+        <div style={{ ...s('position:absolute;left:0;right:0;border-top:2px solid var(--d-unfilled-ink);z-index:4'), top: yFor(nowMin) }} />
+      )}
+      {items.map((it) => (
+        <ShiftCard key={it.v.id} item={it} selected={selected.includes(it.v.id)}
+          conflicted={flagConflicts && conflictsOn(it.v, allVisits).length > 0}
+          onOpen={onOpen} onToggleSelect={onToggleSelect} />
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------- week: runs ------------------------------- */
+
+/* One call, as one readable line: when, who it's for, and whether it's covered.
+   Sized by its content, never by its duration — a 30-minute call carries the
+   same information as a two-hour one and deserves the same room to say it. */
+function RunChip({ v, selected, conflicted, onOpen, onToggleSelect }) {
+  const status = shiftStatus(v);
+  const st = styleFor(status);
+  const assigned = v.assignments ?? [];
+  const req = v.staff_required ?? 1;
+  const covered = assigned.length >= req && status !== 'cancelled';
+  return (
+    <div data-visit-block className="hv"
+      title={`${fullName(v.service_user)} · ${isLiveIn(v) ? 'live-in 24h' : `${formatTime(v.scheduled_start)}–${formatTime(v.scheduled_end)}`} · ${runOf(v)} · ${assigned.length}/${req}${assigned.length ? ` · ${assigned.map((a) => fullName(a.employee)).join(', ')}` : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.metaKey || e.ctrlKey || e.shiftKey) { onToggleSelect(v.id); return; }
+        onOpen(v);
+      }}
+      style={{
+        ...s('display:flex;align-items:center;gap:6px;padding:3px 7px 3px 6px;border-radius:4px;cursor:pointer;min-width:0'),
+        // Quiet by default. When 144 of 182 visits are unfilled, tinting them all
+        // just makes an orange wall — so the fill stays neutral and the left edge
+        // carries the state.
+        background: selected ? 'var(--d-primary-soft)' : 'var(--d-panel)',
+        borderLeft: `3px solid ${st.bar}`,
+        boxShadow: selected ? 'inset 0 0 0 1px var(--d-primary)' : 'none',
+        opacity: status === 'cancelled' ? 0.55 : 1,
+        '--hbg': 'var(--d-card-hover)',
+      }}>
+      <span className="d-num" style={s('flex:none;font-size:10px;font-weight:600;color:var(--d-muted);letter-spacing:-0.2px')}>
+        {isLiveIn(v) ? '24h' : formatTime(v.scheduled_start)}
+      </span>
+      <span style={{
+        ...s('flex:1;min-width:0;font-size:11px;font-weight:600;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis'),
+        textDecoration: status === 'cancelled' ? 'line-through' : 'none',
+      }}>{shortName(v.service_user)}</span>
+      {conflicted && <span title="This carer has another overlapping visit" style={s('flex:none;font-size:10px;font-weight:800;color:var(--d-unfilled-ink)')}>!</span>}
+      {/* The count only speaks up when it needs something. A covered call shows a
+          tick, so the eye skips it and lands on the gaps. */}
+      {covered
+        ? <span style={s('flex:none;color:var(--d-ok-ink);display:flex')}><Icon name="check" size={11} /></span>
+        : <span className="d-num" style={{ ...s('flex:none;font-size:10px;font-weight:800;padding:0 4px;border-radius:3px'), background: 'var(--d-unfilled-bg)', color: 'var(--d-unfilled-ink)' }}>{assigned.length}/{req}</span>}
+    </div>
+  );
+}
+
+/* The week as the office actually works it: seven days across, the care runs
+   down. Every row is a run the provider recognises — the morning call, the
+   lunch call — and every cell holds that run's calls for that day.
+
+   This deliberately replaces a clock-proportional timeline. With 70% of visits
+   running 30-45 minutes, a time axis spends most of its height on the gaps
+   BETWEEN calls and squeezes the calls themselves to ~25px. Here every pixel is
+   a visit. Switch to Hours (the timeline) when you need to see real overlap. */
+function WeekRuns({ days, visits, allVisits, selected, flagConflicts, onOpen, onToggleSelect, onAdd, canAdd }) {
+  const rows = RUN_ORDER.filter((r) => visits.some((v) => runOf(v) === r));
+  if (!rows.length) {
+    return <div style={s('padding:44px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)')}>No visits match these filters.</div>;
+  }
+  return (
+    <div style={{ ...s('display:grid'), gridTemplateColumns: RUN_COLS }}>
+      {rows.map((run) => (
+        <div key={run} style={s('display:contents')}>
+          <div style={s('position:sticky;left:0;z-index:2;background:var(--d-panel);border-right:1px solid var(--d-border);border-top:1px solid var(--d-border);padding:8px 10px;display:flex;flex-direction:column;gap:2px')}>
+            <span style={s('font-size:11.5px;font-weight:700;color:var(--d-ink);line-height:1.2')}>{run}</span>
+            <span className="d-num" style={s('font-size:10px;font-weight:600;color:var(--d-muted)')}>
+              {visits.filter((v) => runOf(v) === run).length}
+            </span>
+          </div>
+          {days.map((d) => {
+            const cell = visits
+              .filter((v) => runOf(v) === run && ukDay(v.scheduled_start) === d.iso)
+              .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+            return (
+              <div key={d.iso}
+                onClick={canAdd ? (e) => { if (!e.target.closest('[data-visit-block]')) onAdd(d.iso); } : undefined}
+                style={{
+                  ...s('border-left:1px solid var(--d-border);border-top:1px solid var(--d-border);padding:5px;display:flex;flex-direction:column;gap:3px;min-height:38px'),
+                  background: d.today ? 'var(--d-primary-soft)' : (d.date.getDay() === 0 || d.date.getDay() === 6) ? 'var(--d-panel2)' : 'transparent',
+                  cursor: canAdd ? 'copy' : 'default',
+                }}>
+                {cell.map((v) => (
+                  <RunChip key={v.id} v={v} selected={selected.includes(v.id)}
+                    conflicted={flagConflicts && conflictsOn(v, allVisits).length > 0}
+                    onOpen={onOpen} onToggleSelect={onToggleSelect} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------ coverage strip ----------------------------- */
+
+// The reference's coverstrip: one button per day with "n/req filled", the gap
+// count, and a two-colour meter. Clicking a day opens that day's view. Shares
+// the grid's column template so it stays aligned with the timeline below.
+function CoverStrip({ days, visits, onPickDay, cols = GRID_COLS }) {
+  return (
+    <div style={{ ...s('display:grid;position:sticky;top:0;z-index:6;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-radius:15px 15px 0 0;overflow:hidden'), gridTemplateColumns: cols }}>
+      <div style={s('border-right:1px solid var(--d-border)')} />
+      {days.map((d) => {
+        const cs = dayStats(visits.filter((v) => ukDay(v.scheduled_start) === d.iso));
+        const pct = cs.req ? Math.round((cs.fil / cs.req) * 100) : 100;
+        return (
+          <button key={d.iso} type="button" onClick={() => onPickDay(d.date)}
+            style={{ ...s('text-align:left;padding:7px 9px 8px;border:0;border-left:1px solid var(--d-border);cursor:pointer;display:flex;flex-direction:column;gap:5px'), background: d.today ? 'var(--d-primary-soft)' : 'transparent', fontFamily: 'inherit' }}>
+            <span style={s('display:flex;align-items:baseline;gap:6px')}>
+              <span style={{ ...s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-muted)' }}>{d.label}</span>
+              <span className="d-num" style={{ ...s('font-size:12px;font-weight:700'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-ink)' }}>{d.num}</span>
+            </span>
+            <span className="d-num" style={s('display:flex;gap:7px;font-size:9.5px;font-weight:600;color:var(--d-muted)')}>
+              <span>{cs.fil}/{cs.req} filled</span>
+              {cs.unf > 0 && <span style={s('color:var(--d-unfilled-ink)')}>{cs.unf} gap{cs.unf > 1 ? 's' : ''}</span>}
+            </span>
+            <span style={s('height:4px;border-radius:2px;background:var(--d-track);overflow:hidden;display:flex')}>
+              <span style={{ height: '100%', width: `${pct}%`, background: 'var(--d-ok-ink)', display: 'block' }} />
+              <span style={{ height: '100%', width: `${100 - pct}%`, background: 'var(--d-unfilled-ink)', display: 'block' }} />
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------- day / queue / staff panes ------------------------ */
+
+const paneStyle = s('padding:16px 18px 40px;display:flex;flex-direction:column;gap:4px');
+const rowStyle = s('display:grid;grid-template-columns:96px minmax(150px,1.1fr) minmax(160px,1.4fr) auto;gap:12px;align-items:center;padding:9px 12px;border:1px solid var(--d-border);border-radius:10px;background:var(--d-card);margin-bottom:6px');
+
+function PaneHead({ title, sub }) {
+  return (
+    <div style={s('margin-bottom:10px')}>
+      <div style={s('font-size:15px;font-weight:700;color:var(--d-ink);letter-spacing:-0.1px')}>{title}</div>
+      {sub && <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:2px')}>{sub}</div>}
+    </div>
+  );
+}
+
+// Day view — the reference's grouped list, not a timeline: the day's shifts
+// under their run heading, each row time + client + who + count.
+function DayPane({ date, visits, allVisits, flagConflicts, onOpen }) {
+  const iso = isoDate(date);
+  const list = visits.filter((v) => ukDay(v.scheduled_start) === iso);
+  const cs = dayStats(list);
+  const byRun = {};
+  for (const v of list) (byRun[runOf(v)] = byRun[runOf(v)] || []).push(v);
+  return (
+    <div style={paneStyle}>
+      <PaneHead
+        title={date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        sub={`${cs.n} visit${cs.n === 1 ? '' : 's'} · ${cs.fil} of ${cs.req} slots covered · ${cs.unf} gap${cs.unf === 1 ? '' : 's'} (${hoursTotal(cs.hrs)})`} />
+      {list.length === 0 && <div style={s('font-size:13px;font-weight:600;color:var(--d-muted);padding:24px 0')}>Nothing on the rota for this day.</div>}
+      {RUN_ORDER.filter((r) => byRun[r]).map((r) => (
+        <div key={r} style={s('margin-bottom:14px')}>
+          <div style={sectionTitle}>{r}</div>
+          {byRun[r].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)).map((v) => {
+            const st = shiftStatus(v);
+            const assigned = v.assignments ?? [];
+            const clash = flagConflicts ? conflictsOn(v, allVisits) : [];
+            return (
+              <div key={v.id} onClick={() => onOpen(v)} className="hv"
+                style={{ ...rowStyle, borderLeft: `3px solid ${styleFor(st).bar}`, cursor: 'pointer', '--hbg': 'var(--d-card-hover)' }}>
+                <div className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>
+                  {isLiveIn(v) ? 'Live-in' : `${formatTime(v.scheduled_start)}–${formatTime(v.scheduled_end)}`}
+                  <div style={s('font-size:10px;font-weight:500;color:var(--d-muted)')}>{visitLength(v)}</div>
+                </div>
+                <div>
+                  <div style={{ ...s('font-size:13px;font-weight:700;color:var(--d-ink)'), textDecoration: st === 'cancelled' ? 'line-through' : 'none' }}>{fullName(v.service_user)}</div>
+                  <div style={s('font-size:11px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{addressOf(v.service_user)}</div>
+                </div>
+                <div>
+                  <div style={{ ...s('font-size:12.5px;font-weight:600'), color: assigned.length ? 'var(--d-ink2)' : 'var(--d-unfilled-ink)' }}>
+                    {st === 'cancelled' ? 'Cancelled' : assigned.length ? assigned.map((a) => fullName(a.employee)).join(' · ') : '— unassigned —'}
+                  </div>
+                  {clash.length > 0 && <div style={s('margin-top:4px')}><Tag tone="danger">Double-booked: {clash.map((c) => fullName(c)).join(', ')}</Tag></div>}
+                </div>
+                <div style={s('display:flex;align-items:center;gap:8px;justify-content:flex-end')}>
+                  <span className="d-num" style={s('font-size:11px;font-weight:700;color:var(--d-muted)')}>{assigned.length}/{v.staff_required ?? 1}</span>
+                  <span style={pillStyle}>Open</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Unfilled queue — every gap in the week, soonest first, each with up to three
+// carers who are actually free at that time and a one-click advertise.
+function QueuePane({ days, visits, allVisits, employees, canManage, onOpen, onAssign, onAdvertise }) {
+  const gaps = visits.filter((v) => ['unfilled', 'partial'].includes(shiftStatus(v)));
+  const hrs = gaps.reduce((a, v) => a + durHrs(v) * ((v.staff_required ?? 1) - (v.assignments ?? []).length), 0);
+  return (
+    <div style={paneStyle}>
+      <PaneHead title="Unfilled queue"
+        sub={`${gaps.length} visit${gaps.length === 1 ? '' : 's'} need cover — ${hoursTotal(hrs)}. Soonest first; suggestions exclude anyone already booked at that time.`} />
+      {gaps.length === 0 && <div style={s('font-size:13px;font-weight:600;color:var(--d-ok-ink);padding:24px 0')}>Every visit in view is covered.</div>}
+      {days.map((d) => {
+        const list = gaps.filter((v) => ukDay(v.scheduled_start) === d.iso)
+          .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+        if (!list.length) return null;
+        return (
+          <div key={d.iso} style={s('margin-bottom:14px')}>
+            <div style={sectionTitle}>{d.label} {d.num} — {list.length} to fill</div>
+            {list.map((v) => {
+              const free = freeCarers(v, employees, allVisits, 3);
+              return (
+                <div key={v.id} style={{ ...rowStyle, borderLeft: '3px solid var(--d-unfilled-ink)' }}>
+                  <div className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>
+                    {isLiveIn(v) ? 'Live-in' : `${formatTime(v.scheduled_start)}–${formatTime(v.scheduled_end)}`}
+                    <div style={s('font-size:10px;font-weight:500;color:var(--d-muted)')}>{runOf(v)}</div>
+                  </div>
+                  <div>
+                    <div style={s('font-size:13px;font-weight:700;color:var(--d-ink)')}>{fullName(v.service_user)}</div>
+                    <div style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>{(v.assignments ?? []).length}/{v.staff_required ?? 1} carers · {visitLength(v)}</div>
+                  </div>
+                  <div style={s('display:flex;flex-wrap:wrap;gap:5px;align-items:center')}>
+                    <span style={s('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Free now</span>
+                    {free.length === 0
+                      ? <span style={{ ...pillStyle, ...s('border-style:dashed;background:transparent;color:var(--d-muted);cursor:default') }}>no one free</span>
+                      : free.map((e) => (
+                        <button key={e.id} type="button" disabled={!canManage} onClick={() => onAssign(v, e)}
+                          style={{ ...pillStyle, opacity: canManage ? 1 : 0.5, cursor: canManage ? 'pointer' : 'not-allowed' }}>{e.full_name}</button>
+                      ))}
+                  </div>
+                  <div style={s('display:flex;align-items:center;gap:6px;justify-content:flex-end')}>
+                    <button type="button" style={pillStyle} onClick={() => onOpen(v)}>Open</button>
+                    {canManage && <button type="button" style={pillStyle} onClick={() => onAdvertise(v)}>Advertise</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Staff view — the week's load per carer: hours against contract, live-in
+// nights, and one column per day. Red marks a clash.
+function StaffPane({ days, employees, visits, allVisits, flagConflicts, onOpen }) {
+  const mineOf = (e) => visits.filter((v) => v.status !== 'cancelled' && (v.assignments ?? []).some((a) => a.employee?.id === e.id));
+  const th = s('text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--d-muted);padding:9px 8px;border-bottom:1px solid var(--d-border);background:var(--d-panel);white-space:nowrap');
+  const td = s('padding:7px 8px;border-bottom:1px solid var(--d-border);vertical-align:top');
+  return (
+    <div style={paneStyle}>
+      <PaneHead title="Care worker load"
+        sub="Hours exclude live-in nights, which are counted separately. Red marks a clash — the same carer on two overlapping visits." />
+      <div style={s('overflow-x:auto')}>
+        <table style={{ ...s('width:100%;border-collapse:collapse;background:var(--d-card);border:1px solid var(--d-border);border-radius:10px;overflow:hidden'), minWidth: 900 }}>
+          <thead>
+            <tr>
+              {['Care worker', 'Hours', 'Live-in'].concat(days.map((d) => `${d.label} ${d.num}`)).map((h) => <th key={h} style={th}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map((e) => {
+              const mine = mineOf(e);
+              const hrs = mine.filter((v) => !isLiveIn(v)).reduce((a, v) => a + durHrs(v), 0);
+              const nights = mine.filter(isLiveIn).length;
+              const contract = e.contracted_hours_per_week;
+              const pct = contract ? Math.min(100, (hrs / contract) * 100) : (hrs ? 100 : 0);
+              return (
+                <tr key={e.id}>
+                  <td style={td}>
+                    <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap')}>{e.full_name}</div>
+                    <div className="d-num" style={s('font-size:10px;font-weight:500;color:var(--d-muted)')}>{contract ? `${contract}h contract` : 'bank / no contract'}</div>
+                  </td>
+                  <td style={td}>
+                    <div className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>{hoursTotal(hrs)}</div>
+                    <div style={{ ...s('height:5px;border-radius:3px;background:var(--d-track);overflow:hidden;margin-top:5px'), width: 96 }}>
+                      <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: contract && hrs > contract ? 'var(--d-unfilled-ink)' : 'var(--d-ok-ink)' }} />
+                    </div>
+                  </td>
+                  <td style={{ ...td, ...s('font-size:12px;font-weight:600;color:var(--d-ink2);white-space:nowrap') }}>{nights ? `${nights} ☾` : '—'}</td>
+                  {days.map((d) => {
+                    const cells = mine.filter((v) => ukDay(v.scheduled_start) === d.iso)
+                      .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+                    return (
+                      <td key={d.iso} style={td}>
+                        {cells.length === 0 ? <span style={s('font-size:11px;color:var(--d-faint)')}>—</span> : cells.map((v) => {
+                          const clash = flagConflicts && conflictsOn(v, allVisits).some((c) => c.id === e.id);
+                          return (
+                            <div key={v.id} onClick={() => onOpen(v)} className="d-num"
+                              style={{
+                                ...s('border-radius:4px;padding:2px 5px;font-size:10px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer'),
+                                borderLeft: `2px solid ${clash ? 'var(--d-unfilled-ink)' : 'var(--d-primary)'}`,
+                                background: clash ? 'var(--d-unfilled-bg)' : 'var(--d-panel)',
+                                color: clash ? 'var(--d-unfilled-ink)' : 'var(--d-ink2)',
+                              }}>
+                              {isLiveIn(v) ? '24h' : formatTime(v.scheduled_start)} {inits(v.service_user)}
+                            </div>
+                          );
+                        })}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-// Read-only reflection of the rules that actually apply to a visit: the geofence
-// is on-site-only within a fixed 150 m for every client; grace/late thresholds
-// are the one provider setting. Not editable per visit by design.
-function RulesNote({ settings }) {
+/* --------------------------------- drawer --------------------------------- */
+
+const EVENT_LABEL = {
+  'visit.rescheduled': 'Visit retimed',
+  'visit.cancelled': 'Visit cancelled',
+  'visit.deleted': 'Visit deleted',
+  'assignment.created': 'Carer assigned',
+  'assignment.reassigned': 'Carer reassigned',
+  'assignment.withdrawn': 'Carer removed',
+  'cover.broadcast': 'Advertised for cover',
+  'cover.offered': 'Offered to a carer',
+  'cover.accepted': 'Cover accepted',
+  'cover.declined': 'Cover declined',
+};
+function eventDetail(e) {
+  const p = e.payload ?? {};
+  if (p.employee_name) return p.employee_name;
+  if (p.offer_count != null) return `${p.offer_count} carer${p.offer_count === 1 ? '' : 's'} offered`;
+  if (p.reason) return p.reason;
+  return '';
+}
+
+// What the carer actually recorded on this visit — the care plan tasks ticked
+// off and the notes written. Read-only; mirrors what the carer saw in the app.
+function CareRecord({ delivery }) {
+  if (delivery === undefined) return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Loading care record…</div>;
+  if (delivery === null) return null;
+  const tasks = (delivery.assignments ?? []).flatMap((a) => a.tasks ?? []);
+  const notes = (delivery.assignments ?? []).flatMap((a) => (a.notes ?? []).map((n) => ({ ...n, carer: a.employee?.name })));
+  if (!tasks.length && !notes.length) {
+    return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>No tasks or notes recorded yet.</div>;
+  }
+  const done = tasks.filter((t) => t.done).length;
   return (
-    <div style={s('background:var(--d-note-bg);border-radius:12px;padding:11px 14px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.45')}>
-      <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="pin" size={14} />Geofence: on site only — clock-in within 150 m <span style={s('opacity:0.7')}>· enforced</span></div>
-      <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="clock" size={14} />Late after {settings?.late_grace_minutes ?? '—'} min grace <span style={s('opacity:0.7')}>· provider setting</span></div>
-      <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="fingerprint" size={14} />Clocked on the app (GPS); PIN tablet or manager attestation as fallbacks</div>
+    <div style={s('display:flex;flex-direction:column;gap:8px')}>
+      {tasks.length > 0 && (
+        <>
+          <div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>Tasks — {done}/{tasks.length} done</div>
+          {tasks.map((t) => (
+            <div key={t.id} style={s('display:flex;align-items:center;gap:8px;background:var(--d-panel);border-radius:9px;padding:7px 10px')}>
+              <span style={{ ...s('width:16px;height:16px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:none;color:#fff'), background: t.done ? 'var(--d-primary)' : 'var(--d-field)' }}>{t.done && <Icon name="check" size={11} />}</span>
+              <span style={{ ...s('font-size:12px;font-weight:600;color:var(--d-ink)'), opacity: t.done ? 1 : 0.6 }}>{t.label}</span>
+            </div>
+          ))}
+        </>
+      )}
+      {notes.map((n) => (
+        <div key={n.id} style={s('background:var(--d-note-bg);border-radius:9px;padding:9px 11px')}>
+          <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>{n.body}</div>
+          <div style={s('font-size:10.5px;font-weight:600;color:var(--d-muted);margin-top:4px')}>{n.author_name ?? n.carer ?? 'Unknown'}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ---------- assign drawer (conflict-aware, real signals) ---------- */
-function AssignDrawer({ visit, weekVisits, employees, serviceUsers, onClose, onAssigned, reassignFrom }) {
+// The right-hand shift drawer from the reference: who this visit is for, one
+// staffing slot per carer required, who is free right now, the care record, the
+// audit history, and the actions along the bottom. Every control here writes
+// through a real endpoint.
+function VisitDrawer({ visit, allVisits, employees, settings, canManage, onClose, onChanged, onCancel, onDelete }) {
   const toast = useToast();
-  const [query, setQuery] = useState('');
-  const [busyId, setBusyId] = useState(null);
-  const [error, setError] = useState(null); // { title, body } — shown in-modal
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [delivery, setDelivery] = useState(undefined);  // undefined = loading, null = failed
+  const [events, setEvents] = useState(undefined);
+  const [retiming, setRetiming] = useState(false);
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [notes, setNotes] = useState('');
+  const [reason, setReason] = useState('');
+
+  const id = visit?.id;
+  useEffect(() => {
+    if (!id) return undefined;
+    let live = true;
+    setDelivery(undefined); setEvents(undefined); setError(null); setRetiming(false); setReason('');
+    getVisit(id).then((d) => live && setDelivery(d)).catch(() => live && setDelivery(null));
+    listVisitEvents(id).then((e) => live && setEvents(e ?? [])).catch(() => live && setEvents(null));
+    return () => { live = false; };
+  }, [id]);
+  useEffect(() => {
+    if (!visit) return;
+    setStart(formatTime(visit.scheduled_start));
+    setEnd(formatTime(visit.scheduled_end));
+    setNotes(visit.notes ?? '');
+  }, [visit]);
+
   if (!visit) return null;
-  // reassignFrom = the current VisitAssignment id when moving a visit to a
-  // different carer (atomic withdraw + assign); null for a fresh assignment.
-  const isReassign = reassignFrom != null;
 
-  const client = serviceUsers.find((c) => c.id === visit.service_user?.id);
-  const regulars = new Set((client?.carers ?? []).map((n) => n.toLowerCase()));
+  const status = shiftStatus(visit);
+  const req = visit.staff_required ?? 1;
+  const assigned = visit.assignments ?? [];
+  const editable = isEditable(visit) && canManage;
+  const clashing = conflictsOn(visit, allVisits);
+  const free = freeCarers(visit, employees, allVisits, 6);
+  const activeCarers = employees.filter((e) => e.active);
 
-  // Real conflict: does this carer already have a visit that overlaps in time?
-  // Compared on ABSOLUTE timestamps, not minute-of-day — a minute-of-day compare
-  // breaks across midnight (23:30 reads as "after" a 01:00 that's really the next
-  // day), so an overnight visit could hide a genuine double-booking. Standard
-  // interval overlap: aStart < bEnd && bStart < aEnd.
-  const start = new Date(visit.scheduled_start).getTime();
-  const end = new Date(visit.scheduled_end).getTime();
-  const conflictFor = (empId) => {
-    const clash = weekVisits.find((o) => o.id !== visit.id
-      && (o.assignments ?? []).some((a) => a.employee?.id === empId)
-      && new Date(o.scheduled_start).getTime() < end
-      && start < new Date(o.scheduled_end).getTime());
-    return clash ? `Double-booked with ${fullName(clash.service_user)} ${formatTime(clash.scheduled_start)}` : null;
-  };
-
-  // Carers already on THIS visit (a double-up may have one of two already) — don't
-  // offer them again; a carer can't be assigned to the same visit twice.
-  const alreadyOn = new Set((visit.assignments ?? []).map((a) => a.employee?.id));
-  const ranked = employees.filter((e) => e.active && !alreadyOn.has(e.id))
-    .filter((e) => { const q = query.trim().toLowerCase(); return !q || `${e.full_name} ${e.employee_reference ?? ''}`.toLowerCase().includes(q); })
-    .map((e) => ({ e, regular: regulars.has((e.full_name ?? '').toLowerCase()), conflict: conflictFor(e.id) }))
-    .sort((a, b) => (Number(!!a.conflict) - Number(!!b.conflict)) || (Number(b.regular) - Number(a.regular)) || a.e.full_name.localeCompare(b.e.full_name));
-
-  async function assign(e) {
-    setBusyId(e.id);
-    try {
-      const res = isReassign
-        ? await reassignAssignment({ assignmentId: reassignFrom, employeeId: e.id })
-        : await assignEmployee({ visitId: visit.id, employeeId: e.id });
-      const w = res.warnings ?? [];
-      const verb = isReassign ? 'reassigned to' : 'assigned to';
-      if (w.length) toast.warn(`Visit ${verb} ${e.first_name}. ${w.map((x) => x.message ?? x).join('. ')}`);
-      else toast.success(`Visit ${verb} ${e.full_name}`);
-      onAssigned(); onClose();
-    } catch (err) {
-      const c = err.data?.conflict;
+  async function run(fn, okMessage) {
+    setBusy(true); setError(null);
+    try { await fn(); if (okMessage) toast.success(okMessage); await onChanged(); }
+    catch (e) {
+      const c = e.data?.conflict;
       const when = c ? `${formatDateFull(c.scheduled_start, { weekday: 'short', year: undefined })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
-      if (err.message === 'carer_unavailable') {
-        setError({ title: 'This carer already has a shift then', body: `${e.full_name} is booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once — pick someone else or reassign that shift first.` });
-      } else if (err.message === 'client_unavailable') {
-        setError({ title: 'The client already has a carer then', body: `${fullName(visit.service_user)} is already being visited at ${when}. One client, one carer at a time.` });
-      } else if (err.code === 'already_on_visit') {
-        setError({ title: 'Already on this visit', body: `${e.full_name} is already assigned to this visit. Pick a different carer.` });
-      } else {
-        setError({ title: isReassign ? 'Could not reassign the visit' : 'Could not assign that carer', body: err.message || 'Please try again.' });
-      }
-    } finally { setBusyId(null); }
+      if (e.message === 'carer_unavailable') setError(`That carer is already booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once.`);
+      else if (e.message === 'client_unavailable') setError(`${fullName(visit.service_user)} already has a carer at that time. One client, one carer at a time.`);
+      else if (e.code === 'already_on_visit') setError('That carer is already on this visit.');
+      else setError(e.message || 'That did not go through. Please try again.');
+    } finally { setBusy(false); }
   }
 
+  // One staffing slot: the carer in it, or Unassigned. Changing it assigns,
+  // reassigns or withdraws — whichever the change actually is.
+  function onSlotChange(slotAssignment, value) {
+    const employeeId = value ? Number(value) : null;
+    if (!employeeId && slotAssignment) return run(() => withdrawAssignment(slotAssignment.id), 'Carer removed');
+    if (employeeId && slotAssignment) return run(() => reassignAssignment({ assignmentId: slotAssignment.id, employeeId }), 'Visit reassigned');
+    if (employeeId) return run(() => assignEmployee({ visitId: visit.id, employeeId }), 'Carer assigned');
+    return undefined;
+  }
+
+  async function saveChanges() {
+    if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
+    // Keep the visit's original UK calendar day and set the picked times as UK
+    // wall-clock, so an admin working from another zone can't shift the day.
+    const [y, m, d] = new Date(visit.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
+    const base = new Date(y, m - 1, d);
+    const startAt = ukTime(base, start);
+    let endAt = ukTime(base, end);
+    if (endAt.getTime() <= startAt.getTime()) endAt = ukTime(base, end, 1);
+    await run(() => editVisit(visit.id, {
+      scheduled_start: startAt.toISOString(), scheduled_end: endAt.toISOString(),
+      notes, reason: reason.trim(),
+    }), 'Visit updated — change logged to the audit trail');
+    setReason('');
+  }
+
+  const kv = [
+    ['Address', addressOf(visit.service_user) || '—'],
+    ['Run', runOf(visit)],
+    ['Repeats', visit.care_package_slot_id ? 'Every week — from the care package' : 'One-off visit'],
+    ['Carers needed', String(req)],
+    ['Status', status[0].toUpperCase() + status.slice(1)],
+  ];
+
   return (
-    <Modal title={`${isReassign ? 'Reassign' : 'Assign carer'} — ${fullName(visit.service_user)}`}
-      subtitle={`${formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · ${formatTimeRange(visit.scheduled_start, visit.scheduled_end)}${!isReassign && (visit.staff_required ?? 1) > 1 ? ` · ${(visit.assignments ?? []).length} of ${visit.staff_required} carers assigned` : ''}`}
-      onClose={onClose}>
-      <div style={s('padding:16px 22px 0')}>
-        {error && (
-          <div style={s('background:var(--d-danger-bg);border:1px solid var(--d-danger-bg2);border-radius:16px;padding:13px 15px;margin-bottom:14px;display:flex;gap:11px;align-items:flex-start')}>
-            <div style={s('width:30px;height:30px;border-radius:9px;background:var(--d-danger-bg2);color:var(--d-danger-ink);display:flex;align-items:center;justify-content:center;flex:none')}><Icon name="alert" size={16} /></div>
-            <div style={s('flex:1;min-width:0')}>
-              <div style={s('font-size:13px;font-weight:700;color:var(--d-danger-ink)')}>{error.title}</div>
-              <div style={s('font-size:12px;font-weight:500;color:var(--d-danger-ink);opacity:0.9;line-height:1.5;margin-top:2px')}>{error.body}</div>
+    <>
+      <div onClick={onClose} style={s('position:fixed;inset:0;background:rgba(9,14,19,0.28);z-index:120')} />
+      <aside role="dialog" aria-label="Visit details"
+        style={{ ...s('position:fixed;top:0;right:0;bottom:0;width:440px;max-width:94vw;background:var(--d-card);border-left:1px solid var(--d-border);z-index:130;display:flex;flex-direction:column;box-shadow:-14px 0 40px rgba(15,23,30,0.18)'), fontFamily: "'Figtree', system-ui, sans-serif" }}>
+        {/* head */}
+        <div style={s('padding:14px 16px;border-bottom:1px solid var(--d-border);display:flex;align-items:flex-start;gap:10px;flex:none')}>
+          <div style={s('flex:1;min-width:0')}>
+            <div style={s('font-size:16px;font-weight:700;color:var(--d-ink);letter-spacing:-0.2px')}>{fullName(visit.service_user)}</div>
+            <div className="d-num" style={s('font-size:11.5px;font-weight:600;color:var(--d-muted);margin-top:2px')}>
+              {formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} · {isLiveIn(visit) ? 'Live-in 24h' : `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)} · ${hoursLabel(durHrs(visit))}`}
             </div>
-            <div onClick={() => setError(null)} className="hv" style={{ ...s('width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-danger-ink);flex:none'), '--hbg': 'var(--d-danger-bg2)' }}><Icon name="close" size={14} /></div>
+          </div>
+          <div onClick={onClose} className="hv" style={{ ...s('width:32px;height:32px;border-radius:50%;background:var(--d-panel);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-sage)' }}><Icon name="close" size={15} /></div>
+        </div>
+
+        {/* body */}
+        <div style={s('flex:1;min-height:0;overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:16px')}>
+          <div style={s('display:flex;align-items:center;gap:6px;flex-wrap:wrap')}>
+            <Tag tone={status === 'unfilled' || status === 'partial' ? 'warning' : status === 'cancelled' ? 'muted' : 'info'}>{LIFECYCLE_LABELS[stateOf(visit)] ?? 'Cancelled'}</Tag>
+            {visit.status === 'draft' && <Tag tone="muted">Draft</Tag>}
+            {visit.care_package_slot_id && <Tag tone="muted">↻ Recurring</Tag>}
+          </div>
+
+          {error && (
+            <div style={s('border:1px solid var(--d-danger-bg2);background:var(--d-danger-bg);color:var(--d-danger-ink);border-radius:10px;padding:9px 11px;font-size:12px;font-weight:600;line-height:1.5')}>{error}</div>
+          )}
+
+          <dl style={s('display:grid;grid-template-columns:104px 1fr;gap:6px 10px;font-size:12px;margin:0')}>
+            {kv.map(([k, v]) => (
+              <div key={k} style={s('display:contents')}>
+                <dt style={s('color:var(--d-muted);font-weight:500')}>{k}</dt>
+                <dd style={s('margin:0;font-weight:600;color:var(--d-ink)')}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {/* staffing — one slot per carer required */}
+          <div style={s('border-top:1px solid var(--d-border);padding-top:13px')}>
+            <div style={sectionTitle}>Staffing · {assigned.length} of {req}</div>
+            {Array.from({ length: req }, (_, i) => {
+              const a = assigned[i];
+              const clash = a && clashing.some((c) => c.id === a.employee?.id);
+              return (
+                <div key={i} style={s('border:1px solid var(--d-border);border-radius:10px;padding:8px 10px;margin-bottom:7px;background:var(--d-panel)')}>
+                  <div style={s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--d-muted);margin-bottom:6px')}>Carer {i + 1}</div>
+                  <select value={a?.employee?.id ?? ''} disabled={!editable || busy}
+                    onChange={(e) => onSlotChange(a, e.target.value)}
+                    style={{ ...fieldStyle, opacity: editable ? 1 : 0.6 }}>
+                    <option value="">Unassigned</option>
+                    {activeCarers.map((e) => (
+                      <option key={e.id} value={e.id}>{e.full_name}{e.contracted_hours_per_week ? ` · ${e.contracted_hours_per_week}h` : ' · bank'}</option>
+                    ))}
+                  </select>
+                  {clash && (
+                    <div style={s('border:1px solid var(--d-unfilled-ink);background:var(--d-unfilled-bg);color:var(--d-unfilled-ink);border-radius:9px;padding:7px 9px;font-size:11.5px;font-weight:600;margin-top:6px;line-height:1.45')}>
+                      {fullName(a.employee)} is already on another visit that overlaps this one. New assignments are blocked from clashing, so this came in with earlier data — worth fixing.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* who is actually free right now */}
+          {editable && assigned.length < req && (
+            <div style={s('border-top:1px solid var(--d-border);padding-top:13px')}>
+              <div style={sectionTitle}>Free at this time</div>
+              <div style={s('display:flex;flex-wrap:wrap;gap:6px')}>
+                {free.length === 0
+                  ? <span style={{ ...pillStyle, ...s('border-style:dashed;background:transparent;color:var(--d-muted);cursor:default') }}>No one is free — try advertising it</span>
+                  : free.map((e) => (
+                    <button key={e.id} type="button" disabled={busy} style={pillStyle}
+                      onClick={() => run(() => assignEmployee({ visitId: visit.id, employeeId: e.id }), `${e.full_name} assigned`)}>
+                      {e.full_name}{e.contracted_hours_per_week ? ` · ${e.contracted_hours_per_week}h` : ' · bank'}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* the rules that apply to this visit — read-only by design */}
+          <div style={s('border-top:1px solid var(--d-border);padding-top:13px')}>
+            <div style={sectionTitle}>Rules that apply</div>
+            <div style={s('background:var(--d-note-bg);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;font-weight:500;color:var(--d-note-ink);line-height:1.45')}>
+              <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="pin" size={13} />Geofence: on site only — clock-in within 150 m</div>
+              <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="clock" size={13} />Late after {settings?.late_grace_minutes ?? '—'} min grace</div>
+              <div style={s('display:flex;align-items:center;gap:8px')}><Icon name="fingerprint" size={13} />Clocked on the app (GPS); PIN tablet or manager attestation as fallbacks</div>
+            </div>
+          </div>
+
+          {/* change time + notes — one audited edit */}
+          {editable && retiming && (
+            <div style={s('border-top:1px solid var(--d-border);padding-top:13px;display:flex;flex-direction:column;gap:10px')}>
+              <div style={sectionTitle}>Change time</div>
+              {assigned.some((a) => a.actual_start) && (
+                <div style={s('font-size:11.5px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:9px;padding:9px 11px;line-height:1.5')}>
+                  The carer already clocked in — retiming changes the schedule, not the clock record. Use a clock correction to fix the actual clocked time.
+                </div>
+              )}
+              <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:10px')}>
+                <label style={s('display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--d-ink2)')}>Start
+                  <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} /></label>
+                <label style={s('display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--d-ink2)')}>End
+                  <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle} /></label>
+              </div>
+              <label style={s('display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--d-ink2)')}>Notes for this visit
+                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the carer needs to know on arrival"
+                  style={{ ...fieldStyle, ...s('height:auto;padding:9px 12px;resize:vertical;font-weight:500') }} /></label>
+              <label style={s('display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--d-ink2)')}>
+                <span>Reason for the change <span style={s('color:var(--d-danger-ink)')}>*</span></span>
+                <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Client asked for a later call"
+                  style={{ ...fieldStyle, ...s('height:auto;padding:9px 12px;resize:vertical;font-weight:500') }} /></label>
+              <div style={s('display:flex;gap:8px;justify-content:flex-end')}>
+                <Button size="sm" variant="ghost" onClick={() => setRetiming(false)}>Discard</Button>
+                <Button size="sm" variant="primary" icon="check" onClick={busy ? undefined : saveChanges}>{busy ? 'Saving…' : 'Save changes'}</Button>
+              </div>
+            </div>
+          )}
+
+          {/* what happened on the visit */}
+          <div style={s('border-top:1px solid var(--d-border);padding-top:13px')}>
+            <div style={sectionTitle}>Care record</div>
+            <CareRecord delivery={delivery} />
+          </div>
+
+          {/* audit trail */}
+          <div style={s('border-top:1px solid var(--d-border);padding-top:13px')}>
+            <div style={sectionTitle}>History</div>
+            {events === undefined && <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Loading history…</div>}
+            {events === null && <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>History could not be loaded.</div>}
+            {Array.isArray(events) && events.length === 0 && <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Nothing recorded against this visit yet.</div>}
+            {Array.isArray(events) && events.slice().reverse().map((e) => (
+              <div key={e.id} style={s('display:grid;grid-template-columns:96px 1fr;gap:9px;padding:5px 0;border-bottom:1px dotted var(--d-border);font-size:11.5px')}>
+                <span className="d-num" style={s('color:var(--d-muted);font-weight:500')}>{formatDateFull(e.occurred_at, { weekday: undefined, year: undefined })} {formatTime(e.occurred_at)}</span>
+                <span style={s('color:var(--d-ink2);font-weight:500')}>
+                  <b style={s('font-weight:700;color:var(--d-ink)')}>{EVENT_LABEL[e.event_type] ?? e.event_type.replace(/[._]/g, ' ')}</b>
+                  {eventDetail(e) ? ` — ${eventDetail(e)}` : ''} · {e.actor_name ?? 'System'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* footer actions */}
+        {editable && (
+          <div style={s('border-top:1px solid var(--d-border);padding:11px 16px;display:flex;gap:7px;flex-wrap:wrap;flex:none;background:var(--d-card)')}>
+            {visit.status === 'draft' && <Button size="sm" icon="send" onClick={busy ? undefined : () => run(() => publishVisit(visit.id), 'Visit published')}>Publish</Button>}
+            <Button size="sm" variant="ghost" icon="clock" onClick={() => setRetiming((p) => !p)}>{retiming ? 'Hide time form' : 'Change time'}</Button>
+            {isShort(visit) && <Button size="sm" variant="ghost" icon="send" onClick={busy ? undefined : () => run(async () => {
+              const r = await broadcastCover(visit.id, null);
+              toast.info(`Advertised to ${r.offered} carer${r.offered === 1 ? '' : 's'}`);
+            })}>Advertise</Button>}
+            <Button size="sm" variant="danger" icon="close" onClick={() => onCancel(visit)}>Cancel visit</Button>
+            <Button size="sm" variant="danger" icon="trash" onClick={() => onDelete(visit)}>Delete</Button>
           </div>
         )}
-        <div style={s('background:var(--d-panel);border-radius:16px;padding:13px 15px')}>
-          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Visit</div>
-          <div style={s('font-size:14px;font-weight:700;color:var(--d-ink);margin-top:3px')}>{fullName(visit.service_user)}</div>
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:2px;display:flex;align-items:center;gap:5px')}><Icon name="pin" size={13} />{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
-        </div>
-        <div style={s('height:44px;background:var(--d-field);border:1.5px solid var(--d-border);border-radius:22px;display:flex;align-items:center;gap:9px;padding:0 16px;margin-top:14px')}>
-          <Icon name="search" size={16} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search employees by name or reference" autoFocus style={{ ...s('flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px;font-weight:500;color:var(--d-ink)'), fontFamily: 'inherit' }} />
-        </div>
-        <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);margin:16px 0 8px')}>Suggested carers</div>
-      </div>
-      <div style={s('flex:1;overflow-y:auto;padding:0 22px 20px;display:flex;flex-direction:column;gap:8px')}>
-        {ranked.length === 0 ? (
-          <div style={s('padding:26px;text-align:center;font-size:13px;font-weight:500;color:var(--d-muted)')}>No employees match that search.</div>
-        ) : ranked.slice(0, 12).map(({ e, regular, conflict }) => (
-          <button key={e.id} type="button" disabled={!!conflict}
-            onClick={() => (busyId || conflict ? null : assign(e))}
-            title={conflict || undefined}
-            style={{ ...s('width:100%;text-align:left;border-radius:16px;padding:12px 14px;background:var(--d-panel);border:1px solid var(--d-border)'), cursor: conflict ? 'not-allowed' : 'pointer', opacity: conflict ? 0.55 : (busyId === e.id ? 0.6 : 1), fontFamily: 'inherit' }}>
-            <div style={s('display:flex;align-items:center;gap:11px')}>
-              <Avatar initials={inits(e)} size="sm" />
-              <div style={s('flex:1;min-width:0')}>
-                <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{e.full_name}</div>
-                <div style={s('font-size:11.5px;font-weight:500;color:var(--d-muted)')}>{e.hours_this_week != null ? `${e.hours_this_week}h this week` : (e.role === 'senior_carer' ? 'Senior carer' : 'Carer')}{e.punctuality != null ? ` · ${e.punctuality}% on time` : ''}</div>
-              </div>
-              <div style={s('display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none')}>
-                {regular && <Tag tone="primary">Regular carer</Tag>}
-                {conflict ? <Tag tone="danger">Conflict</Tag> : <Tag tone="success">Free</Tag>}
-              </div>
-            </div>
-            {conflict && <div style={s('font-size:11.5px;font-weight:500;color:var(--d-danger-ink);margin-top:7px;padding-left:43px')}>{conflict}</div>}
-          </button>
-        ))}
-      </div>
-    </Modal>
+      </aside>
+    </>
   );
 }
 
-/* ---------- create-visit drawer (real fields only) ---------- */
-function CreateVisitDrawer({ preset, view, serviceUsers, employees, settings, weekMonday, onClose, onCreated }) {
+/* ---------- create-visit modal (real fields only) ---------- */
+function CreateVisitModal({ preset, serviceUsers, settings, weekMonday, onClose, onCreated }) {
   const toast = useToast();
-  // The modal takes its shape from the tab you're on. On the carer grouping it's
-  // carer-first: pick the carer, then the client to visit, and it creates + assigns
-  // in one go. On the client grouping it's client-first and leaves the visit
-  // unfilled (draft) for a carer to be assigned later.
-  const byCarer = view === 'carer';
-  const activeCarers = (employees ?? []).filter((e) => e.active);
   const [clientId, setClientId] = useState(preset?.clientId ?? serviceUsers[0]?.id ?? '');
-  const [carerId, setCarerId] = useState(preset?.carerId ?? '');
   const [day, setDay] = useState(preset?.day ?? 0);
   const [start, setStart] = useState(preset?.start ?? '09:00');
   const [end, setEnd] = useState(preset?.end ?? '10:00');
   // Carers needed on this visit — 1 for a normal call, 2 for a double-up (e.g. a
-  // hoist transfer that needs two carers on the same visit at the same time).
+  // hoist transfer that needs two carers at the same time).
   const [staffRequired, setStaffRequired] = useState(1);
   const [busy, setBusy] = useState(false);
   if (!preset) return null;
   const client = serviceUsers.find((c) => c.id === Number(clientId));
-  const carer = activeCarers.find((e) => e.id === Number(carerId));
 
-  // The single source of truth for the visit's start/end DATES. Both the save
+  // The single source of truth for the visit's start/end DATES — both the save
   // and the on-screen summary use it, so what you see is exactly what's saved.
-  // Overnight: any end time-of-day at or before the start (i.e. after 23:59 the
-  // clock wraps) is the NEXT calendar day — 22:00 -> 02:00 is a 4h overnight
-  // visit, not a negative one. The end date rolls forward a day automatically.
+  // The picked time is UK wall-clock (care happens in the UK), and an end at or
+  // before the start rolls onto the next day: 22:00 -> 02:00 is a 4h overnight.
   const resolveWindow = () => {
-    // The picked time is UK wall-clock time — care happens in the UK, so "09:00"
-    // means 09:00 in London no matter where the admin is (e.g. Kenya). ukTime
-    // interprets the picked time as Europe/London and returns the correct UTC
-    // instant. Overnight: end at/before start -> next day.
-    // Day-mode add passes an absolute date; week-mode uses weekMonday + day index.
     let base;
     if (preset?.date) { const [y, m, d] = preset.date.split('-').map(Number); base = new Date(y, m - 1, d); }
     else { base = new Date(weekMonday); base.setDate(base.getDate() + Number(day)); }
     const startDate = ukTime(base, start);
     let endDate = ukTime(base, end);
     if (endDate.getTime() <= startDate.getTime()) endDate = ukTime(base, end, 1);
-    const overnight = end <= start;
-    return { startDate, endDate, overnight };
+    return { startDate, endDate, overnight: end <= start };
   };
   const { startDate: previewStart, endDate: previewEnd, overnight } = resolveWindow();
-  // Show the preview in UK time (with a UK/GMT/BST hint) so what the admin sees
-  // matches what's saved — not their own local zone.
-  const fmtDateTime = (d) => d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London', timeZoneName: 'short' });
-  const durationMin = Math.round((previewEnd - previewStart) / 60000);
-  const durationLabel = `${Math.floor(durationMin / 60)}h${durationMin % 60 ? ` ${durationMin % 60}m` : ''}`;
+  const fmt = (d) => d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London', timeZoneName: 'short' });
+  const mins = Math.round((previewEnd - previewStart) / 60000);
 
   async function save() {
     if (!clientId) { toast.error('Pick a client'); return; }
-    if (byCarer && !carerId) { toast.error('Pick a carer'); return; }
     const { startDate, endDate } = resolveWindow();
     if (startDate.getTime() < Date.now()) { toast.error("You can't create a visit in the past — pick a future date and time."); return; }
     if (endDate.getTime() - startDate.getTime() < 15 * 60000) { toast.error('A visit must be at least 15 minutes long.'); return; }
     setBusy(true);
     try {
-      const created = await createVisit({ service_user_id: Number(clientId), scheduled_start: startDate.toISOString(), scheduled_end: endDate.toISOString(), staff_required: Number(staffRequired) });
-      // Carer grouping: assign the chosen carer straight away so the block lands
-      // in their row, not the Unassigned one. Creation succeeded either way — if
-      // the assign fails, keep the draft and say what happened.
-      if (byCarer && carer) {
-        try {
-          await assignEmployee({ visitId: created.id, employeeId: carer.id });
-          toast.success(`Visit created for ${fullName(client)} — ${fullName(carer)} assigned`);
-        } catch (assignErr) {
-          toast.error(`Visit created, but ${fullName(carer)} couldn't be assigned: ${assignErr.message || 'try from the visit'}`);
-        }
-      } else {
-        toast.success(`Visit created for ${fullName(client)}`);
-      }
+      await createVisit({
+        service_user_id: Number(clientId), scheduled_start: startDate.toISOString(),
+        scheduled_end: endDate.toISOString(), staff_required: Number(staffRequired),
+      });
+      toast.success(`Visit created for ${fullName(client)}`);
       onCreated(); onClose();
     } catch (err) {
-      const msg = err.message === 'client_overlap' ? `${fullName(client)} already has a visit at that time — one client, one visit at a time.`
+      toast.error(err.message === 'client_overlap' ? `${fullName(client)} already has a visit at that time — one client, one visit at a time.`
         : err.message === 'visit_in_past' ? "You can't create a visit in the past."
-        : (err.message || 'Could not create the visit');
-      toast.error(msg);
+          : (err.message || 'Could not create the visit'));
     } finally { setBusy(false); }
   }
 
-  const field = s('display:flex;flex-direction:column;gap:6px');
   const label = s('font-size:11.5px;font-weight:700;color:var(--d-ink2)');
-  const control = { ...s('height:42px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:0 13px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
+  const field = s('display:flex;flex-direction:column;gap:6px');
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   return (
-    <Modal title={byCarer ? 'New visit for a carer' : 'New visit'}
-      subtitle={byCarer ? 'Pick the carer and the client to visit — it goes straight onto their rota as a draft.' : 'Add a one-off visit to the rota. It starts as a draft until you publish.'} onClose={onClose}
-      footer={<div style={s('display:flex;justify-content:flex-end;gap:8px')}><span data-tour="rota-create-cancel"><Button variant="ghost" onClick={onClose}>Cancel</Button></span><Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button></div>}>
+    <Modal title="New visit" subtitle="Add a one-off visit to the rota. It starts as a draft until you publish." onClose={onClose}
+      footer={(
+        <div style={s('display:flex;justify-content:flex-end;gap:8px')}>
+          <span data-tour="rota-create-cancel"><Button variant="ghost" onClick={onClose}>Cancel</Button></span>
+          <Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Creating…' : 'Create visit'}</Button>
+        </div>
+      )}>
       <div data-tour="rota-create-fields" style={s('padding:18px 22px;display:flex;flex-direction:column;gap:16px')}>
-        {/* Carer grouping puts the carer first — that's the row you're adding to. */}
-        {byCarer && (
-          <div style={field}><span style={label}>Carer</span>
-            <select value={carerId} onChange={(e) => setCarerId(e.target.value)} style={control}>
-              <option value="">Select a carer…</option>
-              {activeCarers.map((e) => <option key={e.id} value={e.id}>{fullName(e)}</option>)}
-            </select>
-          </div>
-        )}
         <div style={field}><span style={label}>Client</span>
-          <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={control}>
+          <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={fieldStyle}>
             {serviceUsers.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
           </select>
         </div>
-        <div style={field}><span style={label}>Day</span>
-          <select value={day} onChange={(e) => setDay(e.target.value)} style={control}>
-            {days.map((d, i) => <option key={d} value={i}>{d}</option>)}
-          </select>
-        </div>
+        {!preset?.date && (
+          <div style={field}><span style={label}>Day</span>
+            <select value={day} onChange={(e) => setDay(e.target.value)} style={fieldStyle}>
+              {days.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </select>
+          </div>
+        )}
         <div style={field}><span style={label}>Carers needed</span>
-          <input
-            type="number" min={1} max={10} step={1} value={staffRequired}
+          <input type="number" min={1} max={10} step={1} value={staffRequired}
             onChange={(e) => setStaffRequired(e.target.value)}
-            onBlur={(e) => { const n = Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 1))); setStaffRequired(n); }}
-            style={control}
-          />
+            onBlur={(e) => setStaffRequired(Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 1))))}
+            style={fieldStyle} />
           {Number(staffRequired) > 1 && (
-            <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>A double-up visit. You’ll add the other {Number(staffRequired) - 1} carer{Number(staffRequired) - 1 > 1 ? 's' : ''} from the visit after it’s created.</span>
+            <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>A double-up visit. You’ll add the other carer{Number(staffRequired) > 2 ? 's' : ''} from the visit after it’s created.</span>
           )}
         </div>
         <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
-          <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
-          <div style={field}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
+          <div style={field}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} /></div>
+          <div style={field}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle} /></div>
         </div>
-        {/* Explicit resolved window so the coordinator sees the real start and
-            end DATE + time — critical for an overnight visit, where the end is
-            the next day. This is exactly what gets saved. */}
+        {/* The resolved window, so an overnight visit's real end DATE is explicit. */}
         <div style={{ ...s('display:flex;flex-direction:column;gap:5px;border-radius:10px;padding:9px 12px'), background: overnight ? 'var(--d-note-bg)' : 'var(--d-panel)' }}>
-          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}>
-            <span style={s('color:var(--d-muted)')}>Starts</span><span className="d-num">{fmtDateTime(previewStart)}</span>
-          </div>
-          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}>
-            <span style={s('color:var(--d-muted)')}>Ends</span><span className="d-num">{fmtDateTime(previewEnd)}</span>
-          </div>
+          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}><span style={s('color:var(--d-muted)')}>Starts</span><span className="d-num">{fmt(previewStart)}</span></div>
+          <div style={s('display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:600;color:var(--d-ink)')}><span style={s('color:var(--d-muted)')}>Ends</span><span className="d-num">{fmt(previewEnd)}</span></div>
           <div style={s('display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--d-note-ink);margin-top:1px')}>
-            <Icon name="clock" size={12} />{durationLabel}{overnight ? ' · overnight — ends the next day' : ''}
+            <Icon name="clock" size={12} />{`${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ''}`}{overnight ? ' · overnight — ends the next day' : ''}
           </div>
         </div>
-        <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Rules that will apply</span><RulesNote settings={settings} /></div>
+        <div style={s('font-size:11.5px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:10px;padding:10px 12px;line-height:1.45')}>
+          Geofence: on site only, within 150 m · late after {settings?.late_grace_minutes ?? '—'} min grace.
+        </div>
       </div>
     </Modal>
   );
 }
 
-/* ---------- what the carer actually did on this visit ---------- */
-function VisitDelivery({ delivery }) {
-  if (delivery === undefined) return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted)')}>Loading care record…</div>;
-  if (delivery === null) return null; // couldn't load — stay quiet rather than shout an error in the drawer
-  const tasks = (delivery.assignments ?? []).flatMap((a) => a.tasks ?? []);
-  const notes = (delivery.assignments ?? []).flatMap((a) => (a.notes ?? []).map((n) => ({ ...n, carer: a.employee?.name })));
-  const done = tasks.filter((t) => t.done).length;
-  if (tasks.length === 0 && notes.length === 0) {
-    return <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);background:var(--d-panel);border-radius:12px;padding:12px 14px')}>No tasks or notes recorded for this visit yet.</div>;
-  }
-  return (
-    <div style={s('display:flex;flex-direction:column;gap:12px')}>
-      {tasks.length > 0 && (
-        <div style={s('display:flex;flex-direction:column;gap:8px')}>
-          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Tasks — {done}/{tasks.length} done</div>
-          {tasks.map((t) => (
-            <div key={t.id} style={s('display:flex;align-items:center;gap:9px;background:var(--d-panel);border-radius:12px;padding:10px 13px')}>
-              <span style={s(`width:18px;height:18px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;background:${t.done ? 'var(--d-primary)' : 'var(--d-field)'};color:#fff`)}>{t.done && <Icon name="check" size={12} />}</span>
-              <span style={s(`font-size:13px;font-weight:600;color:var(--d-ink);${t.done ? '' : 'opacity:0.6'}`)}>{t.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {notes.length > 0 && (
-        <div style={s('display:flex;flex-direction:column;gap:8px')}>
-          <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>Carer notes</div>
-          {notes.map((n) => (
-            <div key={n.id} style={s('background:var(--d-note-bg);border-radius:12px;padding:11px 14px;display:flex;flex-direction:column;gap:5px')}>
-              <div style={s('font-size:13px;font-weight:500;color:var(--d-note-ink);line-height:1.5')}>{n.body}</div>
-              <div style={s('font-size:11px;font-weight:600;color:var(--d-muted)')}>{n.author_name ?? n.carer ?? 'Unknown'}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+/* ================================== page ================================== */
 
-/* ---------- filled-visit editor drawer (retime + real actions) ---------- */
-function VisitDetailDrawer({ visit, settings, onClose, onChanged, onAddCarer }) {
-  const toast = useToast();
-  const [start, setStart] = useState(formatTime(visit?.scheduled_start));
-  const [end, setEnd] = useState(formatTime(visit?.scheduled_end));
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  // Care-delivery record for this visit (care plan + tasks done + carer notes).
-  const [delivery, setDelivery] = useState(undefined); // undefined = loading, null = failed
-  useEffect(() => {
-    if (!visit?.id) return undefined;
-    let active = true;
-    setDelivery(undefined);
-    getVisit(visit.id).then((d) => active && setDelivery(d)).catch(() => active && setDelivery(null));
-    return () => { active = false; };
-  }, [visit?.id]);
-  if (!visit) return null;
-  // All active carers on the visit, not just the first — a double-up visit has
-  // more than one, and each carer must be visible.
-  const carers = visit.assignments ?? [];
-  const needsMore = carers.length < (visit.staff_required ?? 1);
-  const started = carers.some((x) => x.actual_start);
-  const tone = { neutral: 'muted', warn: 'warning', active: 'info' }[LIFECYCLE_TONE[stateOf(visit)]] ?? LIFECYCLE_TONE[stateOf(visit)];
-
-  async function publish() { try { await publishVisit(visit.id); toast.success('Visit published'); onChanged(); onClose(); } catch (e) { toast.error(e.message || 'Could not publish'); } }
-  async function save() {
-    if (!reason.trim()) { toast.error('Add a reason — it goes in the audit trail'); return; }
-    // Keep the visit's original UK calendar day, and set the picked times as UK
-    // wall-clock (not the admin's local zone). The day parts come from the visit's
-    // UK date so a Kenya admin editing near midnight doesn't shift the day.
-    const ukParts = new Date(visit.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }).split('-').map(Number);
-    const base = new Date(ukParts[0], ukParts[1] - 1, ukParts[2]);
-    const mk = (t) => ukTime(base, t).toISOString();
-    setBusy(true);
-    try {
-      await editVisit(visit.id, { scheduled_start: mk(start), scheduled_end: mk(end), reason: reason.trim() });
-      toast.success('Visit retimed — change logged to the audit trail');
-      onChanged(); onClose();
-    } catch (e) { toast.error(e.message || 'Could not retime the visit'); } finally { setBusy(false); }
-  }
-
-  const label = s('font-size:11.5px;font-weight:700;color:var(--d-ink2)');
-  const control = { ...s('height:42px;border-radius:12px;border:1px solid var(--d-border);background:var(--d-field);padding:0 13px;font-size:13px;font-weight:600;color:var(--d-ink);outline:none;width:100%'), fontFamily: 'inherit' };
-
-  // Only a cancelled visit is read-only: the drawer shows the record but no
-  // edit form or save. Past and started visits can still be retimed here for
-  // reconciliation — the backend audits every change (who, before/after, why).
-  const editable = isEditable(visit);
-
-  return (
-    <Modal title={`${editable ? 'Edit' : 'Visit'} — ${fullName(visit.service_user)}`} subtitle={formatDateFull(visit.scheduled_start, { weekday: 'long', year: undefined })} onClose={onClose}
-      footer={editable ? (
-        <div style={s('display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap')}>
-          {visit.status === 'draft' && <Button icon="send" onClick={publish}>Publish</Button>}
-          <Button variant="primary" icon="check" onClick={busy ? undefined : save}>{busy ? 'Saving…' : 'Save changes'}</Button>
-        </div>
-      ) : null}>
-      <div style={s('padding:18px 22px;display:flex;flex-direction:column;gap:15px')}>
-        <div style={s('display:flex;align-items:center;gap:8px')}>
-          <Tag tone={tone}>{LIFECYCLE_LABELS[stateOf(visit)]}</Tag>
-          {visit.status === 'draft' && <Tag tone="muted">Draft</Tag>}
-        </div>
-        <div style={s('background:var(--d-panel);border-radius:14px;padding:13px 15px')}>
-          <div style={s('display:flex;align-items:center;justify-content:space-between;gap:8px')}>
-            <div style={s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--d-muted)')}>
-              {carers.length > 1 || (visit.staff_required ?? 1) > 1 ? `Carers · ${carers.length} of ${visit.staff_required ?? 1}` : 'Carer'}
-            </div>
-            {editable && needsMore && <Button size="sm" icon="user" onClick={onAddCarer}>Add carer</Button>}
-          </div>
-          {carers.length === 0 ? (
-            <div style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);margin-top:3px')}>Unassigned</div>
-          ) : (
-            <div style={s('display:flex;flex-direction:column;gap:4px;margin-top:5px')}>
-              {carers.map((x) => (
-                <div key={x.id} style={s('font-size:13.5px;font-weight:700;color:var(--d-ink)')}>{fullName(x.employee)}</div>
-              ))}
-            </div>
-          )}
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-muted);margin-top:6px')}>{[visit.service_user?.address_line1, visit.service_user?.postcode].filter(Boolean).join(', ')}</div>
-        </div>
-        <RulesNote settings={settings} />
-        <VisitDelivery delivery={delivery} />
-        {!editable ? (
-          <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>
-            This visit was cancelled. Its record is read-only.
-          </div>
-        ) : (
-          <>
-            {started && (
-              <div style={s('font-size:12px;font-weight:500;color:var(--d-note-ink);background:var(--d-note-bg);border-radius:12px;padding:12px 14px;line-height:1.5')}>
-                The carer already clocked in — retiming here changes the schedule, not the clock record. Use a clock correction to fix the actual clocked time.
-              </div>
-            )}
-            <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
-              <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>Start</span><input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={control} /></div>
-              <div style={s('display:flex;flex-direction:column;gap:6px')}><span style={label}>End</span><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={control} /></div>
-            </div>
-            <div style={s('display:flex;flex-direction:column;gap:6px')}>
-              <span style={label}>Reason for change or cancellation <span style={s('color:var(--d-danger-ink)')}>*</span></span>
-              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="e.g. Client asked for a later call, or client in hospital" style={{ ...control, ...s('height:auto;padding:10px 13px;resize:vertical') }} />
-              <span style={s('font-size:11px;font-weight:500;color:var(--d-muted)')}>Required to retime or cancel — stored in the audit trail with your name and time.</span>
-            </div>
-          </>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-/* ============================== page ============================== */
 export default function RotaPage() {
   const toast = useToast();
   const { canManage } = useAuth();
+
   const [weekStart, setWeekStart] = useState(() => weekOf().monday);
+  const [dayDate, setDayDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [view, setView] = useState('week');            // week | day | queue | staff
   const [visits, setVisits] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [serviceUsers, setServiceUsers] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('client');
-  const [layout, setLayout] = useState('grid'); // 'grid' | 'list' — how the week is drawn, independent of the carer/client grouping above
-  const [span, setSpan] = useState('week'); // 'week' (7 day-columns) | 'day' (hour-columns for one day)
-  const [dayDate, setDayDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }); // the single day shown in day mode
-  const [assigning, setAssigning] = useState(null);
-  const [creating, setCreating] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [reassigning, setReassigning] = useState(null); // { visit, assignmentId }
+
+  // Filters — the reference's rail, moved to the top bar.
+  const [fClient, setFClient] = useState('all');
+  const [fCarer, setFCarer] = useState('all');
+  const [fRun, setFRun] = useState('all');
+  const [fStatus, setFStatus] = useState({ unfilled: true, partial: true, filled: true, completed: true, cancelled: true });
+  const [flagConflicts, setFlagConflicts] = useState(true);
+
   const [selected, setSelected] = useState([]);
-  const navigate = useNavigate();
+  const [drawerId, setDrawerId] = useState(null);
+  const [creating, setCreating] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [advertising, setAdvertising] = useState(null); // { done, total } while a bulk advertise runs
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [weekMode, setWeekMode] = useState('hours'); // 'hours' (clock timeline, the default) | 'runs' (grouped by care run)
 
   const range = useMemo(() => weekOf(weekStart), [weekStart]);
 
-  // In day mode we fetch just the selected day; in week mode the whole week.
-  const dayIso = useMemo(() => isoDate(dayDate), [dayDate]);
-  const fetchFrom = span === 'day' ? dayIso : range.from;
-  const fetchTo = span === 'day' ? dayIso : range.to;
-
+  // One load per week: every view (week grid, day list, unfilled queue, staff
+  // load) reads the same Mon–Sun set, exactly as the reference does.
   const load = useCallback(async () => {
     const [v, e, su, st] = await Promise.all([
-      listVisits({ from: fetchFrom, to: fetchTo }),
+      listVisits({ from: range.from, to: range.to }),
       listEmployees().catch(() => []),
       listServiceUsers().catch(() => []),
       getSettings().catch(() => null),
     ]);
     setVisits(v ?? []); setEmployees(e ?? []); setServiceUsers(su ?? []); setSettings(st);
-  }, [fetchFrom, fetchTo]);
+  }, [range.from, range.to]);
 
   useEffect(() => { let a = true; setLoading(true); load().finally(() => a && setLoading(false)); return () => { a = false; }; }, [load]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key !== 'Escape') return; if (drawerId) setDrawerId(null); else if (selected.length) setSelected([]); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerId, selected.length]);
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = new Date(range.monday); d.setDate(d.getDate() + i);
-    return { date: d, label: d.toLocaleDateString('en-GB', { weekday: 'short' }), num: d.getDate(), today: d.toDateString() === new Date().toDateString() };
+    return { date: d, iso: isoDate(d), label: d.toLocaleDateString('en-GB', { weekday: 'short' }), num: d.getDate(), today: d.toDateString() === new Date().toDateString() };
   }), [range.monday]);
 
-  // Day mode: one column per hour of the selected day (07:00–21:00 covers the
-  // domiciliary day; anything outside still shows because we clamp into the
-  // first/last hour). A visit falls in the hour of its UK-local start time.
-  const DAY_START_H = 7;
-  const DAY_END_H = 22; // exclusive — last column is 21:00
-  const dayHours = useMemo(
-    () => Array.from({ length: DAY_END_H - DAY_START_H }, (_, i) => DAY_START_H + i),
-    [],
-  );
-  // UK-local hour, as a fraction (08:30 -> 8.5), so a visit spans the real time
-  // it covers, not just its whole start hour.
-  const ukHourFrac = (iso) => {
-    const [hh, mm] = new Date(iso).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' }).split(':').map(Number);
-    return hh + (mm || 0) / 60;
-  };
-  // A visit's column span in the nested hour grid (1-based; column 1 = DAY_START_H).
-  // Start floors to the hour it begins in, end ceils to the hour it finishes in, so
-  // 08:00–10:00 spans columns 2..4 (the 08 and 09 columns) and 08:00–08:30 still
-  // fills one column. Clamped to the visible band; an overnight end wraps to the
-  // band's end so it doesn't collapse.
-  const spanCols = (v) => {
-    const s0 = ukHourFrac(v.scheduled_start);
-    let e0 = ukHourFrac(v.scheduled_end);
-    if (e0 <= s0) e0 = DAY_END_H; // ends next day (or same instant) — run to the edge
-    const startH = Math.min(Math.max(Math.floor(s0), DAY_START_H), DAY_END_H - 1);
-    const endH = Math.min(Math.max(Math.ceil(e0), startH + 1), DAY_END_H);
-    return { start: startH - DAY_START_H + 1, end: endH - DAY_START_H + 1 };
-  };
-
-  const rows = useMemo(() => {
-    if (view === 'carer') {
-      const carerRows = [...employees].filter((e) => e.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((e) => ({
-        id: `e${e.id}`, title: e.full_name, initials: inits(e),
-        sub: `${e.hours_this_week ?? 0}h${e.contracted_hours_per_week ? ` / ${e.contracted_hours_per_week}h` : ''}${e.punctuality != null ? ` · ${e.punctuality}% on time` : ''}`,
-        cell: (d) => visits.filter((v) => (v.assignments ?? []).some((a) => a.employee?.id === e.id) && sameDay(v.scheduled_start, d)),
-      }));
-      // Visits with no active carer match no carer row, so surface them in a top
-      // "Unassigned" row — this includes cancelled visits (which lost their carer
-      // on cancel) so they still SHOW on the board, matching the DB. The count in
-      // the label only reflects the live ones that actually still need a carer.
-      const noCarer = visits.filter((v) => !(v.assignments ?? []).some((a) => a.employee?.id));
-      if (noCarer.length === 0) return carerRows;
-      const needCarer = noCarer.filter((v) => v.status !== 'cancelled').length;
-      return [
-        {
-          id: 'unassigned', title: 'Unassigned', initials: '—',
-          sub: needCarer > 0 ? `${needCarer} visit${needCarer === 1 ? '' : 's'} need a carer` : 'Cancelled visits',
-          cell: (d) => noCarer.filter((v) => sameDay(v.scheduled_start, d)),
-        },
-        ...carerRows,
-      ];
-    }
-    return [...serviceUsers].filter((c) => c.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((c) => ({
-      id: `c${c.id}`, title: c.full_name, initials: inits(c),
-      sub: `${c.visits_per_week ?? 0} visits/wk${c.city ? ` · ${c.city}` : ''}`,
-      cell: (d) => visits.filter((v) => v.service_user?.id === c.id && sameDay(v.scheduled_start, d)),
-    }));
-  }, [view, employees, serviceUsers, visits]);
-
-  // List layout: every visit in the week, one row each, earliest first — an
-  // agenda rather than a grid. Independent of `view` (carer/client grouping
-  // only matters to the grid's rows/columns).
-  // Most recent first — the list reads newest-to-oldest so today's and upcoming
-  // visits sit at the top rather than being buried under the start of the week.
-  const listRows = useMemo(
-    () => [...visits].sort((a, b) => new Date(b.scheduled_start) - new Date(a.scheduled_start)),
-    [visits],
-  );
-  // Client-side pagination for the list layout so a long range doesn't render
-  // every row at once. Back to page 1 whenever the underlying set changes.
-  const LIST_PER_PAGE = 25;
-  const [listPage, setListPage] = useState(1);
-  useEffect(() => { setListPage(1); }, [listRows.length]);
-  const pagedRows = useMemo(
-    () => listRows.slice((listPage - 1) * LIST_PER_PAGE, listPage * LIST_PER_PAGE),
-    [listRows, listPage],
-  );
+  // Everything on screen, narrowed by the filter row.
+  const shown = useMemo(() => visits.filter((v) => {
+    if (fClient !== 'all' && v.service_user?.id !== Number(fClient)) return false;
+    if (fCarer !== 'all' && !(v.assignments ?? []).some((a) => a.employee?.id === Number(fCarer))) return false;
+    if (fRun !== 'all' && runOf(v) !== fRun) return false;
+    return !!fStatus[shiftStatus(v)];
+  }), [visits, fClient, fCarer, fRun, fStatus]);
 
   const drafts = useMemo(() => visits.filter((v) => v.status === 'draft'), [visits]);
+  const drawerVisit = useMemo(() => visits.find((v) => v.id === drawerId) ?? null, [visits, drawerId]);
+  const weekTotals = useMemo(() => {
+    const live = shown.filter((v) => v.status !== 'cancelled');
+    return {
+      gaps: dayStats(shown),
+      hours: live.reduce((a, v) => a + durHrs(v) * (v.staff_required ?? 1), 0),
+      liveIn: shown.filter(isLiveIn).length,
+      clashes: flagConflicts ? shown.filter((v) => conflictsOn(v, visits).length > 0).length : 0,
+    };
+  }, [shown, visits, flagConflicts]);
 
-  // Nav steps by a week in week mode, by a day in day mode.
+  const activeFilters = (fClient !== 'all' ? 1 : 0) + (fCarer !== 'all' ? 1 : 0) + (fRun !== 'all' ? 1 : 0)
+    + STATUS_CHIPS.filter(([k]) => !fStatus[k]).length;
+
+  const staffRows = useMemo(() => employees.filter((e) => e.active && (fCarer === 'all' || e.id === Number(fCarer)))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name)), [employees, fCarer]);
+
+  /* ------------------------------- navigation ------------------------------ */
   const move = (n) => {
-    if (span === 'day') { const d = new Date(dayDate); d.setDate(d.getDate() + n); d.setHours(0, 0, 0, 0); setDayDate(d); return; }
+    if (view === 'day') {
+      const d = new Date(dayDate); d.setDate(d.getDate() + n); d.setHours(0, 0, 0, 0);
+      setDayDate(d); setWeekStart(weekOf(d).monday);
+      return;
+    }
     const d = new Date(range.monday); d.setDate(d.getDate() + n * 7); setWeekStart(d);
   };
   const goToday = () => {
-    if (span === 'day') { const d = new Date(); d.setHours(0, 0, 0, 0); setDayDate(d); return; }
-    setWeekStart(weekOf().monday);
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    setDayDate(d); setWeekStart(weekOf().monday);
   };
+  const pickDay = (date) => { setDayDate(date); setWeekStart(weekOf(date).monday); setView('day'); };
   const toggleSel = (id) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
-  const openBlock = (v) => (isShort(v) ? setAssigning(v) : setDetail(v));
-
-  // Visit action menu, opened from the block's action circle. Left-click the
-  // block still opens the drawer; the circle opens these fast actions (assign /
-  // reassign / cancel / delete / remove carer / select for bulk).
-  const [menu, setMenu] = useState(null); // { x, y, visit }
-  const [confirm, setConfirm] = useState(null); // ConfirmDialog config
-
-  function quickCancel(v) {
+  /* --------------------------------- actions ------------------------------- */
+  async function assignFromQueue(v, e) {
+    try { await assignEmployee({ visitId: v.id, employeeId: e.id }); toast.success(`${e.full_name} assigned to ${fullName(v.service_user)}`); await load(); }
+    catch (err) { toast.error(err.message === 'carer_unavailable' ? `${e.full_name} already has a visit at that time.` : (err.message || 'Could not assign that carer')); }
+  }
+  async function advertise(v) {
+    try { const r = await broadcastCover(v.id, null); toast.success(`Advertised to ${r.offered} carer${r.offered === 1 ? '' : 's'}`); await load(); }
+    catch (err) { toast.error(err.message === 'visit_already_filled' ? 'That visit is already filled.' : (err.message || 'Could not advertise the visit')); }
+  }
+  // Advertising every gap on screen reaches real carers' phones and cannot be
+  // recalled, so it asks first with the real numbers — and is paced (runPaced)
+  // so the rest of the console stays usable while it works.
+  function advertiseAll() {
+    const gaps = shown.filter((v) => isShort(v));
+    if (!gaps.length) { toast.info('Nothing unfilled to advertise.'); return; }
+    const carers = employees.filter((e) => e.active).length;
+    setConfirm({
+      title: `Advertise ${gaps.length} unfilled visit${gaps.length === 1 ? '' : 's'}?`,
+      body: `Every carer who is free at that time gets an in-app message and a push notification — up to ${carers} carer${carers === 1 ? '' : 's'} per visit, so roughly ${gaps.length * carers} notifications. Carers who already have an offer are notified again. This reaches real phones and can't be undone.`,
+      confirmLabel: `Advertise ${gaps.length}`,
+      onConfirm: async () => {
+        setBusy(true);
+        setAdvertising({ done: 0, total: gaps.length });
+        try {
+          const { ok, failed, results } = await runPaced(
+            gaps, (v) => broadcastCover(v.id, null), ADVERTISE_LANES,
+            () => setAdvertising((p) => (p ? { ...p, done: p.done + 1 } : p)),
+          );
+          const offers = results.reduce((a, r) => a + (r?.offered ?? 0), 0);
+          if (ok) toast.success(`${ok} visit${ok === 1 ? '' : 's'} advertised — ${offers} offer${offers === 1 ? '' : 's'} sent`);
+          if (failed) toast.warn(`${failed} could not be advertised (already filled, or the request failed).`);
+          await load();
+        } finally { setBusy(false); setAdvertising(null); }
+      },
+    });
+  }
+  function askCancel(v) {
     setConfirm({
       title: 'Cancel this visit?',
       body: 'The visit is marked cancelled and the carer is freed. Its record is kept.',
       confirmLabel: 'Cancel visit', danger: true, needReason: true, reasonLabel: 'Reason for cancelling',
       onConfirm: async (reason) => {
-        try { await cancelVisit(v.id, reason); toast.success('Visit cancelled — carer freed'); await load(); }
-        catch (e) { toast.error(e.message || 'Could not cancel the visit'); }
+        try { await cancelVisit(v.id, reason); toast.success('Visit cancelled — carer freed'); setDrawerId(null); await load(); }
+        catch (e) { toast.error(e.message === 'visit_started' ? 'A carer has clocked in — that visit cannot be cancelled.' : (e.message || 'Could not cancel the visit')); }
       },
     });
   }
-  function quickDelete(v) {
+  function askDelete(v) {
     setConfirm({
       title: 'Delete this visit for good?',
-      body: 'It leaves the rota and the carer is freed. Use Cancel instead if it may need a record — deletion is refused once a carer has clocked in.',
+      body: 'It leaves the rota and the carer is freed. Cancel it instead if it may need a record — deletion is refused once a carer has clocked in.',
       confirmLabel: 'Delete visit', danger: true,
       onConfirm: async () => {
-        try { await deleteVisit(v.id); toast.success('Visit deleted — carer freed'); await load(); }
+        try { await deleteVisit(v.id); toast.success('Visit deleted — carer freed'); setDrawerId(null); await load(); }
         catch (e) { toast.error(e.message === 'visit_started' ? 'A carer has clocked in — cancel it instead so the record is kept.' : (e.message || 'Could not delete the visit')); }
       },
     });
   }
-  async function quickWithdraw(v) {
-    const a = v.assignments?.[0];
-    if (!a) return;
-    try { await withdrawAssignment(a.id); toast.info('Carer removed from that visit'); await load(); }
-    catch (e) { toast.error(e.message || 'Could not remove the carer'); }
-  }
-
-  // Menu items for a visit, opened from the block's action circle (there is no
-  // right-click on the rota — this is the single control). A past/started/
-  // cancelled visit only offers "View details" — its record is read-only.
-  function menuItems(v) {
-    const a = v.assignments?.[0];
-    const isSel = selected.includes(v.id);
-    const view = { label: 'View details', icon: 'note', onClick: () => (isShort(v) ? setAssigning(v) : setDetail(v)) };
-    // Select for bulk action lives here now that the circle is the menu trigger.
-    const select = { label: isSel ? 'Deselect' : 'Select for bulk action', icon: 'check', onClick: () => toggleSel(v.id) };
-    if (!canManage || !isEditable(v)) return [view, null, select];
-    const items = [view, null];
-    if (a) items.push({ label: 'Reassign carer', icon: 'user', onClick: () => setReassigning({ visit: v, assignmentId: a.id }) });
-    else items.push({ label: 'Assign carer', icon: 'user', onClick: () => setAssigning(v) });
-    if (a) items.push({ label: 'Remove carer', icon: 'close', onClick: () => quickWithdraw(v) });
-    // Cover — send an unfilled visit to the cover board for carers to claim.
-    if (isShort(v)) items.push({ label: 'Find cover', icon: 'refresh', onClick: () => navigate('/cover') });
-    items.push(null, select, null);
-    items.push({ label: 'Cancel visit', icon: 'close', danger: true, onClick: () => quickCancel(v) });
-    items.push({ label: 'Delete visit', icon: 'close', danger: true, onClick: () => quickDelete(v) });
-    return items;
-  }
-
-  // Auto-generate the upcoming week's visits from the care packages. Always the
-  // NEXT Mon–Sun from today (not the viewed week), then jump the view to it.
-  async function handleGenerateNextWeek() {
+  // Build the NEXT Mon–Sun from today (not the viewed week) from the care
+  // packages, then jump the view to it.
+  async function generateNextWeek() {
     setBusy(true);
     try {
-      const nextMon = new Date(range.monday);
-      // move to the Monday of next week relative to today
-      const todayMon = weekOf(new Date()).monday;
-      nextMon.setTime(new Date(todayMon).getTime());
+      const nextMon = new Date(weekOf(new Date()).monday);
       nextMon.setDate(nextMon.getDate() + 7);
       const nextSun = new Date(nextMon); nextSun.setDate(nextSun.getDate() + 6);
       const r = await generateVisits({ from: isoDate(nextMon), to: isoDate(nextSun) });
       toast.success(`${r.created} visit${r.created === 1 ? '' : 's'} generated for next week`);
       setWeekStart(nextMon);
-      await load();
     } catch (e) { toast.error(e.message || 'Could not generate next week'); } finally { setBusy(false); }
   }
-  async function handlePublishAll() {
-    if (drafts.length === 0) { toast.info('No draft visits to publish'); return; }
+  async function publishAll() {
+    if (!drafts.length) { toast.info('No draft visits to publish'); return; }
     setBusy(true);
     try { await Promise.all(drafts.map((v) => publishVisit(v.id))); toast.success(`Rota published — ${drafts.length} visit${drafts.length === 1 ? '' : 's'} now visible to carers`); await load(); }
     catch (e) { toast.error(e.message || 'Some visits could not be published'); } finally { setBusy(false); }
   }
 
   const selectedVisits = () => visits.filter((v) => selected.includes(v.id));
-  const notStarted = (v) => !(v.assignments ?? []).some((a) => a.actual_start);
+  async function bulkUnassign() {
+    const rows = selectedVisits().flatMap((v) => (v.assignments ?? []).filter((a) => !a.actual_start));
+    if (!rows.length) { toast.info('Nothing to unassign — those visits have no carer, or the carer has clocked in.'); return; }
+    try { await Promise.all(rows.map((a) => withdrawAssignment(a.id))); toast.success(`${rows.length} carer${rows.length === 1 ? '' : 's'} removed`); setSelected([]); await load(); }
+    catch (e) { toast.error(e.message || 'Some carers could not be removed'); }
+  }
+  async function bulkAdvertise() {
+    const gaps = selectedVisits().filter(isShort);
+    if (!gaps.length) { toast.info('None of the selected visits need cover'); return; }
+    const { ok, failed } = await runPaced(gaps, (v) => broadcastCover(v.id, null), ADVERTISE_LANES);
+    if (ok) toast.success(`${ok} visit${ok === 1 ? '' : 's'} advertised`);
+    if (failed) toast.warn(`${failed} could not be advertised`);
+    setSelected([]); await load();
+  }
   async function bulkPublish() {
     const d = selectedVisits().filter((v) => v.status === 'draft');
     if (!d.length) { toast.info('None of the selected visits are drafts'); return; }
@@ -803,270 +1366,265 @@ export default function RotaPage() {
     catch (e) { toast.error(e.message || 'Some could not be published'); }
   }
   async function bulkShift(mins) {
-    const editable = selectedVisits().filter(notStarted);
-    if (!editable.length) { toast.info('Selected visits have already started — cannot retime'); return; }
+    const rows = selectedVisits().filter((v) => isEditable(v) && !(v.assignments ?? []).some((a) => a.actual_start));
+    if (!rows.length) { toast.info('Selected visits have already started — cannot retime'); return; }
     const shift = (iso) => new Date(new Date(iso).getTime() + mins * 60000).toISOString();
     try {
-      await Promise.all(editable.map((v) => editVisit(v.id, { scheduled_start: shift(v.scheduled_start), scheduled_end: shift(v.scheduled_end), reason: `Bulk time shift ${mins > 0 ? '+' : ''}${mins} min from the rota` })));
-      toast.success(`${editable.length} visit${editable.length === 1 ? '' : 's'} shifted ${mins > 0 ? '+' : ''}${mins} min`); setSelected([]); await load();
+      await Promise.all(rows.map((v) => editVisit(v.id, { scheduled_start: shift(v.scheduled_start), scheduled_end: shift(v.scheduled_end), reason: `Bulk time shift ${mins > 0 ? '+' : ''}${mins} min from the rota` })));
+      toast.success(`${rows.length} visit${rows.length === 1 ? '' : 's'} shifted ${mins > 0 ? '+' : ''}${mins} min`); setSelected([]); await load();
     } catch (e) { toast.error(e.message || 'Some visits could not be shifted'); }
   }
-  async function bulkCopyNextWeek() {
-    const sel = selectedVisits();
-    const plus7 = (iso) => new Date(new Date(iso).getTime() + 7 * 86400000).toISOString();
-    try {
-      await Promise.all(sel.map((v) => createVisit({ service_user_id: v.service_user?.id, scheduled_start: plus7(v.scheduled_start), scheduled_end: plus7(v.scheduled_end) })));
-      toast.success(`${sel.length} visit${sel.length === 1 ? '' : 's'} copied to next week as drafts`); setSelected([]);
-    } catch (e) { toast.error(e.message || 'Some visits could not be copied'); }
+  function bulkCancel() {
+    const rows = selectedVisits().filter(isEditable);
+    if (!rows.length) { toast.info('Those visits are already cancelled'); return; }
+    setConfirm({
+      title: `Cancel ${rows.length} visit${rows.length === 1 ? '' : 's'}?`,
+      body: 'Each visit is marked cancelled and its carer freed. The records are kept.',
+      confirmLabel: 'Cancel visits', danger: true, needReason: true, reasonLabel: 'Reason for cancelling',
+      onConfirm: async (reason) => {
+        const res = await Promise.allSettled(rows.map((v) => cancelVisit(v.id, reason)));
+        const ok = res.filter((r) => r.status === 'fulfilled').length;
+        if (ok) toast.success(`${ok} visit${ok === 1 ? '' : 's'} cancelled`);
+        if (ok < rows.length) toast.warn(`${rows.length - ok} could not be cancelled (a carer may have clocked in).`);
+        setSelected([]); await load();
+      },
+    });
   }
 
-  const GRID = '188px repeat(7, minmax(128px, 1fr))';
-  const circleBtn = { ...s('width:36px;height:36px;border-radius:50%;background:var(--d-card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2);flex:none'), '--hbg': 'var(--d-card-hover)' };
-  const viewTabs = [{ key: 'carer', label: 'By carer', icon: 'users', count: employees.filter((e) => e.active).length }, { key: 'client', label: 'By client', icon: 'user', count: serviceUsers.filter((c) => c.active).length }];
+  /* --------------------------------- render -------------------------------- */
+  const VIEWS = [
+    { key: 'week', label: 'Week', icon: 'calendar' },
+    { key: 'day', label: 'Day', icon: 'clock' },
+    { key: 'queue', label: 'Unfilled', icon: 'alert', count: weekTotals.gaps.unf },
+    { key: 'staff', label: 'Staff', icon: 'users' },
+  ];
+  const rangeLabel = view === 'day'
+    ? dayDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : `${range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   return (
-    <div style={s('display:flex;flex-direction:column;gap:14px')}>
-      {/* Page actions */}
-      {canManage && (
-        <div style={s('display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end')}>
-          <span data-tour="rota-generate"><Button icon="sync" onClick={busy ? undefined : handleGenerateNextWeek}>{busy ? 'Working…' : 'Generate next week'}</Button></span>
-          <Button icon="send" onClick={busy ? undefined : handlePublishAll}>{drafts.length ? `Publish rota (${drafts.length})` : 'Publish rota'}</Button>
-          <ExportButton label="Export rota" title="Export rota" subtitle="Choose a file format. The week on screen is exported."
-            onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />
-          <span data-tour="rota-add" style={s('display:inline-flex;align-items:center;gap:6px')}><Button variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button><InfoHint below text={view === 'carer' ? 'Add a one-off visit for a carer: choose the carer, the client to visit, the day and the time, then Create. It goes onto their rota as a draft until you publish.' : 'Add a one-off visit: choose the client, the day and the start/end time, then Create. It starts as a draft until you publish. One client can\'t be double-booked at the same time.'} /></span>
+    <div style={s('display:flex;flex-direction:column;gap:12px')}>
+      {/* ---- command bar: the reference's top bar AND its left rail, at the top.
+           Three bands with a clear break between them — navigate/act, then the
+           week at a glance, then narrow it down. The summary is one slim line
+           rather than two stacked boxes: it was the single biggest eater of the
+           vertical space the grid actually needs. ---- */}
+      <div style={s('background:var(--d-card);border:1px solid var(--d-border);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:12px')}>
+        {/* band 1 — one line: which week, which view, and the actions */}
+        <div style={s('display:flex;align-items:center;gap:7px;flex-wrap:wrap')}>
+          <div data-tour="rota-week" style={s('display:flex;align-items:center;height:30px;border:1px solid var(--d-border);border-radius:9px;overflow:hidden')}>
+            <div className="hv" onClick={() => move(-1)} aria-label="Previous" style={{ ...s('width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="chevronLeft" size={15} /></div>
+            {/* The range doubles as the way back to the current week. */}
+            <span className="d-num hv" onClick={goToday} title="Jump to this week"
+              style={{ ...s('padding:0 11px;font-size:12px;font-weight:700;color:var(--d-ink);white-space:nowrap;border-left:1px solid var(--d-border);border-right:1px solid var(--d-border);line-height:28px;cursor:pointer'), '--hbg': 'var(--d-panel)' }}>{rangeLabel}</span>
+            <div className="hv" onClick={() => move(1)} aria-label="Next" style={{ ...s('width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), '--hbg': 'var(--d-panel)' }}><Icon name="chevronRight" size={15} /></div>
+          </div>
+          <div data-tour="rota-view" style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:9px;padding:2px')}>
+            {VIEWS.map((o) => (
+              <div key={o.key} onClick={() => setView(o.key)} title={`${o.label} view`}
+                style={{ ...s('display:flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:7px;cursor:pointer;font-size:11.5px;font-weight:700'), background: view === o.key ? 'var(--d-card)' : 'transparent', color: view === o.key ? 'var(--d-ink)' : 'var(--d-muted)', boxShadow: view === o.key ? '0 1px 2px rgba(15,23,32,0.10)' : 'none' }}>
+                <Icon name={o.icon} size={12} />{o.label}
+                {o.count > 0 && <span className="d-num" style={{ ...s('min-width:15px;height:15px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;padding:0 4px'), background: 'var(--d-unfilled-bg)', color: 'var(--d-unfilled-ink)' }}>{o.count}</span>}
+              </div>
+            ))}
+          </div>
+          {view === 'week' && (
+            <div style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:9px;padding:2px')}>
+              {[['runs', 'Runs'], ['hours', 'Hours']].map(([k, label]) => (
+                <div key={k} onClick={() => setWeekMode(k)}
+                  title={k === 'runs' ? 'Group the week by care run — morning, lunch, tea, bed' : 'Show the week on a clock axis, to see overlapping calls'}
+                  style={{ ...s('height:26px;padding:0 9px;border-radius:7px;cursor:pointer;font-size:11.5px;font-weight:700;display:flex;align-items:center'), background: weekMode === k ? 'var(--d-card)' : 'transparent', color: weekMode === k ? 'var(--d-ink)' : 'var(--d-muted)', boxShadow: weekMode === k ? '0 1px 2px rgba(15,23,32,0.10)' : 'none' }}>
+                  {label}
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Every action is still here. The four secondary ones sit in one
+              grouped cluster of icons rather than four competing labelled
+              buttons, so the row holds one line and "Add visit" is visibly the
+              primary thing. Each carries its full wording on hover. */}
+          <div style={s('display:flex;align-items:center;gap:7px;margin-left:auto')}>
+            <div style={s('display:inline-flex;align-items:center;height:30px;border:1px solid var(--d-border);border-radius:9px;overflow:hidden')}>
+              {[
+                { key: 'refresh', icon: 'refresh', label: 'Refresh the rota', onClick: () => load(), show: true },
+                { key: 'advertise', icon: 'send', label: 'Advertise unfilled visits to available carers', onClick: busy ? undefined : advertiseAll, show: canManage },
+                { key: 'generate', icon: 'sync', label: 'Generate next week from the care packages', onClick: busy ? undefined : generateNextWeek, show: canManage, tour: 'rota-generate' },
+                { key: 'publish', icon: 'check', label: drafts.length ? `Publish rota — ${drafts.length} unpublished` : 'Publish rota', onClick: busy ? undefined : publishAll, show: canManage, badge: drafts.length },
+              ].filter((a) => a.show).map((a, i) => (
+                <div key={a.key} data-tour={a.tour} onClick={a.onClick} className="hv" title={a.label} aria-label={a.label}
+                  style={{ ...s('position:relative;width:34px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--d-ink2)'), borderLeft: i === 0 ? 'none' : '1px solid var(--d-border)', '--hbg': 'var(--d-panel)' }}>
+                  <Icon name={a.icon} size={14} />
+                  {a.badge > 0 && <span style={s('position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--d-warn-dot)')} />}
+                </div>
+              ))}
+            </div>
+            {advertising && (
+              <span className="d-num" style={s('font-size:11.5px;font-weight:700;color:var(--d-ink2);white-space:nowrap')}>
+                Advertising {advertising.done}/{advertising.total}
+              </span>
+            )}
+            {canManage && (
+              <ExportButton label="Export rota" title="Export rota" size="xs" variant="primary" subtitle="Choose a file format. The week on screen is exported."
+                onExport={async (type) => { try { await exportRota(range.from, range.to, type); toast.success(`Rota ${type.toUpperCase()} downloaded`); } catch (e) { toast.error(e.message || 'Export failed'); return false; } }} />
+            )}
+            {canManage && <span data-tour="rota-add"><Button size="xs" variant="primary" icon="plus" onClick={() => setCreating({ day: 0 })}>Add visit</Button></span>}
+          </div>
         </div>
-      )}
 
-      {/* Row 1 — view controls on the left (what am I looking at), week
-          navigation on the right (which week). */}
-      <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
-        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-          <span data-tour="rota-view"><SegTabs tabs={viewTabs} active={view} onSelect={setView} /></span>
-          {/* Day / Week span. Week draws the 7-day grid; Day draws one day by the
-              hour. The Grid/List layout toggle still applies within either span. */}
-          <div style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
-            {[{ key: 'day', icon: 'clock', label: 'Day' }, { key: 'week', icon: 'calendar', label: 'Week' }].map((o) => (
-              <div key={o.key} onClick={() => setSpan(o.key)} title={`${o.label} view`}
-                style={{ ...s('display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700'), background: span === o.key ? 'var(--d-card)' : 'transparent', color: span === o.key ? 'var(--d-ink)' : 'var(--d-muted)' }}>
-                <Icon name={o.icon} size={14} />{o.label}
-              </div>
-            ))}
-          </div>
-          <div data-tour="rota-layout" style={s('display:inline-flex;align-items:center;gap:2px;background:var(--d-panel);border-radius:12px;padding:3px')}>
-            {[{ key: 'grid', icon: 'calendar', label: 'Grid' }, { key: 'list', icon: 'menu', label: 'List' }].map((o) => (
-              <div key={o.key} onClick={() => setLayout(o.key)} title={`${o.label} view`}
-                style={{ ...s('display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700'), background: layout === o.key ? 'var(--d-card)' : 'transparent', color: layout === o.key ? 'var(--d-ink)' : 'var(--d-muted)' }}>
-                <Icon name={o.icon} size={14} />{o.label}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap')}>
-          <div data-tour="rota-week" style={s('display:flex;align-items:center;gap:8px')}>
-            <div className="hv" onClick={() => move(-1)} style={circleBtn}><Icon name="chevronLeft" size={17} /></div>
-            <span style={s('font-size:13.5px;font-weight:700;color:var(--d-ink);min-width:132px;text-align:center')}>
-              {span === 'day'
-                ? dayDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
-                : `${range.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${range.sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+        {/* band 2 — the week at a glance, and the way in to narrowing it.
+             Filters live behind a button rather than a permanent row: they are
+             used occasionally, and the row they occupied is worth more to the
+             grid, which is what people actually came here to read. */}
+        <div style={s('display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--d-panel);border-radius:11px;padding:7px 12px')}>
+          <button type="button" onClick={() => setView('queue')} title="Open the unfilled queue"
+            style={{
+              ...s('display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:99px;border:0;cursor:pointer;font-size:12px;font-weight:600'),
+              fontFamily: 'inherit',
+              background: weekTotals.gaps.unf ? 'var(--d-unfilled-bg)' : 'var(--d-ok-bg)',
+              color: weekTotals.gaps.unf ? 'var(--d-unfilled-ink)' : 'var(--d-ok-ink)',
+            }}>
+            <span className="d-num" style={s('font-size:14px;font-weight:800;line-height:1')}>{weekTotals.gaps.unf}</span>
+            {weekTotals.gaps.unf ? `unfilled · ${hoursTotal(weekTotals.gaps.hrs)} uncovered` : 'fully covered'}
+          </button>
+          <span style={s('width:1px;height:18px;background:var(--d-border)')} />
+          {[['Visits', shown.length], ['Care hours', `${Math.round(weekTotals.hours)}h`], ['Live-in', weekTotals.liveIn], ['Clashes', weekTotals.clashes]].map(([l, val]) => (
+            <span key={l} style={s('display:inline-flex;align-items:baseline;gap:5px;font-size:11.5px;font-weight:600;color:var(--d-muted);white-space:nowrap')}>
+              <span className="d-num" style={{ ...s('font-size:13.5px;font-weight:800'), color: l === 'Clashes' && weekTotals.clashes > 0 ? 'var(--d-unfilled-ink)' : 'var(--d-ink)' }}>{val}</span>{l}
             </span>
-            <div className="hv" onClick={() => move(1)} style={circleBtn}><Icon name="chevronRight" size={17} /></div>
-          </div>
-          <div onClick={goToday} className="hv" style={{ ...s('height:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}>{span === 'day' ? 'Today' : 'This week'}</div>
-          <div onClick={() => load()} className="hv tip" data-tip="Refresh the rota" style={{ ...s('height:34px;width:34px;border-radius:17px;background:var(--d-panel);display:flex;align-items:center;justify-content:center;color:var(--d-ink2);cursor:pointer'), '--hbg': 'var(--d-sage)' }}><Icon name="refresh" size={16} /></div>
-        </div>
-      </div>
-
-      {/* Row 2 — publish status on the left, colour legend on the right. */}
-      <div style={s('display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap')}>
-        <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
-        <div style={s('display:flex;flex-wrap:wrap;gap:12px;font-size:11px;font-weight:600;color:var(--d-muted)')}>
-          {LEGEND.map(([l, dot]) => (
-            <span key={l} style={s('display:inline-flex;align-items:center;gap:5px')}><span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: dot }} />{l}</span>
           ))}
+          <span style={s('flex:1;min-width:4px')} />
+          <Tag tone={drafts.length ? 'warning' : 'success'}>{drafts.length ? `Draft — ${drafts.length} unpublished` : 'Published'}</Tag>
+          <div style={s('position:relative')}>
+            <button type="button" data-tour="rota-filters" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen}
+              style={{ ...s('display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:99px;cursor:pointer;font-size:11.5px;font-weight:600'), fontFamily: 'inherit', border: `1px solid ${activeFilters ? 'var(--d-primary)' : 'var(--d-border)'}`, background: activeFilters ? 'var(--d-primary-soft)' : 'var(--d-card)', color: activeFilters ? 'var(--d-primary-deep)' : 'var(--d-ink2)' }}>
+              <Icon name="filter" size={13} />Filters
+              {activeFilters > 0 && <span className="d-num" style={{ ...s('min-width:16px;height:16px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;padding:0 4px'), background: 'var(--d-primary)', color: 'var(--d-primary-ink)' }}>{activeFilters}</span>}
+            </button>
+            {filtersOpen && (
+              <>
+                <div onClick={() => setFiltersOpen(false)} style={s('position:fixed;inset:0;z-index:40')} />
+                <div style={s('position:absolute;top:32px;right:0;z-index:41;width:330px;background:var(--d-card);border:1px solid var(--d-border);border-radius:14px;box-shadow:0 16px 40px rgba(15,23,30,0.22);padding:14px;display:flex;flex-direction:column;gap:11px')}>
+                  <select value={fClient} onChange={(e) => setFClient(e.target.value)} style={{ ...selectStyle, width: '100%' }} aria-label="Filter by client">
+                    <option value="all">All clients</option>
+                    {[...serviceUsers].filter((c) => c.active).sort((a, b) => fullName(a).localeCompare(fullName(b))).map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
+                  </select>
+                  <select value={fCarer} onChange={(e) => setFCarer(e.target.value)} style={{ ...selectStyle, width: '100%' }} aria-label="Filter by carer">
+                    <option value="all">All carers</option>
+                    {[...employees].filter((e) => e.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                  </select>
+                  <select value={fRun} onChange={(e) => setFRun(e.target.value)} style={{ ...selectStyle, width: '100%' }} aria-label="Filter by run">
+                    <option value="all">All runs</option>
+                    {RUN_ORDER.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <div style={s('display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--d-border);padding-top:11px')}>
+                    {STATUS_CHIPS.map(([k, label]) => {
+                      const on = fStatus[k];
+                      return (
+                        <button key={k} type="button" onClick={() => setFStatus((p) => ({ ...p, [k]: !p[k] }))} aria-pressed={on}
+                          style={{ ...s('display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:99px;font-size:11.5px;font-weight:600;cursor:pointer'), fontFamily: 'inherit', border: `1px solid ${on ? 'var(--d-border)' : 'transparent'}`, background: on ? 'var(--d-panel)' : 'transparent', color: on ? 'var(--d-ink)' : 'var(--d-muted)', opacity: on ? 1 : 0.5 }}>
+                          <span style={{ ...s('width:8px;height:8px;border-radius:50%'), background: styleFor(k).bar }} />{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* The reference's other two options ("Show standby", "Travel
+                      time gaps") are not drawn: no standby state, no travel data. */}
+                  <button type="button" onClick={() => setFlagConflicts((p) => !p)} aria-pressed={flagConflicts}
+                    style={{ ...s('display:inline-flex;align-items:center;gap:8px;height:30px;padding:0;border:0;background:none;font-size:12px;font-weight:600;color:var(--d-ink2);cursor:pointer;border-top:1px solid var(--d-border);padding-top:11px'), fontFamily: 'inherit' }}>
+                    <span style={{ ...s('width:28px;height:16px;border-radius:99px;position:relative;display:inline-block;flex:none'), background: flagConflicts ? 'var(--d-primary)' : 'var(--d-track)' }}>
+                      <span style={{ ...s('position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:var(--d-card)'), left: flagConflicts ? 14 : 2 }} />
+                    </span>
+                    Flag clashes
+                  </button>
+                  {activeFilters > 0 && (
+                    <button type="button" onClick={() => { setFClient('all'); setFCarer('all'); setFRun('all'); setFStatus({ unfilled: true, partial: true, filled: true, completed: true, cancelled: true }); }}
+                      style={{ ...s('height:30px;border-radius:9px;border:1px solid var(--d-border);background:transparent;font-size:12px;font-weight:600;color:var(--d-ink2);cursor:pointer'), fontFamily: 'inherit' }}>Clear filters</button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <p style={s('font-size:11.5px;font-weight:500;color:var(--d-muted);margin:0')}>Click a block to open it — an unfilled visit opens the assign panel, a filled one its detail. Use the dot on a block to select visits for a bulk action.</p>
+      {/* ---- the rota itself ---- */}
+      {loading ? <Spinner /> : (
+        <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border)')}>
+          <div>
+            <div>
+              <CoverStrip days={weekDays} visits={shown} onPickDay={pickDay} cols={view === 'week' && weekMode === 'runs' ? RUN_COLS : GRID_COLS} />
 
-      {loading ? <Spinner /> : layout === 'list' ? (
-        /* List — every visit in the week, one row each, earliest first. Same
-           behaviour as a grid block, just as a table row: click the row to open
-           the drawer, click the action circle for the menu (which also holds
-           "select for bulk action", feeding the same bulk bar). */
-        <div data-tour="rota-list" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden;padding:12px 14px')}>
-          {listRows.length === 0 ? (
-            <div style={s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)')}>No visits this week.</div>
-          ) : (
-            <TableWrap minWidth={880}>
-              <thead><tr><Th>{' '}</Th><Th>Day</Th><Th>Time</Th><Th>Client</Th><Th>Carer</Th><Th align="right">Status</Th></tr></thead>
-              <tbody>
-                {pagedRows.map((v) => {
-                  const short = isShort(v);
-                  const cancelled = v.status === 'cancelled';
-                  const carer = v.assignments?.[0]?.employee;
-                  return (
-                    <Row key={v.id} onClick={() => openBlock(v)} selected={selected.includes(v.id)}>
-                      <Td>
-                        {/* Action circle — same control as the grid block: click to
-                            open the menu (edit, assign, select for bulk, cancel…). */}
-                        <span onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.right, y: r.bottom, visit: v }); }}
-                          aria-label="Visit actions" title="Visit actions"
-                          style={{ ...s('display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;border:1px solid var(--d-border);cursor:pointer'), background: selected.includes(v.id) ? 'var(--d-primary)' : 'transparent', color: selected.includes(v.id) ? '#fff' : 'var(--d-muted)' }}>
-                          {selected.includes(v.id) ? <Icon name="check" size={11} /> : <Icon name="dots" size={11} />}
-                        </span>
-                      </Td>
-                      <Td mono>{formatDateFull(v.scheduled_start, { weekday: 'short', year: undefined })}</Td>
-                      <Td mono>{formatTime(v.scheduled_start)}–{formatTime(v.scheduled_end)}</Td>
-                      <Td><span style={{ ...s('font-weight:700;color:var(--d-ink)'), textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>{fullName(v.service_user)}</span></Td>
-                      <Td>{carer ? fullName(carer) : <span style={s('color:var(--d-faint)')}>Unassigned</span>}</Td>
-                      <Td align="right">
-                        {cancelled ? <Tag tone="muted">Cancelled</Tag>
-                          : short ? <Tag tone="warning">Unfilled</Tag>
-                            : <Tag tone={L2TAG[LIFECYCLE_TONE[stateOf(v)]] ?? 'muted'}>{LIFECYCLE_LABELS[stateOf(v)]}</Tag>}
-                      </Td>
-                    </Row>
-                  );
-                })}
-              </tbody>
-            </TableWrap>
-          )}
-          {listRows.length > LIST_PER_PAGE && (
-            <div style={s('display:flex;justify-content:flex-end;padding:10px 2px 2px')}>
-              <Pager page={listPage} perPage={LIST_PER_PAGE} total={listRows.length} onPage={setListPage} />
-            </div>
-          )}
-        </div>
-      ) : span === 'day' ? (
-        /* Day — one day, hour columns. Same carer/client rows as the week grid,
-           but each row's visits sit in the column of their start hour. */
-        <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
-          <div style={s('overflow-x:auto')}>
-            <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: `188px repeat(${dayHours.length}, minmax(96px, 1fr))`, minWidth: 188 + dayHours.length * 96 }}>
-              <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>
-              {dayHours.map((h) => (
-                <div key={h} style={s('text-align:center;padding:7px 2px;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);background:var(--d-panel)')}>
-                  <div className="d-num" style={s('font-size:12px;font-weight:700;color:var(--d-ink)')}>{String(h).padStart(2, '0')}:00</div>
-                </div>
-              ))}
+              {view === 'week' && weekMode === 'runs' && (
+                <WeekRuns days={weekDays} visits={shown} allVisits={visits} selected={selected}
+                  flagConflicts={flagConflicts} onOpen={(v) => setDrawerId(v.id)} onToggleSelect={toggleSel}
+                  canAdd={canManage} onAdd={(iso) => setCreating({ date: iso, start: '09:00', end: '10:00' })} />
+              )}
 
-              {rows.length === 0 ? (
-                <div style={{ ...s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)'), gridColumn: '1 / -1' }}>No {view === 'carer' ? 'carers' : 'clients'} to show.</div>
-              ) : rows.map((row) => {
-                const dayVisits = row.cell(dayDate);
-                return (
-                  <Fragment key={row.id}>
-                    <div style={s('position:sticky;left:0;z-index:3;background:var(--d-card);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:8px 12px')}>
-                      <Avatar initials={row.initials} size="sm" />
-                      <div style={s('min-width:0')}>
-                        <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.title}</div>
-                        <div className="d-num" style={s('font-size:10.5px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.sub}</div>
+              {view === 'week' && weekMode === 'hours' && (
+                <>
+                  {/* live-in band — 24h shifts never eat a lane in the timeline */}
+                  <div style={{ ...s('display:grid;background:var(--d-panel2);border-bottom:2px solid var(--d-track)'), gridTemplateColumns: GRID_COLS }}>
+                    <div style={s('border-right:1px solid var(--d-border);font-size:9px;font-weight:700;color:var(--d-muted);padding:6px 8px;display:flex;align-items:center')}>Live-in</div>
+                    {weekDays.map((d) => (
+                      <div key={d.iso} style={s('border-left:1px solid var(--d-border);padding:5px;display:flex;flex-direction:column;gap:3px;min-height:32px')}>
+                        {shown.filter((v) => isLiveIn(v) && ukDay(v.scheduled_start) === d.iso).map((v) => (
+                          <LiveInChip key={v.id} v={v} selected={selected.includes(v.id)}
+                            conflicted={flagConflicts && conflictsOn(v, visits).length > 0}
+                            onOpen={(x) => setDrawerId(x.id)} onToggleSelect={toggleSel} />
+                        ))}
                       </div>
-                    </div>
-                    {/* One row = its own nested hour grid. Empty hour cells form the
-                        background (borders + per-hour quick-add); each visit is laid
-                        OVER them, spanning grid-column start-hour -> end-hour, so a
-                        08:00–10:00 visit stretches across the 08 and 09 columns
-                        instead of sitting only in 08. */}
-                    <div style={{ ...s('position:relative;display:grid;align-items:stretch;grid-column:2 / -1'), gridTemplateColumns: `repeat(${dayHours.length}, minmax(96px, 1fr))` }}>
-                      {dayHours.map((h) => {
-                        const hh = String(h).padStart(2, '0');
-                        return (
-                          <div key={h} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column')}>
-                            {canManage && (view === 'client' || (view === 'carer' && row.id.startsWith('e'))) && (
-                              <button type="button" aria-label={`Add visit at ${hh}:00`}
-                                onClick={() => setCreating({
-                                  date: dayIso, start: `${hh}:00`, end: `${String(Math.min(23, h + 1)).padStart(2, '0')}:00`,
-                                  ...(view === 'carer' ? { carerId: Number(row.id.slice(1)) } : { clientId: Number(row.id.slice(1)) }),
-                                })}
-                                className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {/* Visits, layered above the hour cells, each spanning its hours. */}
-                      {dayVisits.map((v) => {
-                        const startCol = spanCols(v).start;
-                        const endCol = spanCols(v).end;
-                        return (
-                          <div key={v.id} style={{ ...s('position:relative;z-index:1;padding:5px 3px;min-width:0'), gridColumn: `${startCol} / ${endCol}`, gridRow: 1 }}>
-                            <VisitBlock v={v} view={view} selected={selected.includes(v.id)} onOpen={() => openBlock(v)} onMenu={setMenu} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Fragment>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Grid — bordered spreadsheet: sticky first column, ruled cells */
-        <div data-tour="rota-grid" style={s('background:var(--d-card);border-radius:16px;border:1px solid var(--d-border);overflow:hidden')}>
-          <div style={s('overflow-x:auto')}>
-            <div style={{ ...s('display:grid;align-items:stretch'), gridTemplateColumns: GRID, minWidth: 1080 }}>
-              <div style={s('position:sticky;left:0;z-index:3;background:var(--d-panel);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--d-muted);padding:10px 14px;display:flex;align-items:center')}>{view === 'carer' ? 'Carer' : 'Client'}</div>
-              {weekDays.map((d) => (
-                <div key={d.num} style={{ ...s('text-align:center;padding:7px 2px;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border)'), background: d.today ? 'var(--d-primary-soft)' : 'var(--d-panel)' }}>
-                  <div style={{ ...s('font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-muted)' }}>{d.label}</div>
-                  <div className="d-num" style={{ ...s('font-size:14px;font-weight:700'), color: d.today ? 'var(--d-primary-deep)' : 'var(--d-ink)' }}>{d.num}</div>
-                </div>
-              ))}
-
-              {rows.length === 0 ? (
-                <div style={{ ...s('padding:38px;text-align:center;font-size:13px;font-weight:600;color:var(--d-muted)'), gridColumn: '1 / -1' }}>No {view === 'carer' ? 'carers' : 'clients'} to show.</div>
-              ) : rows.map((row) => (
-                <Fragment key={row.id}>
-                  <div style={s('position:sticky;left:0;z-index:3;background:var(--d-card);border-bottom:1px solid var(--d-border);border-right:1px solid var(--d-border);display:flex;align-items:center;gap:9px;padding:8px 12px')}>
-                    <Avatar initials={row.initials} size="sm" />
-                    <div style={s('min-width:0')}>
-                      <div style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.title}</div>
-                      <div className="d-num" style={s('font-size:10.5px;font-weight:500;color:var(--d-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{row.sub}</div>
-                    </div>
+                    ))}
                   </div>
-                  {weekDays.map((d) => {
-                    const cell = row.cell(d.date);
-                    return (
-                      <div key={d.num} className="rota-cell" style={s('position:relative;border-bottom:1px solid var(--d-border);border-left:1px solid var(--d-border);min-height:60px;padding:5px;display:flex;flex-direction:column;gap:5px')}>
-                        {cell.map((v) => <VisitBlock key={v.id} v={v} view={view} selected={selected.includes(v.id)} onOpen={() => openBlock(v)} onMenu={setMenu} />)}
-                        {/* Per-row quick-add. On the client grouping it prefills the
-                            client for this row; on the carer grouping it prefills the
-                            carer (skip the "Unassigned" pseudo-row, which has no id). */}
-                        {canManage && (view === 'client' || (view === 'carer' && row.id.startsWith('e'))) && (
-                          <button type="button" aria-label="Add visit"
-                            onClick={() => setCreating(view === 'carer'
-                              ? { day: weekDays.indexOf(d), carerId: Number(row.id.slice(1)) }
-                              : { day: weekDays.indexOf(d), clientId: Number(row.id.slice(1)) })}
-                            className="rota-add" style={{ ...s('border:1px dashed var(--d-border);border-radius:8px;background:transparent;color:var(--d-muted);font-size:13px;font-weight:700;padding:1px 0;cursor:pointer;margin-top:auto'), opacity: 0 }}>+</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </Fragment>
-              ))}
+                  {/* the timeline */}
+                  <div style={{ ...s('display:grid'), gridTemplateColumns: GRID_COLS }}>
+                    <TimeRuler />
+                    {weekDays.map((d) => (
+                      <DayColumn key={d.iso} dayISO={d.iso} visits={shown} allVisits={visits} selected={selected}
+                        flagConflicts={flagConflicts} today={d.today} weekend={d.date.getDay() === 0 || d.date.getDay() === 6}
+                        onOpen={(v) => setDrawerId(v.id)} onToggleSelect={toggleSel} canAdd={canManage}
+                        onAdd={(min) => setCreating({ date: d.iso, start: minToHHMM(min), end: minToHHMM(Math.min(1439, min + 60)) })} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {view === 'day' && (
+                <DayPane date={dayDate} visits={shown} allVisits={visits} flagConflicts={flagConflicts} onOpen={(v) => setDrawerId(v.id)} />
+              )}
+              {view === 'queue' && (
+                <QueuePane days={weekDays} visits={shown} allVisits={visits} employees={employees} canManage={canManage}
+                  onOpen={(v) => setDrawerId(v.id)} onAssign={assignFromQueue} onAdvertise={advertise} />
+              )}
+              {view === 'staff' && (
+                <StaffPane days={weekDays} employees={staffRows} visits={shown} allVisits={visits} flagConflicts={flagConflicts} onOpen={(v) => setDrawerId(v.id)} />
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Bulk bar — matches the design; every action wired to a real endpoint */}
+      {/* ---- bulk bar ---- */}
       {selected.length > 0 && (
-        <div style={s('position:sticky;bottom:16px;z-index:30;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:fit-content;background:var(--d-card);border:1px solid var(--d-border);border-radius:999px;padding:7px 10px;box-shadow:0 12px 30px rgba(15,23,30,0.18)')}>
-          <span className="d-num" style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);padding:0 6px')}>{selected.length} selected</span>
-          <Button size="sm" icon="clock" onClick={() => bulkShift(-15)}>−15 min</Button>
-          <Button size="sm" icon="clock" onClick={() => bulkShift(15)}>+15 min</Button>
-          <Button size="sm" icon="sync" onClick={bulkCopyNextWeek}>Copy to next week</Button>
-          <Button size="sm" icon="send" onClick={bulkPublish}>Publish selected</Button>
-          <Button size="sm" onClick={() => setSelected([])}>Clear</Button>
+        <div style={s('position:sticky;bottom:16px;z-index:30;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:fit-content;max-width:100%;background:var(--d-card);border:1px solid var(--d-border);border-radius:999px;padding:7px 12px;box-shadow:0 12px 30px rgba(15,23,30,0.18)')}>
+          <span className="d-num" style={s('font-size:12.5px;font-weight:700;color:var(--d-ink);padding:0 4px')}>{selected.length} selected</span>
+          {canManage && <Button size="sm" variant="ghost" icon="close" onClick={bulkUnassign}>Unassign</Button>}
+          {canManage && <Button size="sm" variant="ghost" icon="send" onClick={bulkAdvertise}>Advertise</Button>}
+          {canManage && <Button size="sm" variant="ghost" icon="check" onClick={bulkPublish}>Publish</Button>}
+          {canManage && <Button size="sm" variant="ghost" icon="clock" onClick={() => bulkShift(-15)}>−15 min</Button>}
+          {canManage && <Button size="sm" variant="ghost" icon="clock" onClick={() => bulkShift(15)}>+15 min</Button>}
+          {canManage && <Button size="sm" variant="danger" icon="close" onClick={bulkCancel}>Cancel</Button>}
+          <Button size="sm" variant="subtle" onClick={() => setSelected([])}>Clear</Button>
         </div>
       )}
 
-      {assigning && <AssignDrawer visit={assigning} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setAssigning(null)} onAssigned={load} />}
-      {reassigning && <AssignDrawer visit={reassigning.visit} reassignFrom={reassigning.assignmentId} weekVisits={visits} employees={employees} serviceUsers={serviceUsers} onClose={() => setReassigning(null)} onAssigned={load} />}
-      {creating && <CreateVisitDrawer preset={creating} view={view} serviceUsers={serviceUsers} employees={employees} settings={settings} weekMonday={range.monday} onClose={() => setCreating(null)} onCreated={load} />}
-      {detail && <VisitDetailDrawer visit={detail} settings={settings} onClose={() => setDetail(null)} onChanged={load} onAddCarer={() => { const v = detail; setDetail(null); setAssigning(v); }} />}
-
-      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.visit)} onClose={() => setMenu(null)} />}
+      {drawerVisit && (
+        <VisitDrawer visit={drawerVisit} allVisits={visits} employees={employees} settings={settings} canManage={canManage}
+          onClose={() => setDrawerId(null)} onChanged={load} onCancel={askCancel} onDelete={askDelete} />
+      )}
+      {creating && (
+        <CreateVisitModal preset={creating} serviceUsers={serviceUsers} settings={settings} weekMonday={range.monday}
+          onClose={() => setCreating(null)} onCreated={load} />
+      )}
       <ConfirmDialog dialog={confirm} onClose={() => setConfirm(null)} />
     </div>
   );

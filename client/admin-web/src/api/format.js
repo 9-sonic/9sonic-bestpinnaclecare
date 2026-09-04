@@ -23,6 +23,13 @@ export function formatDateFull(iso, opts = {}) {
   return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: UK_ZONE, ...opts });
 }
 
+// The UK-local calendar day (e.g. "2026-09-11") for an instant — use to compare
+// whether two times fall on the same day in UK time, not the browser's zone.
+export function ukDay(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: UK_ZONE });
+}
+
 export const LIFECYCLE_LABELS = {
   scheduled: 'Scheduled',
   check_in_window: 'Due now',

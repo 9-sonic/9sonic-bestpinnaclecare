@@ -79,6 +79,11 @@ export const getReports = (params = {}) => api.get('/admin/reports', params);
 export const getCover = () => api.get('/admin/cover');
 export const createCoverOffer = (visitId, employeeId, note) =>
   api.post('/admin/cover_offers', { visit_id: visitId, employee_id: employeeId, note });
+// Advertise an unfilled visit to every eligible carer at once (first-come cover).
+// The backend picks the eligible set (active, not already on the visit, no
+// clashing visit) and re-uses any pending offer, so re-advertising is safe.
+export const broadcastCover = (visitId, note) =>
+  api.post('/admin/cover_offers/broadcast', { visit_id: visitId, note });
 export const acceptCoverOffer = (id) => api.post(`/admin/cover_offers/${id}/accept`);
 export const declineCoverOffer = (id) => api.post(`/admin/cover_offers/${id}/decline`);
 
@@ -106,6 +111,9 @@ export const publishVisit = (id) => api.post(`/admin/visits/${id}/publish`);
 export const cancelVisit = (id, reason) => api.post(`/admin/visits/${id}/cancel`, { reason });
 export const deleteVisit = (id) => api.delete(`/admin/visits/${id}`);
 export const generateVisits = ({ from, to }) => api.post('/admin/visits/generate', { from, to });
+// One visit's audit trail: reschedules/cancels on the visit itself plus every
+// assignment change on its (current and past) assignments, oldest first.
+export const listVisitEvents = (id) => api.get(`/admin/visits/${id}/events`);
 
 // Returns the assignment plus any soft warnings (overlap, rest, weekly hours).
 // Warnings never block: the coordinator decides.
