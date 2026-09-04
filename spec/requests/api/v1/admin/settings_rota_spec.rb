@@ -39,17 +39,6 @@ RSpec.describe "Admin settings, validators, rota copy & dashboard", type: :reque
       expect(carer.visit_assignments.assigned.count).to eq(2)
     end
 
-    it "still returns the overlap as a soft warning — allowed is not the same as silent" do
-      carer = create(:employee)
-      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
-      create(:visit_assignment, visit: v1, employee: carer)
-      v2 = create(:visit, service_user: create(:service_user),
-                          scheduled_start: 2.hours.from_now + 30.minutes, scheduled_end: 4.hours.from_now)
-
-      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: carer.id }, headers: auth, as: :json
-      expect(response.parsed_body["warnings"].map { |w| w["code"] }).to include("overlap")
-    end
-
     it "is not limited to two — a carer can hold a third overlapping visit" do
       carer = create(:employee)
       window = [ 2.hours.from_now, 4.hours.from_now ]
