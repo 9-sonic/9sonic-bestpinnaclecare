@@ -127,12 +127,12 @@ export const TOUR_PAGES = [
       {
         anchor: 'rota-view',
         content:
-          'See the same week grouped by carer, or by client. "By client" shows each person and the visits they are due.',
+          'Four ways to read the same week. Week is the timeline; Day lists one day grouped by run (morning call, lunch call, and so on); Unfilled is the queue of gaps to cover; Staff shows each carer\u2019s hours and clashes.',
       },
       {
-        anchor: 'rota-layout',
+        anchor: 'rota-filters',
         content:
-          'Grid shows the week as a spreadsheet; List shows every visit in one scrollable table, earliest first — handy for scanning or exporting a plain list.',
+          'Narrow the rota to one client, one carer or one run, and switch visit states on and off. "Flag double-booking" marks anyone booked on two overlapping visits.',
       },
       {
         anchor: 'rota-generate',
@@ -146,12 +146,12 @@ export const TOUR_PAGES = [
       {
         anchor: 'rota-grid',
         content:
-          'This is the week itself. LEFT-click any visit to open it — you can retime it there (a reason is required, and it is written to the audit trail).',
+          'This is the week itself. Click any visit to open its panel — assign or change the carer, retime it (a reason is required, and it is written to the audit trail), advertise it for cover, or cancel it.',
       },
       {
         anchor: 'rota-grid',
         content:
-          'RIGHT-click any visit for quick actions: reassign or remove the carer, find cover, or cancel/delete it. Cancelling keeps the record; deleting is refused once a carer has clocked in.',
+          'Ctrl-click (\u2318-click on a Mac) or Shift-click picks several visits at once for a bulk action: unassign, advertise, publish, shift the time, or cancel. Cancelling keeps the record; deleting is refused once a carer has clocked in.',
       },
     ],
   },

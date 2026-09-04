@@ -8,6 +8,10 @@ class VisitSerializer
       status:          visit.status,
       staff_required:  visit.staff_required,
       notes:           visit.notes,
+      # Present only for visits generated from the recurring weekly template —
+      # the rota uses this to show a "recurring" mark, distinct from a one-off.
+      care_package_slot_id: visit.care_package_slot_id,
+      run:             visit.run,
       published_at:    visit.published_at&.iso8601,
       # Only the active carer(s) on the visit — withdrawn/cancelled assignments
       # are history, not "who is on this visit". Including them made the rota show

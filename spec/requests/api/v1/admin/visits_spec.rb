@@ -214,4 +214,109 @@ RSpec.describe "Admin visits & scheduling", type: :request do
       expect(Time.zone.parse(past.reload.scheduled_start.to_s)).to be_within(1.second).of(new_start)
     end
   end
+
+  # The two read/write paths the rebuilt rota console added a caller for. Both
+  # existed server-side with no consumer, so the shapes below are what the
+  # office UI actually reads — assert them, not just the status code.
+  describe "GET /admin/visits/:id/events — the visit's audit trail" do
+    let(:su)       { create(:service_user) }
+    let(:employee) { create(:employee) }
+    let(:visit)    { create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now, status: :published) }
+
+    it "merges visit-level and assignment-level events, oldest first, with the actor resolved" do
+      post "/api/v1/admin/visit_assignments",
+           params: { visit_id: visit.id, employee_id: employee.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+
+      patch "/api/v1/admin/visits/#{visit.id}",
+            params: { scheduled_start: 4.hours.from_now.iso8601, scheduled_end: 5.hours.from_now.iso8601,
+                      reason: "client asked for a later call" }, headers: auth, as: :json
+      expect(response).to have_http_status(:ok)
+
+      get "/api/v1/admin/visits/#{visit.id}/events", headers: auth
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body).to be_an(Array)
+
+      types = body.map { |e| e["event_type"] }
+      # An assignment event (recorded against the VisitAssignment) and a visit
+      # event (recorded against the Visit) both surface in the one timeline.
+      expect(types).to include("assignment.created", "visit.rescheduled")
+      expect(body.map { |e| e["occurred_at"] }).to eq(body.map { |e| e["occurred_at"] }.sort)
+
+      # Fields the drawer's History list renders.
+      reschedule = body.find { |e| e["event_type"] == "visit.rescheduled" }
+      expect(reschedule["actor_name"]).to eq(admin.full_name)
+      expect(reschedule["occurred_at"]).to be_present
+      expect(reschedule.dig("payload", "reason")).to eq("client asked for a later call")
+
+      assigned = body.find { |e| e["event_type"] == "assignment.created" }
+      expect(assigned.dig("payload", "employee_name")).to eq(employee.full_name)
+    end
+
+    it "returns an empty array for a visit with no history" do
+      get "/api/v1/admin/visits/#{visit.id}/events", headers: auth
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq([])
+    end
+  end
+
+  describe "POST /admin/cover_offers/broadcast — advertise an unfilled visit" do
+    let(:su)    { create(:service_user) }
+    let(:visit) { create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now, status: :published) }
+
+    # NB: the test database carries seed data, so these assert against the
+    # eligible SET rather than an absolute count — a hard-coded number here
+    # would break the moment the seeds change.
+    it "offers the visit to every eligible carer and returns the count the rota shows" do
+      free_one = create(:employee)
+      free_two = create(:employee)
+      eligible = Employee.where(active: true).count
+
+      post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: visit.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+
+      body = response.parsed_body
+      # `offered` is the number the console puts in its toast.
+      expect(body["offered"]).to eq(eligible)
+      expect(body["visit_id"]).to eq(visit.id)
+      offered_ids = CoverOffer.where(visit: visit).pluck(:employee_id)
+      expect(offered_ids).to include(free_one.id, free_two.id)
+      expect(offered_ids.size).to eq(eligible)
+      expect(CoverOffer.where(visit: visit).pluck(:state).uniq).to eq([ "pending" ])
+    end
+
+    it "excludes a carer already booked on an overlapping visit" do
+      free   = create(:employee)
+      booked = create(:employee)
+      clash  = create(:visit, service_user: create(:service_user),
+                              scheduled_start: visit.scheduled_start, scheduled_end: visit.scheduled_end)
+      create(:visit_assignment, visit: clash, employee: booked)
+      eligible = Employee.where(active: true).count
+
+      post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: visit.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+
+      offered_ids = CoverOffer.where(visit: visit).pluck(:employee_id)
+      expect(offered_ids).to include(free.id)
+      expect(offered_ids).not_to include(booked.id)          # the clash is the point
+      expect(response.parsed_body["offered"]).to eq(eligible - 1)
+    end
+
+    it "is idempotent — re-advertising reuses the pending offers rather than duplicating them" do
+      create(:employee)
+      post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: visit.id }, headers: auth, as: :json
+      expect do
+        post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: visit.id }, headers: auth, as: :json
+      end.not_to change(CoverOffer, :count)
+      expect(response).to have_http_status(:created)
+    end
+
+    it "refuses to advertise a visit that is already fully staffed (422)" do
+      create(:visit_assignment, visit: visit, employee: create(:employee))
+      post "/api/v1/admin/cover_offers/broadcast", params: { visit_id: visit.id }, headers: auth, as: :json
+      expect(response).to have_http_status(422)
+      expect(response.parsed_body["error"]).to eq("visit_already_filled")
+    end
+  end
 end
