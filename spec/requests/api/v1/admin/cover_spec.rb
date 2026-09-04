@@ -36,7 +36,8 @@ RSpec.describe "Admin cover", type: :request do
     expect(ids).not_to include(v.id) # filled, so it drops off the board
   end
 
-  it "refuses to accept cover for a carer already on an overlapping visit (no double-booking)" do
+  it "refuses to accept cover for a carer already on an overlapping visit, when the provider blocks it" do
+    block_carer_double_booking!
     v = open_visit
     # the carer is already booked on another visit at the same time
     clash = create(:visit, service_user: create(:service_user), status: "published",

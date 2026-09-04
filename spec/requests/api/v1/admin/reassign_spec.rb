@@ -42,7 +42,8 @@ RSpec.describe "Admin reassigns a visit to a different carer", type: :request do
     expect(va.reload.assignment_status).to eq("assigned") # untouched
   end
 
-  it "hard-blocks reassigning to a carer already on an overlapping visit (422, nothing changes)" do
+  it "blocks reassigning to an overlapping carer when the provider blocks double-booking (422, nothing changes)" do
+    block_carer_double_booking!
     va # ensure the original assignment exists before we measure
     clash = create(:visit, scheduled_start: visit.scheduled_start, scheduled_end: visit.scheduled_end)
     create(:visit_assignment, visit: clash, employee: carer_b)

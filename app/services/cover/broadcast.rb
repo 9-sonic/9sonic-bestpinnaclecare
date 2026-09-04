@@ -53,10 +53,15 @@ module Cover
       @visit.visit_assignments.count { |a| a.assignment_status == "assigned" && a.lifecycle_state != "cancelled" } >= @visit.staff_required
     end
 
-    # Active carers not already on this visit and without a clashing visit.
+    # Active carers not already on this visit. Carers with a clashing visit are
+    # excluded only while the provider blocks double-booking; when it is allowed
+    # they can be offered cover that overlaps their own work.
     def eligible_carers
       already = @visit.visit_assignments.where(assignment_status: "assigned").pluck(:employee_id)
-      Employee.where(active: true).where.not(id: already).reject do |carer|
+      pool = Employee.where(active: true).where.not(id: already)
+      return pool.to_a if Setting.instance.allow_carer_double_booking?
+
+      pool.reject do |carer|
         Assignments::Validate.conflicting_visit(visit: @visit, employee: carer)
       end
     end

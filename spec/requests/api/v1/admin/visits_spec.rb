@@ -286,7 +286,8 @@ RSpec.describe "Admin visits & scheduling", type: :request do
       expect(CoverOffer.where(visit: visit).pluck(:state).uniq).to eq([ "pending" ])
     end
 
-    it "excludes a carer already booked on an overlapping visit" do
+    it "excludes a carer already booked on an overlapping visit, when the provider blocks double-booking" do
+      block_carer_double_booking!
       free   = create(:employee)
       booked = create(:employee)
       clash  = create(:visit, service_user: create(:service_user),

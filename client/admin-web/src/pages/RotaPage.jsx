@@ -859,7 +859,8 @@ function VisitDrawer({ visit, allVisits, employees, settings, canManage, onClose
     catch (e) {
       const c = e.data?.conflict;
       const when = c ? `${formatDateFull(c.scheduled_start, { weekday: 'short', year: undefined })}, ${formatTime(c.scheduled_start)}–${formatTime(c.scheduled_end)}` : null;
-      if (e.message === 'carer_unavailable') setError(`That carer is already booked with ${c?.service_user ?? 'another client'} at ${when}. A carer can't be in two places at once.`);
+      // Only reachable while the provider has double-booking turned off.
+      if (e.message === 'carer_unavailable') setError(`That carer is already booked with ${c?.service_user ?? 'another client'} at ${when}, and this provider does not allow double-booking.`);
       else if (e.message === 'client_unavailable') setError(`${fullName(visit.service_user)} already has a carer at that time. One client, one carer at a time.`);
       else if (e.code === 'already_on_visit') setError('That carer is already on this visit.');
       else setError(e.message || 'That did not go through. Please try again.');
@@ -956,7 +957,7 @@ function VisitDrawer({ visit, allVisits, employees, settings, canManage, onClose
                   </select>
                   {clash && (
                     <div style={s('border:1px solid var(--d-unfilled-ink);background:var(--d-unfilled-bg);color:var(--d-unfilled-ink);border-radius:9px;padding:7px 9px;font-size:11.5px;font-weight:600;margin-top:6px;line-height:1.45')}>
-                      {fullName(a.employee)} is already on another visit that overlaps this one. New assignments are blocked from clashing, so this came in with earlier data — worth fixing.
+                      {fullName(a.employee)} is also on another visit that overlaps this one. Double-booking is allowed, so this was permitted — check they can realistically cover both.
                     </div>
                   )}
                 </div>

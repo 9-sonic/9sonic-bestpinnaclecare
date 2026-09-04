@@ -70,6 +70,7 @@ RSpec.describe "Carer cover offers", type: :request do
 
     it "won't let a carer accept an offer that overlaps a visit they're already on" do
       # Aisha already assigned to an overlapping visit.
+      block_carer_double_booking!
       other = create(:visit, service_user: create(:service_user), status: "published",
                              scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
       VisitAssignment.create!(visit: other, employee: aisha, assignment_status: "assigned", lifecycle_state: :scheduled)

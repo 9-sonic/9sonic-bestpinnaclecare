@@ -25,7 +25,58 @@ RSpec.describe "Admin settings, validators, rota copy & dashboard", type: :reque
   end
 
   describe "assignment validators" do
-    it "hard-blocks an overlapping (double-booked) carer with 422 carer_unavailable" do
+    # Best Pinnacle asked for double-booking to be allowed (2026-09-04). It ships
+    # ON, so these are the DEFAULT behaviour — no policy set-up in the example.
+    it "allows a carer onto a visit that overlaps one they are already on" do
+      carer = create(:employee)
+      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+      create(:visit_assignment, visit: v1, employee: carer)
+      v2 = create(:visit, service_user: create(:service_user),
+                          scheduled_start: 2.hours.from_now + 30.minutes, scheduled_end: 4.hours.from_now)
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: carer.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+      expect(carer.visit_assignments.assigned.count).to eq(2)
+    end
+
+    it "still returns the overlap as a soft warning — allowed is not the same as silent" do
+      carer = create(:employee)
+      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+      create(:visit_assignment, visit: v1, employee: carer)
+      v2 = create(:visit, service_user: create(:service_user),
+                          scheduled_start: 2.hours.from_now + 30.minutes, scheduled_end: 4.hours.from_now)
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: carer.id }, headers: auth, as: :json
+      expect(response.parsed_body["warnings"].map { |w| w["code"] }).to include("overlap")
+    end
+
+    it "is not limited to two — a carer can hold a third overlapping visit" do
+      carer = create(:employee)
+      window = [ 2.hours.from_now, 4.hours.from_now ]
+      2.times do
+        v = create(:visit, service_user: create(:service_user), scheduled_start: window[0], scheduled_end: window[1])
+        create(:visit_assignment, visit: v, employee: carer)
+      end
+      third = create(:visit, service_user: create(:service_user), scheduled_start: window[0], scheduled_end: window[1])
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: third.id, employee_id: carer.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:created)
+      expect(carer.visit_assignments.assigned.count).to eq(3)
+    end
+
+    it "still refuses a SECOND carer on one client's overlapping visit — that rule is untouched" do
+      a, b = create(:employee), create(:employee)
+      v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
+      create(:visit_assignment, visit: v1, employee: a)
+      v2 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now + 15.minutes, scheduled_end: 3.hours.from_now)
+
+      post "/api/v1/admin/visit_assignments", params: { visit_id: v2.id, employee_id: b.id }, headers: auth, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("client_unavailable")
+    end
+
+    it "blocks an overlapping (double-booked) carer with 422 when the provider blocks it" do
+      block_carer_double_booking!
       carer = create(:employee)
       v1 = create(:visit, service_user: su, scheduled_start: 2.hours.from_now, scheduled_end: 3.hours.from_now)
       create(:visit_assignment, visit: v1, employee: carer)
